@@ -1,4 +1,5 @@
 """Private file permissions: POSIX modes or Windows ACLs, verified after writes."""
+
 from __future__ import annotations
 
 import json
@@ -8,13 +9,25 @@ from pathlib import Path
 
 
 def _windows_acl(script: str, path: Path) -> dict:
-    powershell = Path(os.environ.get("SystemRoot", "C:/Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+    powershell = (
+        Path(os.environ.get("SystemRoot", "C:/Windows"))
+        / "System32/WindowsPowerShell/v1.0/powershell.exe"
+    )
     try:
         result = subprocess.run(
-            [str(powershell), "-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference='Stop'; " + script],
+            [
+                str(powershell),
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "$ErrorActionPreference='Stop'; " + script,
+            ],
             env={**os.environ, "TRIADE_PRIVACY_PATH": str(path.resolve())},
-            capture_output=True, text=True, timeout=15, check=False,
-            creationflags=subprocess.CREATE_NO_WINDOW,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise PermissionError("windows_file_acl_inspection_failed") from exc
@@ -34,7 +47,11 @@ def inspect_private_file(path: Path) -> dict:
         raise FileNotFoundError(path)
     if os.name != "nt":
         mode = path.stat().st_mode & 0o777
-        return {"private": not mode & 0o077, "authority": "posix", "mode": f"{mode:04o}"}
+        return {
+            "private": not mode & 0o077,
+            "authority": "posix",
+            "mode": f"{mode:04o}",
+        }
     return _windows_acl(
         "$current=[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; "
         "$acl=Get-Acl -LiteralPath $env:TRIADE_PRIVACY_PATH; "

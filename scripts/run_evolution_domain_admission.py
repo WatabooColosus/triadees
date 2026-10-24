@@ -3,6 +3,7 @@
 Reuses the actual prior experiment DB. Does not seed neurons or manufacture
 training outcomes. An unresolved certificate remains an explicit failed gate.
 """
+
 from __future__ import annotations
 
 import json
@@ -19,78 +20,136 @@ TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"
 
 
 def main() -> int:
-    previous = json.loads((ROOT / "reports/evolution/learning_transfer_latest.json").read_text(encoding="utf-8"))
+    previous = json.loads(
+        (ROOT / "reports/evolution/learning_transfer_latest.json").read_text(
+            encoding="utf-8"
+        )
+    )
     work = Path(previous["artifact_ref"]).resolve()
     if not work.is_relative_to(ROOT / "artifacts/evolution"):
         raise ValueError("experiment_directory_outside_authorized_scope")
     candidate_id = previous["knowledge_created"]["candidate_id"]
     correlation_id = "admission-" + uuid4().hex
-    loop = WorkerLoop(db_path=work / "learning.db", runs_dir=work / "runs",
-                      lock_file=work / "admission.lock", stop_file=work / "admission.stop")
+    loop = WorkerLoop(
+        db_path=work / "learning.db",
+        runs_dir=work / "runs",
+        lock_file=work / "admission.lock",
+        stop_file=work / "admission.stop",
+    )
     task = loop.autonomous_tasks.enqueue(
         "neural_learning_distribution",
         {"candidate_id": candidate_id, "correlation_id": correlation_id},
-        idempotency_key=correlation_id, max_attempts=1,
+        idempotency_key=correlation_id,
+        max_attempts=1,
     )
-    leased = loop.autonomous_tasks.claim_task(task["task_id"], correlation_id, lease_seconds=120)
+    leased = loop.autonomous_tasks.claim_task(
+        task["task_id"], correlation_id, lease_seconds=120
+    )
     if leased is None:
         raise RuntimeError("admission_task_not_claimable")
     summary = {"tasks_completed": 0, "tasks_blocked": 0, "errors": []}
     outcome = loop._execute_autonomous_task(
-        leased, correlation_id, work / "runs",
-        WorkerRunConfig(task_timeout=60, concurrency_enabled=False), summary,
+        leased,
+        correlation_id,
+        work / "runs",
+        WorkerRunConfig(task_timeout=60, concurrency_enabled=False),
+        summary,
     )
     admission = outcome.get("domain_admission")
     formation_outcome = None
     formation_task = None
     if admission and admission.get("decision") == "CREATE_NEW_NEURON":
         from triade.workers.mission_planner import MissionPlanner
+
         planned = MissionPlanner(db_path=work / "learning.db")._plan_neuron_formation()
-        matching = next((item for item in planned if item.payload.get("admission_event_id") == admission["event_id"]), None)
+        matching = next(
+            (
+                item
+                for item in planned
+                if item.payload.get("admission_event_id") == admission["event_id"]
+            ),
+            None,
+        )
         if matching is not None:
             formation_task = loop.autonomous_tasks.enqueue(
-                matching.task_type, matching.payload,
-                idempotency_key=f"formation:{admission['request_id']}", max_attempts=1,
+                matching.task_type,
+                matching.payload,
+                idempotency_key=f"formation:{admission['request_id']}",
+                max_attempts=1,
             )
-            formation_lease = loop.autonomous_tasks.claim_task(formation_task["task_id"], correlation_id, lease_seconds=120)
+            formation_lease = loop.autonomous_tasks.claim_task(
+                formation_task["task_id"], correlation_id, lease_seconds=120
+            )
             if formation_lease is None:
                 raise RuntimeError("formation_task_not_claimable")
             formation_outcome = loop._execute_autonomous_task(
-                formation_lease, correlation_id, work / "runs",
-                WorkerRunConfig(task_timeout=60, concurrency_enabled=False), summary,
+                formation_lease,
+                correlation_id,
+                work / "runs",
+                WorkerRunConfig(task_timeout=60, concurrency_enabled=False),
+                summary,
             )
     report = {
         "timestamp": datetime.now(UTC).isoformat(),
-        "git_sha": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
-        "worktree_dirty": bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, text=True).strip()),
-        "correlation_id": correlation_id, "candidate_id": candidate_id,
+        "git_sha": subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+        ).strip(),
+        "worktree_dirty": bool(
+            subprocess.check_output(
+                ["git", "status", "--porcelain"], cwd=ROOT, text=True
+            ).strip()
+        ),
+        "correlation_id": correlation_id,
+        "candidate_id": candidate_id,
         "domain": admission.get("domain") if admission else None,
-        "formation": admission, "education": {"status": "NOT_DEMONSTRATED"},
+        "formation": admission,
+        "education": {"status": "NOT_DEMONSTRATED"},
         "candidate_formation": formation_outcome,
-        "formation_task": loop.autonomous_tasks.get(formation_task["task_id"]) if formation_task else None,
-        "admission_task_correlation_matches": bool(admission and admission.get("correlation_id") == correlation_id),
+        "formation_task": loop.autonomous_tasks.get(formation_task["task_id"])
+        if formation_task
+        else None,
+        "admission_task_correlation_matches": bool(
+            admission and admission.get("correlation_id") == correlation_id
+        ),
         "correlation_complete": False,
         "neuron_certified": False,
         "route_status": "BLOCKED:no_compatible_neuron",
-        "training": {"status": "NOT_DEMONSTRATED", "reason": "Executable training and held-out curriculum are not connected"},
+        "training": {
+            "status": "NOT_DEMONSTRATED",
+            "reason": "Executable training and held-out curriculum are not connected",
+        },
         "certification": {"status": "NOT_DEMONSTRATED"},
         "activation": {"activated": False},
         "task": loop.autonomous_tasks.get(task["task_id"]),
         "worker_outcome": outcome,
-        "knowledge_retrieved": False, "knowledge_used": False,
-        "control_score": None, "treatment_score": None,
-        "verification_report": None, "consolidated": False,
-        "truth": False, "production_writes": False,
+        "knowledge_retrieved": False,
+        "knowledge_used": False,
+        "control_score": None,
+        "treatment_score": None,
+        "verification_report": None,
+        "consolidated": False,
+        "truth": False,
+        "production_writes": False,
         "scope": "Normal leased admission handler in existing experiment DB; no neuron activation or productive education claim",
         "artifact_ref": str(work),
     }
     out = ROOT / "reports/evolution/productive_learning_chain_v3.json"
     if out.exists():
-        (out.parent / f"domain_admission_attempt-{uuid4().hex}.json").write_bytes(out.read_bytes())
-    out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"task_status": report["task"]["status"],
-                      "admission_status": admission.get("status") if admission else None,
-                      "truth": False}))
+        (out.parent / f"domain_admission_attempt-{uuid4().hex}.json").write_bytes(
+            out.read_bytes()
+        )
+    out.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    print(
+        json.dumps(
+            {
+                "task_status": report["task"]["status"],
+                "admission_status": admission.get("status") if admission else None,
+                "truth": False,
+            }
+        )
+    )
     return 0 if admission and report["task"]["status"] == "completed" else 1
 
 

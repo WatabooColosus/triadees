@@ -148,7 +148,12 @@ def require_key(value: str | None) -> None:
     # In guarded mode the session middleware has already authenticated the
     # account.  Requiring a second global key made registered users unable to
     # use the API and defeated per-user key ownership.
-    if os.getenv("TRIADE_PUBLIC_GUARDED", "0").strip().lower() in {"1", "true", "yes", "on"}:
+    if os.getenv("TRIADE_PUBLIC_GUARDED", "0").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
         return
     expected = os.getenv("TRIADE_API_KEY")
     if expected and value != expected:
@@ -544,7 +549,10 @@ def health() -> dict[str, Any]:
 
     backup_key_status = EncryptedBackup.key_status()
     local_no_auth = os.getenv("TRIADE_LOCAL_NO_AUTH", "0").strip().lower() in {
-        "1", "true", "yes", "on",
+        "1",
+        "true",
+        "yes",
+        "on",
     }
     return {
         "status": "ok",
@@ -1771,7 +1779,11 @@ def _dashboard_bootstrap_snapshot() -> dict[str, Any]:
         },
         "governor": {
             "status": "refreshing",
-            "work_mode": {"requested_mode": None, "allowed_mode": None, "effective_mode": None},
+            "work_mode": {
+                "requested_mode": None,
+                "allowed_mode": None,
+                "effective_mode": None,
+            },
             "capabilities": {},
             "resource_probe": {},
         },

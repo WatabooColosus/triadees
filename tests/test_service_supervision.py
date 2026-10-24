@@ -48,21 +48,44 @@ def test_windows_task_existence_does_not_certify_listener(monkeypatch):
     assert result["unit"] == "TriadeOmegaSystem"
 
 
-@pytest.mark.parametrize("linked,event_age,expected", [(True, 0, True), (False, 0, False), (True, 60, False)])
-def test_windows_ownership_requires_matching_launch_event(monkeypatch, linked, event_age, expected):
+@pytest.mark.parametrize(
+    "linked,event_age,expected", [(True, 0, True), (False, 0, False), (True, 60, False)]
+)
+def test_windows_ownership_requires_matching_launch_event(
+    monkeypatch, linked, event_age, expected
+):
     import json
     from datetime import UTC, datetime
     from types import SimpleNamespace
 
     import psutil
 
-    script = str(svc.Path(svc.__file__).resolve().parents[2] / "scripts" / "triade_service_worker.ps1")
-    parent = SimpleNamespace(pid=10, create_time=lambda: 1000, cmdline=lambda: ["powershell.exe", "-File", script])
+    script = str(
+        svc.Path(svc.__file__).resolve().parents[2]
+        / "scripts"
+        / "triade_service_worker.ps1"
+    )
+    parent = SimpleNamespace(
+        pid=10,
+        create_time=lambda: 1000,
+        cmdline=lambda: ["powershell.exe", "-File", script],
+    )
     api = SimpleNamespace(parent=lambda: parent, create_time=lambda: 1001)
     monkeypatch.setattr(psutil, "Process", lambda pid: api)
-    snapshot = {"state": 4, "engine_pids": [], "launch_events": [{"pid": 10 if linked else 99, "at": datetime.fromtimestamp(1000 + event_age, UTC).isoformat()}]}
+    snapshot = {
+        "state": 4,
+        "engine_pids": [],
+        "launch_events": [
+            {
+                "pid": 10 if linked else 99,
+                "at": datetime.fromtimestamp(1000 + event_age, UTC).isoformat(),
+            }
+        ],
+    }
     monkeypatch.setattr(svc, "_run", lambda args: json.dumps(snapshot))
-    result = svc._windows_ownership({"known": True, "name": "TriadeOmegaSystem", "action_arguments": script}, 42)
+    result = svc._windows_ownership(
+        {"known": True, "name": "TriadeOmegaSystem", "action_arguments": script}, 42
+    )
     assert result["managed"] is expected
 
 

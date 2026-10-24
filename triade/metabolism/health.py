@@ -45,9 +45,9 @@ class HealthSensors:
         sensibles ni tocar la base.
         """
         try:
-            from triade.core.resource_probe import build_resource_probe
             from triade.core.ollama_blood import check_ollama_blood
             from triade.core.resource_governor import decide_work_mode
+            from triade.core.resource_probe import build_resource_probe
 
             probe = build_resource_probe()
             # El metabolismo debe tomar la misma decisión efectiva que los

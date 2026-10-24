@@ -39,8 +39,19 @@ class ModelRouter:
         "evaluator": ["qwen3:4b", "qwen2.5:3b-instruct"],
         "vision": ["gemma3:4b"],
         "summarizer": ["qwen3:1.7b", "qwen2.5:3b-instruct"],
-        "hypothalamus": ["qwen2.5:1.5b", "qwen2.5:3b-instruct", "qwen3:1.7b", "qwen3:4b"],
-        "central": ["qwen2.5:1.5b", "qwen2.5:3b-instruct", "llama3:latest", "llama3.1:8b", "qwen3:4b"],
+        "hypothalamus": [
+            "qwen2.5:1.5b",
+            "qwen2.5:3b-instruct",
+            "qwen3:1.7b",
+            "qwen3:4b",
+        ],
+        "central": [
+            "qwen2.5:1.5b",
+            "qwen2.5:3b-instruct",
+            "llama3:latest",
+            "llama3.1:8b",
+            "qwen3:4b",
+        ],
         "creator": ["qwen2.5:3b-instruct", "qwen3:4b", "llama3:latest"],
         "trainer": ["qwen2.5:3b-instruct", "qwen3:4b", "llama3:latest"],
         "coder": ["qwen2.5-coder:3b", "qwen2.5-coder:1.5b-base", "qwen2.5:3b-instruct"],
@@ -88,7 +99,9 @@ class ModelRouter:
     ) -> None:
         self.available_models = available_models or []
         self.hardware = hardware
-        self.provider = (provider or os.getenv("TRIADE_MODEL_PROVIDER", "ollama")).strip()
+        self.provider = (
+            provider or os.getenv("TRIADE_MODEL_PROVIDER", "ollama") or "ollama"
+        ).strip()
 
     def route(
         self,
@@ -134,17 +147,13 @@ class ModelRouter:
             )
         elif normalized_role == "embedding":
             fallback = "disabled:embedding-on-demand"
-            fallback_reason = (
-                "No hay un modelo de embeddings instalado; embeddings quedan bajo demanda."
-            )
+            fallback_reason = "No hay un modelo de embeddings instalado; embeddings quedan bajo demanda."
         else:
             # Un hardware low no debe anunciar un 3B que puede forzar swap.
             # El modelo es sólo una recomendación de proveedor; Tríade sigue
             # funcionando en fallback determinista si aún no está instalado.
             fallback = os.getenv("TRIADE_LOW_RESOURCE_MODEL", "qwen2.5:1.5b")
-            fallback_reason = (
-                f"No hay modelos instalados en Ollama; se usó fallback ligero {fallback}."
-            )
+            fallback_reason = f"No hay modelos instalados en Ollama; se usó fallback ligero {fallback}."
         return ModelRouteDecision(
             role=normalized_role,
             selected_model=fallback,

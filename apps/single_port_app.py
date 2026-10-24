@@ -10,6 +10,7 @@ El HTML vive en apps/ui_html.py.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import threading
@@ -279,21 +280,45 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             max_cycles=int(cfg.get("continuous_runner_max_cycles", 0)),
         )
         import sys
-        print(f"DEBUG: continuous_runner configured: {continuous_result}", file=sys.stderr, flush=True)
-        
-        print(f"DEBUG: LIFE_PULSE.continuous_run_enabled = {LIFE_PULSE.continuous_run_enabled}", file=sys.stderr, flush=True)
-        print(f"DEBUG: LIFE_PULSE.continuous_interval_seconds = {LIFE_PULSE.continuous_interval_seconds}", file=sys.stderr, flush=True)
-        
+
+        print(
+            f"DEBUG: continuous_runner configured: {continuous_result}",
+            file=sys.stderr,
+            flush=True,
+        )
+
+        print(
+            f"DEBUG: LIFE_PULSE.continuous_run_enabled = {LIFE_PULSE.continuous_run_enabled}",
+            file=sys.stderr,
+            flush=True,
+        )
+        print(
+            f"DEBUG: LIFE_PULSE.continuous_interval_seconds = {LIFE_PULSE.continuous_interval_seconds}",
+            file=sys.stderr,
+            flush=True,
+        )
+
         LIFE_PULSE.start()
-        
-        print(f"DEBUG: LIFE_PULSE._continuous_thread = {LIFE_PULSE._continuous_thread}", file=sys.stderr, flush=True)
-        print(f"DEBUG: LIFE_PULSE.continuous_run_enabled = {LIFE_PULSE.continuous_run_enabled}", file=sys.stderr, flush=True)
-        
-        import time
-        time.sleep(2)
-        
+
+        print(
+            f"DEBUG: LIFE_PULSE._continuous_thread = {LIFE_PULSE._continuous_thread}",
+            file=sys.stderr,
+            flush=True,
+        )
+        print(
+            f"DEBUG: LIFE_PULSE.continuous_run_enabled = {LIFE_PULSE.continuous_run_enabled}",
+            file=sys.stderr,
+            flush=True,
+        )
+
+        await asyncio.sleep(2)
+
         snap = LIFE_PULSE.snapshot()
-        print(f"DEBUG: After start - continuous_runner: {snap.get('continuous_runner')}", file=sys.stderr, flush=True)
+        print(
+            f"DEBUG: After start - continuous_runner: {snap.get('continuous_runner')}",
+            file=sys.stderr,
+            flush=True,
+        )
         record_internal_runtime_event(
             "always_on_startup_checked",
             "single_port_app",
@@ -360,13 +385,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
     except Exception as e:
         import sys
+
         print(f"LIFESPAN EXCEPTION: {e}", file=sys.stderr, flush=True)
         import traceback
+
         traceback.print_exc(file=sys.stderr)
         raise
     finally:
         import sys
-        print("LIFESPAN: finally block executing - stopping background", file=sys.stderr, flush=True)
+
+        print(
+            "LIFESPAN: finally block executing - stopping background",
+            file=sys.stderr,
+            flush=True,
+        )
         _stop_background(db_path)
         print("LIFESPAN: finally block complete", file=sys.stderr, flush=True)
 
@@ -380,24 +412,42 @@ app.include_router(auth_router)
 async def public_guarded_mode(request: Request, call_next):
     """Exige sesión real en modo público; una API key global no basta."""
     local_no_auth = os.getenv("TRIADE_LOCAL_NO_AUTH", "0").strip().lower() in {
-        "1", "true", "yes", "on",
-    }
-    # Este bypass es deliberadamente explícito y sólo está pensado para el
-    # runtime local de pruebas. La superficie pública debe seguir usando
-    # sesiones cuando TRIADE_LOCAL_NO_AUTH no esté activado.
-    if local_no_auth:
-        response = await call_next(request)
-        response.headers["X-Triade-Local-Auth"] = "disabled-for-local-testing"
-        return response
-    guarded = os.getenv("TRIADE_PUBLIC_GUARDED", "0").strip().lower() in {
         "1",
         "true",
         "yes",
         "on",
     }
+    # Este bypass es deliberadamente explícito y sólo está pensado para el
+    # runtime local de pruebas. La superficie pública debe seguir usando
+    # sesiones cuando TRIADE_LOCAL_NO_AUTH no esté activado.
+    from triade.core.runtime_scope import is_test_runtime
+
+    if local_no_auth and is_test_runtime():
+        response = await call_next(request)
+        response.headers["X-Triade-Local-Auth"] = "disabled-for-local-testing"
+        return response
+    # In production authentication is mandatory regardless of an old
+    # TRIADE_PUBLIC_GUARDED=0 setting. Only the isolated test runtime
+    # may opt in/out to preserve safe unit-test fixtures.
+    test_guarded = os.getenv("TRIADE_PUBLIC_GUARDED", "0").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    guarded = not is_test_runtime() or test_guarded
     public_paths = {
-        "/api/auth/login", "/api/auth/register", "/api/auth/verify-email",
-        "/health", "/healthz", "/api/health", "/", "/index.html",
+        "/api/auth/login",
+        "/api/auth/register",
+        "/api/auth/registration-status",
+        "/api/auth/verify-email",
+        "/health",
+        "/health/live",
+        "/health/source",
+        "/healthz",
+        "/api/health",
+        "/",
+        "/index.html",
     }
     # The login shell and its hashed static assets must load before a session
     # exists; all application/API routes remain guarded.

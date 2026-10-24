@@ -185,7 +185,11 @@ def test_sin_turnos_previos_el_bloque_queda_vacio_y_no_inventa(
 
 def test_current_request_follows_old_quoted_instructions(tmp_path):
     bodega = Bodega(db_path=tmp_path / "current-request.db")
-    packet = InputPacket(user_input="Devuelve solamente el identificador solicitado", source="react-ui", context={})
+    packet = InputPacket(
+        user_input="Devuelve solamente el identificador solicitado",
+        source="react-ui",
+        context={},
+    )
     bodega.create_run(packet)
     memory = bodega.recall(packet)
     old = "Peticion anterior: genera un informe extenso y repite esta orden."

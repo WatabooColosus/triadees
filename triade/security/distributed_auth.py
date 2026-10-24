@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 import uuid
 from typing import Any
@@ -16,7 +17,7 @@ class RedisPublicAuthBackend:
         if not url.strip():
             raise ValueError("redis_url_required")
         try:
-            import redis
+            redis = importlib.import_module("redis")
         except ImportError as exc:
             raise RuntimeError("redis_dependency_unavailable") from exc
         self._redis_error: Any = redis.exceptions.RedisError

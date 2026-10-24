@@ -21,8 +21,9 @@ tampoco es una cola sana si la cola de verdad está en otro sitio.
 from __future__ import annotations
 
 import sqlite3
-import pytest
 from pathlib import Path
+
+import pytest
 
 from triade.runtime.service_health import ServiceHealth
 
@@ -54,7 +55,7 @@ def _db(tmp_path: Path) -> Path:
         );
         CREATE TABLE live_runtime_heartbeat (updated_at TEXT);
         CREATE TABLE worker_events (
-            id INTEGER PRIMARY KEY, event_type TEXT, status TEXT, created_at TEXT
+            id INTEGER PRIMARY KEY, event_type TEXT, status TEXT, created_at TEXT, task_type TEXT
         );
         """
     )
@@ -180,3 +181,134 @@ def test_iso_errors_outside_the_window_do_not_degrade_health(tmp_path: Path) -> 
 
     assert health.metrics["recent_repeated_errors"] == 0
     assert "repeated_worker_errors" not in health.reasons
+
+
+def test_backup_fault_is_distinct_from_worker_crashes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Repeated planner warnings are not six independent failed worker runs."""
+    from triade.memory.encrypted_backup import EncryptedBackup
+
+    db = _db(tmp_path)
+    _heartbeat(db)
+    monkeypatch.setattr(
+        EncryptedBackup,
+        "key_status",
+        classmethod(lambda cls: {"configured": False, "source": "none"}),
+    )
+    with sqlite3.connect(db) as conn:
+        for event_id in range(1, 7):
+            conn.execute(
+                """INSERT INTO worker_events
+                   (id,event_type,status,created_at,task_type)
+                   VALUES (?, 'internal_error','error',datetime('now'),
+                   'mission_planner.backup_key_missing')""",
+                (event_id,),
+            )
+    health = ServiceHealth(db).inspect(process_running=True, ollama_probe=_OLLAMA_OK)
+    assert health.state == "degraded"
+    assert "encrypted_backup_key_missing" in health.reasons
+    assert "repeated_worker_errors" not in health.reasons
+    assert health.metrics["recent_backup_key_errors"] == 6
+    assert health.metrics["recent_repeated_errors"] == 0
+
+
+def test_missing_backup_key_is_detected_without_worker_error_log(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """No logs is not evidence of working encrypted backups."""
+    from triade.memory.encrypted_backup import EncryptedBackup
+
+    db = _db(tmp_path)
+    _heartbeat(db)
+    monkeypatch.setenv("TRIADE_REQUIRE_ENCRYPTED_BACKUP", "1")
+    monkeypatch.setattr(
+        EncryptedBackup,
+        "key_status",
+        classmethod(lambda cls: {"configured": False, "source": "none"}),
+    )
+    health = ServiceHealth(db).inspect(process_running=True, ollama_probe=_OLLAMA_OK)
+    assert health.state == "degraded"
+    assert "encrypted_backup_key_missing" in health.reasons
+    assert health.metrics["encrypted_backup"]["usable"] is False
+
+
+def test_scheduler_completions_do_not_inflate_applied_learning(tmp_path: Path) -> None:
+    db = _db(tmp_path)
+    _heartbeat(db)
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE TABLE neuron_education_applications (id INTEGER PRIMARY KEY)"
+        )
+        conn.execute("CREATE TABLE neuron_education_sessions (id INTEGER PRIMARY KEY)")
+        conn.execute("CREATE TABLE trainable_adapters (id INTEGER PRIMARY KEY)")
+        conn.execute(
+            "INSERT INTO autonomous_tasks "
+            "(task_id,task_type,status,created_at,updated_at) "
+            "VALUES ('educated-run', 'neuron_education_cycle', 'completed', "
+            "datetime('now'), datetime('now'))"
+        )
+    health = ServiceHealth(db).inspect(process_running=True, ollama_probe=_OLLAMA_OK)
+    evidence = health.metrics["measured_outcomes"]
+    assert evidence["education_tasks_completed"] == 1
+    assert evidence["education_applications"] == 0
+    assert evidence["trainable_adapters"] == 0
+
+
+def test_backup_fault_remains_visible_after_log_throttling(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Backup fault cannot disappear from health 15 minutes after its only log."""
+    from triade.memory.encrypted_backup import EncryptedBackup
+
+    db = _db(tmp_path)
+    _heartbeat(db)
+    monkeypatch.setattr(
+        EncryptedBackup,
+        "key_status",
+        classmethod(lambda cls: {"configured": False, "source": "none"}),
+    )
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            """INSERT INTO worker_events
+               (id,event_type,status,created_at,task_type)
+               VALUES (1,'internal_error','error',datetime('now','-30 minutes'),
+               'mission_planner.backup_key_missing')"""
+        )
+    health = ServiceHealth(db).inspect(process_running=True, ollama_probe=_OLLAMA_OK)
+    assert health.state == "degraded"
+    assert "encrypted_backup_key_missing" in health.reasons
+    assert "repeated_worker_errors" not in health.reasons
+    assert health.metrics["recent_repeated_errors"] == 0
+    assert health.metrics["backup_key_fault_observed"] is True
+
+
+def test_learning_health_requires_real_neuron_activity_not_only_completed_tasks(
+    tmp_path: Path,
+) -> None:
+    db = _db(tmp_path)
+    _heartbeat(db)
+    with sqlite3.connect(db) as conn:
+        conn.execute("CREATE TABLE neuron_education_sessions (state TEXT)")
+        conn.execute("CREATE TABLE neuron_activity (id INTEGER PRIMARY KEY)")
+        conn.execute("CREATE TABLE verification_reports (id INTEGER PRIMARY KEY)")
+        conn.execute("INSERT INTO neuron_education_sessions VALUES('lesson_prepared')")
+        conn.execute("INSERT INTO verification_reports VALUES(1)")
+        conn.execute(
+            "INSERT INTO autonomous_tasks "
+            "(task_id,task_type,status,created_at,updated_at) "
+            "VALUES ('education-run','neuron_education_cycle','completed',"
+            "datetime('now'),datetime('now'))"
+        )
+    health = ServiceHealth(db).inspect(process_running=True, ollama_probe=_OLLAMA_OK)
+    metrics = health.metrics["measured_outcomes"]
+    assert metrics["education_tasks_completed"] == 1
+    assert metrics["neuron_activations_recorded"] == 0
+    assert metrics["verification_reports"] == 1
+    assert "education_neuron_activity_missing" in health.reasons
+    assert health.state == "degraded"
+
+    with sqlite3.connect(db) as conn:
+        conn.execute("INSERT INTO neuron_activity VALUES(1)")
+    recovered = ServiceHealth(db).inspect(process_running=True, ollama_probe=_OLLAMA_OK)
+    assert "education_neuron_activity_missing" not in recovered.reasons

@@ -49,9 +49,13 @@ class LlamaCppClient:
         executable: str | None = None,
         timeout: int = 120,
     ) -> None:
-        self.base_url = (base_url or os.getenv("TRIADE_LLAMA_CPP_URL", "")).rstrip("/")
-        self.model_path = model_path or os.getenv("TRIADE_LLAMA_CPP_MODEL", "")
-        self.executable = executable or os.getenv("TRIADE_LLAMA_CPP_BIN", "llama-cli")
+        self.base_url = (
+            base_url or os.getenv("TRIADE_LLAMA_CPP_URL", "") or ""
+        ).rstrip("/")
+        self.model_path = model_path or os.getenv("TRIADE_LLAMA_CPP_MODEL", "") or ""
+        self.executable = (
+            executable or os.getenv("TRIADE_LLAMA_CPP_BIN", "llama-cli") or "llama-cli"
+        )
         self.timeout = timeout
 
     def _prompt(self, prompt: str, system: str | None) -> str:
@@ -81,7 +85,13 @@ class LlamaCppClient:
             request = urllib.request.Request(
                 f"{self.base_url}/v1/chat/completions",
                 data=json.dumps(
-                    {**payload, "messages": ([{"role": "system", "content": system}] if system else []) + [{"role": "user", "content": prompt}]}
+                    {
+                        **payload,
+                        "messages": (
+                            [{"role": "system", "content": system}] if system else []
+                        )
+                        + [{"role": "user", "content": prompt}],
+                    }
                 ).encode("utf-8"),
                 headers={"Content-Type": "application/json"},
                 method="POST",
@@ -90,34 +100,106 @@ class LlamaCppClient:
                 with urllib.request.urlopen(request, timeout=self.timeout) as response:
                     parsed = json.loads(response.read().decode("utf-8"))
                 choices = parsed.get("choices") or []
-                text = str((choices[0].get("message") or {}).get("content", "")) if choices else str(parsed.get("response", ""))
-                return LlamaCppResult(True, text.strip(), model, total_duration=round((time.perf_counter() - started) * 1_000_000_000))
-            except (urllib.error.URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError) as exc:
+                text = (
+                    str((choices[0].get("message") or {}).get("content", ""))
+                    if choices
+                    else str(parsed.get("response", ""))
+                )
+                return LlamaCppResult(
+                    True,
+                    text.strip(),
+                    model,
+                    total_duration=round(
+                        (time.perf_counter() - started) * 1_000_000_000
+                    ),
+                )
+            except (
+                urllib.error.URLError,
+                TimeoutError,
+                OSError,
+                ValueError,
+                json.JSONDecodeError,
+            ) as exc:
                 return LlamaCppResult(False, "", model, error=str(exc))
 
         if not self.model_path:
-            return LlamaCppResult(False, "", model, error="llama.cpp no configurado: falta TRIADE_LLAMA_CPP_MODEL o TRIADE_LLAMA_CPP_URL")
-        command = [self.executable, "-m", self.model_path, "-p", self._prompt(prompt, system), "-n", str(int((options or {}).get("num_predict", 256)))]
+            return LlamaCppResult(
+                False,
+                "",
+                model,
+                error="llama.cpp no configurado: falta TRIADE_LLAMA_CPP_MODEL o TRIADE_LLAMA_CPP_URL",
+            )
+        command = [
+            self.executable,
+            "-m",
+            self.model_path,
+            "-p",
+            self._prompt(prompt, system),
+            "-n",
+            str(int((options or {}).get("num_predict", 256))),
+        ]
         try:
-            completed = subprocess.run(command, capture_output=True, text=True, timeout=self.timeout, check=False)
+            completed = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout,
+                check=False,
+            )
         except (OSError, subprocess.TimeoutExpired) as exc:
             return LlamaCppResult(False, "", model, error=str(exc))
         if completed.returncode != 0:
-            return LlamaCppResult(False, "", model, error=(completed.stderr or f"exit_{completed.returncode}").strip())
-        return LlamaCppResult(True, completed.stdout.strip(), model, total_duration=round((time.perf_counter() - started) * 1_000_000_000))
+            return LlamaCppResult(
+                False,
+                "",
+                model,
+                error=(completed.stderr or f"exit_{completed.returncode}").strip(),
+            )
+        return LlamaCppResult(
+            True,
+            completed.stdout.strip(),
+            model,
+            total_duration=round((time.perf_counter() - started) * 1_000_000_000),
+        )
 
-    def embed(self, model: str, input_text: str | list[str], truncate: bool = True, dimensions: int | None = None) -> Any:
+    def embed(
+        self,
+        model: str,
+        input_text: str | list[str],
+        truncate: bool = True,
+        dimensions: int | None = None,
+    ) -> Any:
         del truncate, dimensions
         from triade.models.ollama_client import EmbeddingResult
 
-        return EmbeddingResult(False, model=model, error="llama.cpp no expone embeddings por este contrato")
+        return EmbeddingResult(
+            False, model=model, error="llama.cpp no expone embeddings por este contrato"
+        )
 
     def health(self) -> dict[str, Any]:
         if not self.base_url:
-            return {"ok": bool(self.model_path), "provider": self.provider, "base_url": None, "models": [self.model_path] if self.model_path else [], "error": None if self.model_path else "llama.cpp no configurado"}
+            return {
+                "ok": bool(self.model_path),
+                "provider": self.provider,
+                "base_url": None,
+                "models": [self.model_path] if self.model_path else [],
+                "error": None if self.model_path else "llama.cpp no configurado",
+            }
         request = urllib.request.Request(f"{self.base_url}/health", method="GET")
         try:
             with urllib.request.urlopen(request, timeout=5) as response:
-                return {"ok": 200 <= response.status < 300, "provider": self.provider, "base_url": self.base_url, "models": [self.model_path] if self.model_path else [], "error": None}
+                return {
+                    "ok": 200 <= response.status < 300,
+                    "provider": self.provider,
+                    "base_url": self.base_url,
+                    "models": [self.model_path] if self.model_path else [],
+                    "error": None,
+                }
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            return {"ok": False, "provider": self.provider, "base_url": self.base_url, "models": [], "error": str(exc)}
+            return {
+                "ok": False,
+                "provider": self.provider,
+                "base_url": self.base_url,
+                "models": [],
+                "error": str(exc),
+            }

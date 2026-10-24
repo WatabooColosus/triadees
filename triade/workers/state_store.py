@@ -110,6 +110,32 @@ class WorkerStateStore:
             )
         return self.get_worker_run(run_ref) or {}
 
+    def update_worker_progress(
+        self,
+        run_ref: str,
+        *,
+        iterations: int,
+        tasks_completed: int,
+        tasks_blocked: int,
+    ) -> bool:
+        """Publica progreso real mientras el daemon sigue vivo.
+
+        No cambia el estado del run ni reemplaza un resumen final: el UPDATE
+        sólo acepta registros que todavía consten como running.
+        """
+        progress = {
+            "iterations": max(0, int(iterations)),
+            "tasks_completed": max(0, int(tasks_completed)),
+            "tasks_blocked": max(0, int(tasks_blocked)),
+        }
+        with closing(self._connect()) as conn, conn:
+            cursor = conn.execute(
+                "UPDATE worker_runs SET summary_json=? "
+                "WHERE run_ref=? AND status='running'",
+                (json.dumps(progress, ensure_ascii=False), run_ref),
+            )
+            return cursor.rowcount == 1
+
     def finish_worker_run(
         self,
         run_ref: str,

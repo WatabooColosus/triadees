@@ -1,7 +1,12 @@
 """Permission fixtures use the platform's real security authority."""
+
 import os
 
-from triade.security.file_privacy import _windows_acl, inspect_private_file, protect_private_file
+from triade.security.file_privacy import (
+    _windows_acl,
+    inspect_private_file,
+    protect_private_file,
+)
 
 
 def set_file_mode(path, mode):

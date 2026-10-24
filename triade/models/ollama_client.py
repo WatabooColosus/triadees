@@ -82,6 +82,8 @@ class OllamaClient:
     keep using template fallback without failing the run.
     """
 
+    provider: str = "ollama"
+
     def __init__(
         self,
         base_url: str = "http://127.0.0.1:11434",
@@ -152,7 +154,7 @@ class OllamaClient:
         es lo que hacían todas las llamadas existentes.
         """
         if use_active_peft and response_format is not None:
-            raise ValueError('structured_output_not_supported_by_peft')
+            raise ValueError("structured_output_not_supported_by_peft")
         if use_active_peft:
             peft_result = self._generate_with_active_peft(
                 model, prompt, system=system, options=options
@@ -526,13 +528,13 @@ def check_ollama_cognitive_health(
     selected_embedding = embedding.selected_model
     selected_lightweight = lightweight.selected_model
     if not models:
-        lightweight = os.getenv("TRIADE_LOW_RESOURCE_MODEL", "qwen2.5:1.5b")
-        selected_reasoning = lightweight
-        selected_coding = lightweight
+        fallback_model = os.getenv("TRIADE_LOW_RESOURCE_MODEL", "qwen2.5:1.5b")
+        selected_reasoning = fallback_model
+        selected_coding = fallback_model
         # Los embeddings siguen siendo opcionales y no se cuentan como el
         # modelo generativo residente del runtime low-resource.
         selected_embedding = "disabled:embedding-on-demand"
-        selected_lightweight = lightweight
+        selected_lightweight = fallback_model
 
     installed = set(models)
     reasoning_available = bool(health.get("ok")) and selected_reasoning in installed
@@ -578,11 +580,11 @@ def check_ollama_cognitive_health(
     if not health.get("ok"):
         recommended_action = "Iniciar Ollama y confirmar que /api/tags responda."
     elif not embedding_available:
-        recommended_action = (
-            "Mantener embeddings bajo demanda; instalar un modelo sólo si la memoria disponible lo permite."
-        )
+        recommended_action = "Mantener embeddings bajo demanda; instalar un modelo sólo si la memoria disponible lo permite."
     elif not reasoning_available:
-        recommended_action = "Instalar el modelo ligero configurado en TRIADE_LOW_RESOURCE_MODEL."
+        recommended_action = (
+            "Instalar el modelo ligero configurado en TRIADE_LOW_RESOURCE_MODEL."
+        )
     else:
         recommended_action = "Ollama listo como motor cognitivo local."
 

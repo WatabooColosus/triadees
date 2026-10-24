@@ -32,7 +32,9 @@ def _db_con_canary(
     if base_model is None:
         from triade.training.governed_lora import default_base_model
 
-        base_model = default_base_model(Path(__file__).resolve().parents[1] / "triade.yml")
+        base_model = default_base_model(
+            Path(__file__).resolve().parents[1] / "triade.yml"
+        )
     db = tmp_path / "triade.db"
     with sqlite3.connect(db) as conn:
         conn.execute(

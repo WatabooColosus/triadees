@@ -72,7 +72,8 @@ class DockerCodeSandbox:
         if len(payload) > min(storage * 1024 * 1024, 256 * 1024):
             raise ValueError("el código excede el presupuesto de almacenamiento")
         # No tags flotantes, descargas automáticas, contextos remotos o fallback host.
-        if not re.fullmatch(r"sha256:[a-f0-9]{64}", self.image):
+        image = self.image
+        if not image or not re.fullmatch(r"sha256:[a-f0-9]{64}", image):
             raise CodeSandboxUnavailable(
                 "TRIADE_CODE_SANDBOX_IMAGE requiere un ID sha256 local revisado"
             )
@@ -103,14 +104,14 @@ class DockerCodeSandbox:
             }
         }
         inspect = subprocess.run(
-            [*cli, "image", "inspect", "--format", "{{.Id}}", self.image],
+            [*cli, "image", "inspect", "--format", "{{.Id}}", image],
             capture_output=True,
             text=True,
             timeout=10,
             env=env,
             check=False,
         )
-        if inspect.returncode or inspect.stdout.strip() != self.image:
+        if inspect.returncode or inspect.stdout.strip() != image:
             raise CodeSandboxUnavailable(
                 "imagen revisada no disponible en el motor Docker local"
             )
@@ -154,7 +155,7 @@ class DockerCodeSandbox:
             "/workspace",
             "--entrypoint",
             "python",
-            self.image,
+            image,
             "-I",
             "-B",
             "/workspace/candidate.py",

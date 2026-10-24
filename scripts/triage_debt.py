@@ -257,9 +257,11 @@ def triage(root: Path, db: Path, cache: Path) -> dict[str, Any]:
             perfil = perfiles.get(nombre, {})
 
             prefijo = (
-                "task_type" if categoria == "task_types_never_executed" else
-                "module" if categoria == "modules_unreachable_from_entrypoint" else
-                "table"
+                "task_type"
+                if categoria == "task_types_never_executed"
+                else "module"
+                if categoria == "modules_unreachable_from_entrypoint"
+                else "table"
             )
             veredicto = veredictos.get(f"{prefijo}:{nombre}")
 

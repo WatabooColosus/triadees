@@ -83,7 +83,9 @@ def test_runtime_observe_only_does_not_create_learning(tmp_path, permitted_runti
     assert before == after == 0
 
 
-def test_runtime_execute_missions_creates_cycle_evidence_and_score(tmp_path, permitted_runtime_ram):
+def test_runtime_execute_missions_creates_cycle_evidence_and_score(
+    tmp_path, permitted_runtime_ram
+):
     db_path = tmp_path / "triade.db"
     runs_dir = tmp_path / "runs"
     _init_db(db_path)
@@ -107,7 +109,9 @@ def test_runtime_execute_missions_creates_cycle_evidence_and_score(tmp_path, per
     assert any(row.get("source_ref", "").startswith("mission:") for row in candidates)
 
 
-def test_runtime_full_local_does_not_touch_identity_core(tmp_path, permitted_runtime_ram):
+def test_runtime_full_local_does_not_touch_identity_core(
+    tmp_path, permitted_runtime_ram
+):
     db_path = tmp_path / "triade.db"
     runs_dir = tmp_path / "runs"
     _init_db(db_path)

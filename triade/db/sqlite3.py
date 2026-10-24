@@ -20,7 +20,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from sqlite3 import *
 from types import TracebackType
-from typing import Any, Literal, Self
+from typing import Any, Literal, Self, cast
 
 import psutil
 
@@ -118,7 +118,9 @@ def resource_metrics(database: str | Path) -> dict[str, int | float]:
         **connection_metrics(),
         "db_file_descriptors": sqlite_descriptors,
         "process_file_descriptors": (
-            process.num_fds() if hasattr(process, "num_fds") else process.num_handles()
+            process.num_fds()
+            if hasattr(process, "num_fds")
+            else cast(Any, process).num_handles()
         ),
         "rss_mb": round(process.memory_info().rss / (1024 * 1024), 2),
     }

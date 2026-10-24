@@ -13,8 +13,8 @@ def test_bundled_interpreter_is_not_cognitive_architecture(tmp_path):
 
 
 def test_file_hashing_does_not_load_whole_artifacts(tmp_path, monkeypatch):
-    from pathlib import Path
     import hashlib
+    from pathlib import Path
 
     payload = b"runtime evidence"
     (tmp_path / "evidence.bin").write_bytes(payload)

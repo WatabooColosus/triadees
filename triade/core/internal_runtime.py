@@ -701,7 +701,7 @@ def _has_recent_error(error: dict[str, Any], *, hours: int) -> bool:
     try:
         from datetime import datetime, timedelta
 
-        timestamp = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        timestamp = datetime.fromisoformat(created_at)
         if timestamp.tzinfo is None:
             timestamp = timestamp.replace(tzinfo=UTC)
         return timestamp >= datetime.now(UTC) - timedelta(hours=max(1, hours))

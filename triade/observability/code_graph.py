@@ -539,7 +539,10 @@ def _declared_entrypoint_kind(tree: ast.Module, relative: str) -> str | None:
     declaración vive en el propio módulo y el vocabulario es cerrado; no se
     infiere por el nombre del fichero.
     """
-    if not relative.startswith("scripts/"):
+    # Evolution stores manual, bounded experiments outside scripts/.
+    # A literal declaration is mandatory: being in reports/ alone never
+    # exempts a disconnected entrypoint from real debt.
+    if not relative.startswith(("scripts/", "reports/evolution/")):
         return None
     allowed = {"administrative_on_demand", "manual_diagnostic"}
     for node in tree.body:
@@ -708,7 +711,10 @@ def _iter_launchers(root: Path, index: ModuleIndex) -> Iterator[tuple[str, str, 
         except OSError:
             continue
         launcher = source.relative_to(root).as_posix()
-        launch_patterns = (_MODULE_LAUNCH, _UVICORN_LAUNCH)
+        launch_patterns: tuple[re.Pattern[str], ...] = (
+            _MODULE_LAUNCH,
+            _UVICORN_LAUNCH,
+        )
         if source.suffix.lower() == ".ps1":
             launch_patterns = (*launch_patterns, _POWERSHELL_MODULE_LAUNCH)
         for launch_pattern in launch_patterns:
@@ -716,10 +722,17 @@ def _iter_launchers(root: Path, index: ModuleIndex) -> Iterator[tuple[str, str, 
                 resolved = index.resolve(match.group(1))
                 if resolved:
                     yield launcher, resolved, f"{launcher}: {match.group(0).strip()}"
-        if source.name == "triade_service_worker.ps1" and "scripts.serve_local_api" in text:
+        if (
+            source.name == "triade_service_worker.ps1"
+            and "scripts.serve_local_api" in text
+        ):
             target = "scripts/serve_local_api.py"
             if target in index.by_path:
-                yield launcher, target, f"{launcher}: PowerShell -m scripts.serve_local_api"
+                yield (
+                    launcher,
+                    target,
+                    f"{launcher}: PowerShell -m scripts.serve_local_api",
+                )
         for match in _SCRIPT_LAUNCH.finditer(text):
             candidate = match.group(1).lstrip("./")
             if candidate in index.by_path:

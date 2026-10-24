@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import Any
 
+from triade.db import sqlite3
 from triade.learning.evidence_bridge import LearningEvidenceBridge
 
 from .competency_store import CompetencyStore, utc_now
@@ -19,7 +20,9 @@ class NeuronEducationCycle:
         self.store = CompetencyStore(db_path)
         self.evidence = LearningEvidenceBridge(db_path)
 
-    def run_once(self, *, force: bool = False, target_neuron_id: int | None = None) -> dict[str, Any]:
+    def run_once(
+        self, *, force: bool = False, target_neuron_id: int | None = None
+    ) -> dict[str, Any]:
         """Ejecuta una lección; ``force`` sólo se usa ante material nuevo."""
         target = self._target(force=force, target_neuron_id=target_neuron_id)
         if target is None:
@@ -279,7 +282,9 @@ class NeuronEducationCycle:
         with self.store.connect() as conn:
             tables = {
                 str(r[0])
-                for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
             }
             if "learning_queue" not in tables:
                 return []
@@ -321,7 +326,7 @@ class NeuronEducationCycle:
                        WHERE status IN ('pending','authorized','running','queued')"""
                 ).fetchone()
                 active = int(row["n"] or 0) if row else 0
-        except Exception:
+        except (sqlite3.Error, OSError, TypeError, ValueError):
             active = 0
         return max(2, min(5, active or 2))
 

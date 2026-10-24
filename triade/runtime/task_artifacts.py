@@ -7,7 +7,7 @@ import json
 import os
 import shutil
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from triade.core.contracts import utc_now
@@ -173,12 +173,12 @@ class CanonicalTaskArtifacts:
             import ctypes
             from ctypes import wintypes
 
-            move = ctypes.WinDLL("kernel32", use_last_error=True).MoveFileExW
+            move = cast(Any, ctypes).WinDLL("kernel32", use_last_error=True).MoveFileExW
             move.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD]
             move.restype = wintypes.BOOL
             # MOVEFILE_WRITE_THROUGH; sin reemplazar evidencia existente.
             if not move(str(source), str(destination), 0x8):
-                raise ctypes.WinError(ctypes.get_last_error())
+                raise cast(Any, ctypes).WinError(cast(Any, ctypes).get_last_error())
             return
         os.replace(staging_path, self.path)
         directory_fd = os.open(self.path.parent, os.O_RDONLY)

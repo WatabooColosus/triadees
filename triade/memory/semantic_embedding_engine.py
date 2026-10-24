@@ -6,10 +6,12 @@ con sentence-transformers cuando Ollama no está disponible.
 
 from __future__ import annotations
 
+import importlib
 import logging
 from dataclasses import asdict, dataclass
 from typing import Any, ClassVar
 
+from triade.models.model_provider import ModelProvider
 from triade.models.ollama_client import EmbeddingResult, OllamaClient
 
 from .semantic_store import SemanticMemoryStore
@@ -45,8 +47,9 @@ class LocalEmbeddingProvider:
     def _load_model(self) -> Any:
         if self._model is None:
             try:
-                from sentence_transformers import SentenceTransformer
-
+                SentenceTransformer = importlib.import_module(
+                    "sentence_transformers"
+                ).SentenceTransformer
                 self._model = SentenceTransformer(self.model_name)
                 logger.info("Modelo de embedding local cargado: %s", self.model_name)
             except (
@@ -92,7 +95,7 @@ class SemanticEmbeddingEngine:
     def __init__(
         self,
         store: SemanticMemoryStore | None = None,
-        client: OllamaClient | None = None,
+        client: ModelProvider | None = None,
         preferred_models: list[str] | None = None,
         use_local_fallback: bool = True,
     ) -> None:

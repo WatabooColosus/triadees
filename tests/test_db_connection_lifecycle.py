@@ -69,7 +69,9 @@ def test_concurrent_wal_connections_return_to_baseline(tmp_path: Path) -> None:
     def write(worker: int):
         # Verify the connections belonging to this experiment. Process-global
         # counters also include unrelated runtime threads closing older handles.
-        with sqlite3.connect(database, timeout=10, check_same_thread=False) as connection:
+        with sqlite3.connect(
+            database, timeout=10, check_same_thread=False
+        ) as connection:
             connection.execute("PRAGMA busy_timeout=10000")
             connection.execute("INSERT INTO events VALUES (?)", (worker,))
         return connection

@@ -1,9 +1,10 @@
 """Loop controlado de Triade Living Workers."""
 
 from __future__ import annotations
-import hashlib
 
+import hashlib
 import json
+import logging
 import os
 import shutil
 import threading
@@ -241,8 +242,14 @@ class WorkerLoop:
         # que un diagnóstico válido quedara en `blocked` en runners limpios,
         # antes incluso de alcanzar el handler y su whitelist.
         "goal_safe_command",
+        # La planificación de Central es determinista: registra un plan
+        # candidato, pero NO realiza inferencia ni promueve memoria estable.
+        "central_learning_observation",
         "learning_candidate_generation",
         "learning_candidate_deduplication",
+        # Sin una sonda medible se cierra como no_op. Si sí hay sonda,
+        # el handler comprueba Ollama y devuelve deferred sin gastar intentos.
+        "learning_evidence_generation",
         "neural_learning_distribution",
         "neuron_education_cycle",
     }
@@ -618,6 +625,15 @@ class WorkerLoop:
                         }
                         for entry in pool.registry.running_tasks()
                     ]
+                # El resumen final sólo se escribe al detener el daemon.
+                # Publicar contadores acotados evita el falso `iterations=0`
+                # mientras hay trabajo real en la cola.
+                self.store.update_worker_progress(
+                    run_ref,
+                    iterations=summary["iterations"],
+                    tasks_completed=summary["tasks_completed"],
+                    tasks_blocked=summary["tasks_blocked"],
+                )
                 return {"scheduled": len(scheduled), "drained": drained}
 
             dispatch_interval = max(0.001, float(config.sleep_seconds))
@@ -894,9 +910,8 @@ class WorkerLoop:
         if pool is None:
             return set()
         snapshot = pool.snapshot()
-        model_saturated = (
-            pool.registry.settings.serialize_model_tasks
-            and any(entry.resource_class == "model" for entry in pool.registry.running_tasks())
+        model_saturated = pool.registry.settings.serialize_model_tasks and any(
+            entry.resource_class == "model" for entry in pool.registry.running_tasks()
         )
         if int(snapshot["running"]) >= int(snapshot["global_limit"]):
             return set(WORKER_TASK_TYPES)
@@ -906,8 +921,11 @@ class WorkerLoop:
             if int(state["running"]) >= int(state["limit"])
         }
         if not full:
-            return {task_type for task_type in WORKER_TASK_TYPES
-                    if model_saturated and policy_for(task_type).resource_class == "model"}
+            return {
+                task_type
+                for task_type in WORKER_TASK_TYPES
+                if model_saturated and policy_for(task_type).resource_class == "model"
+            }
         return {
             task_type
             for task_type in WORKER_TASK_TYPES
@@ -1389,6 +1407,7 @@ class WorkerLoop:
         goal_task = bool(task.payload.get("goal_id"))
         resolution_task = bool(task.payload.get("resolution_ready"))
         from .contracts import admission_transition
+
         if (
             not goal_task
             and not resolution_task
@@ -1466,7 +1485,8 @@ class WorkerLoop:
         )
 
         if (
-            blood_policy.get("degraded")
+            not config.dry_run
+            and blood_policy.get("degraded")
             and task.task_type not in self.TASKS_WITHOUT_BLOOD
         ):
             result = {
@@ -1822,8 +1842,9 @@ class WorkerLoop:
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
     ) -> dict[str, Any]:
         """Investiga una laguna real; la evidencia queda candidata, nunca estable."""
-        from triade.research.governed import GovernedResearchWorker
         from triade.neurons.competency_store import CompetencyStore
+        from triade.research.governed import GovernedResearchWorker
+
         GovernedResearchWorker.ensure_storage(self.db_path)
         CompetencyStore(self.db_path)
         with sqlite3.connect(self.db_path) as conn:
@@ -1876,8 +1897,7 @@ class WorkerLoop:
         # educativo por desacople semántico.
         scope = (
             domain_value
-            if task.task_type == "research_curriculum"
-            or task.payload.get("curriculum")
+            if task.task_type == "research_curriculum" or task.payload.get("curriculum")
             else str(task.payload.get("scope") or "goal_research")
         )
         fallos_previos = prior_failed_research(self.db_path, pregunta_completa, scope)
@@ -1909,7 +1929,10 @@ class WorkerLoop:
         if result.get("status") == "candidate_created":
             self.queue.enqueue(
                 "neuron_education_cycle",
-                payload={"material_ready": True, "source_research_id": result.get("research_id")},
+                payload={
+                    "material_ready": True,
+                    "source_research_id": result.get("research_id"),
+                },
                 priority=90,
                 run_ref=run_ref,
             )
@@ -2016,7 +2039,8 @@ class WorkerLoop:
                 training_neuron_id = int(row[0]) if row[0] is not None else None
                 lesson = json.loads(str(row[1] or "{}"))
                 lesson_candidate_ids = [
-                    str(value) for value in lesson.get("candidate_ids", [])
+                    str(value)
+                    for value in lesson.get("candidate_ids", [])
                     if str(value).strip()
                 ]
                 if lesson_candidate_ids:
@@ -2045,49 +2069,71 @@ class WorkerLoop:
                     candidate_ids = [str(fallback[0])]
             if candidate_ids and training_neuron_id is not None:
                 with sqlite3.connect(self.db_path) as conn:
-                    candidate_routed_to_neuron = conn.execute(
-                        "SELECT 1 FROM neuron_learning_assignments "
-                        "WHERE neuron_id=? AND candidate_id=? "
-                        "AND status IN ('experimental','beneficial') LIMIT 1",
-                        (training_neuron_id, candidate_ids[0]),
-                    ).fetchone() is not None
-            if candidate_ids and (training_neuron_id is None or candidate_routed_to_neuron):
-                    from triade.core.runner import TriadeRunner
-
-                    with sqlite3.connect(self.db_path) as conn:
-                        candidate_row = conn.execute(
-                            "SELECT domain FROM learning_queue WHERE candidate_id=?",
-                            (candidate_ids[0],),
+                    candidate_routed_to_neuron = (
+                        conn.execute(
+                            "SELECT 1 FROM neuron_learning_assignments "
+                            "WHERE neuron_id=? AND candidate_id=? "
+                            "AND status IN ('experimental','beneficial') LIMIT 1",
+                            (training_neuron_id, candidate_ids[0]),
                         ).fetchone()
-                    target_domain = str(candidate_row[0] or "general") if candidate_row else "general"
-                    query = (
-                        "Ejercicio interno de recuperación: consulta la memoria verificada "
-                        f"del dominio {target_domain[:120]} y explica una aplicación pertinente "
-                        "con su procedencia. Si falta evidencia, declara la limitación."
+                        is not None
                     )
-                    from triade.learning.knowledge_probe import build_transfer_probe
-                    with sqlite3.connect(self.db_path) as conn:
-                        usage = conn.execute("SELECT run_use_count FROM learning_queue WHERE candidate_id=?", (candidate_ids[0],)).fetchone()
-                    input_value = int(task.payload.get("application_input", 101 + 11 * int(usage[0] or 0)))
-                    probe = build_transfer_probe(self.db_path, candidate_ids[0], input_value)
-                    if probe is not None:
-                        query = probe.question
-                    selected_model = self._installed_ollama_model()
-                    trial = TriadeRunner(
-                        runs_dir=self.runs_dir,
-                        db_path=self.db_path,
-                        use_ollama=True,
-                        auto_select_models=False,
-                        central_model=selected_model,
-                        hypothalamus_model=selected_model,
-                    ).run(
-                        user_input=query,
-                        source="neuron_education_background",
-                        context={"learning_candidate_ids": candidate_ids[:1],
-                                 "correlation_id": task.payload.get("correlation_id") or lesson.get("correlation_id"),
-                                 **({"declared_output_schema": probe.response_format} if probe else {})},
-                        propose_neurons=False,
-                    )
+            if candidate_ids and (
+                training_neuron_id is None or candidate_routed_to_neuron
+            ):
+                from triade.core.runner import TriadeRunner
+
+                with sqlite3.connect(self.db_path) as conn:
+                    candidate_row = conn.execute(
+                        "SELECT domain FROM learning_queue WHERE candidate_id=?",
+                        (candidate_ids[0],),
+                    ).fetchone()
+                target_domain = (
+                    str(candidate_row[0] or "general") if candidate_row else "general"
+                )
+                query = (
+                    "Ejercicio interno de recuperación: consulta la memoria verificada "
+                    f"del dominio {target_domain[:120]} y explica una aplicación pertinente "
+                    "con su procedencia. Si falta evidencia, declara la limitación."
+                )
+                from triade.learning.knowledge_probe import build_transfer_probe
+
+                with sqlite3.connect(self.db_path) as conn:
+                    usage = conn.execute(
+                        "SELECT run_use_count FROM learning_queue WHERE candidate_id=?",
+                        (candidate_ids[0],),
+                    ).fetchone()
+                input_value = int(
+                    task.payload.get("application_input", 101 + 11 * int(usage[0] or 0))
+                )
+                probe = build_transfer_probe(
+                    self.db_path, candidate_ids[0], input_value
+                )
+                if probe is not None:
+                    query = probe.question
+                selected_model = self._installed_ollama_model()
+                trial = TriadeRunner(
+                    runs_dir=self.runs_dir,
+                    db_path=self.db_path,
+                    use_ollama=True,
+                    auto_select_models=False,
+                    central_model=selected_model,
+                    hypothalamus_model=selected_model,
+                ).run(
+                    user_input=query,
+                    source="neuron_education_background",
+                    context={
+                        "learning_candidate_ids": candidate_ids[:1],
+                        "correlation_id": task.payload.get("correlation_id")
+                        or lesson.get("correlation_id"),
+                        **(
+                            {"declared_output_schema": probe.response_format}
+                            if probe
+                            else {}
+                        ),
+                    },
+                    propose_neurons=False,
+                )
             elif training_neuron_id is not None:
                 # Una lección puede tener material suficiente pero todavía no
                 # tener un candidato verificado enrutable. En ese caso el
@@ -2108,16 +2154,31 @@ class WorkerLoop:
                         payload={
                             "mission_id": int(mission[0]),
                             "related_neuron_id": training_neuron_id,
-                            "query": str(mission[1] or "ejercicio de entrenamiento neuronal"),
+                            "query": str(
+                                mission[1] or "ejercicio de entrenamiento neuronal"
+                            ),
                             "domain": str(mission[2] or "general"),
                             "education_training": True,
                         },
                     )
                     training = self._experimental_neuron_activity(
-                        exercise, f"{run_ref}:education:{task_dir.parent.name}", task_dir, config
+                        exercise,
+                        f"{run_ref}:education:{task_dir.parent.name}",
+                        task_dir,
+                        config,
                     )
-        except (OSError, sqlite3.Error, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
-            trial = {"status": "error", "error": f"background_learning_trial:{type(exc).__name__}: {exc}"}
+        except (
+            OSError,
+            sqlite3.Error,
+            ValueError,
+            TypeError,
+            KeyError,
+            json.JSONDecodeError,
+        ) as exc:
+            trial = {
+                "status": "error",
+                "error": f"background_learning_trial:{type(exc).__name__}: {exc}",
+            }
 
         registro = NeuronEducationApplicationRecorder(self.db_path).record_once()
 
@@ -2148,7 +2209,9 @@ class WorkerLoop:
                 "mission_id": training.get("mission_id") if training else None,
                 "neuron_id": training_neuron_id,
                 "decision": training.get("decision") if training else None,
-                "verification": training.get("verification_recorded") if training else None,
+                "verification": training.get("verification_recorded")
+                if training
+                else None,
             },
         }
         # GovernedTaskExecutor exige una evidencia de artefacto para aceptar un
@@ -2627,10 +2690,16 @@ class WorkerLoop:
                 "reason": "target_and_authorized_root_required",
             }
         capability = GovernedFileWriteCapability(
-            target, content,
-            (self.runs_dir / "effects" / hashlib.sha256(str(task.id).encode()).hexdigest()[:32]
-             if isinstance(task.id, str) else task_dir / "rollback"),
-            authorized_root=authorized_root
+            target,
+            content,
+            (
+                self.runs_dir
+                / "effects"
+                / hashlib.sha256(str(task.id).encode()).hexdigest()[:32]
+                if isinstance(task.id, str)
+                else task_dir / "rollback"
+            ),
+            authorized_root=authorized_root,
         )
         prepared = capability.prepare()
         execution = capability.execute()
@@ -2749,7 +2818,10 @@ class WorkerLoop:
             },
         }
         artifact = task_dir / "pulse-check.json"
-        artifact.write_text(json.dumps(result, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        artifact.write_text(
+            json.dumps(result, ensure_ascii=False, indent=2, default=str),
+            encoding="utf-8",
+        )
         result["artifact_ref"] = str(artifact)
         return result
 
@@ -3072,7 +3144,9 @@ class WorkerLoop:
             }
         router = NeuralLearningRouter(self.db_path)
         try:
-            routed = router.route(candidate_id, correlation_id=payload.get("correlation_id"))
+            routed = router.route(
+                candidate_id, correlation_id=payload.get("correlation_id")
+            )
         except (KeyError, ValueError) as exc:
             admission = None
             if str(exc) == "no_compatible_neuron":
@@ -3080,7 +3154,9 @@ class WorkerLoop:
 
                 admission = DomainAdmissionCoordinator(self.db_path).request(
                     candidate_id,
-                    correlation_id=str(payload.get("correlation_id") or task.id or candidate_id),
+                    correlation_id=str(
+                        payload.get("correlation_id") or task.id or candidate_id
+                    ),
                 )
             rejected = router.record_rejection(candidate_id, str(exc))
             receipt = EffectReceipt(
@@ -3213,8 +3289,11 @@ class WorkerLoop:
                 )
             kwargs = {}
             options = {"temperature": 0, "seed": 7731}
-            if getattr(sonda, 'response_format', None) is not None:
-                kwargs = {'response_format':sonda.response_format,'system':getattr(sonda, 'system', None)}
+            if getattr(sonda, "response_format", None) is not None:
+                kwargs = {
+                    "response_format": sonda.response_format,
+                    "system": getattr(sonda, "system", None),
+                }
                 options.update(num_predict=512, num_ctx=2048)
             r = client.generate(
                 model,
@@ -3316,43 +3395,71 @@ class WorkerLoop:
     ) -> dict[str, Any]:
         if task.payload.get("admission_event_id") is not None:
             from triade.neurons.domain_admission import DomainAdmissionCoordinator
+
             if task.payload.get("admission_phase") in {"training", "certification"}:
                 client = self._observable_ollama_client(
-                    task, run_ref, cognitive_function="neuron_training",
-                    artifact="domain_training", consumer="DomainAdmissionCoordinator",
+                    task,
+                    run_ref,
+                    cognitive_function="neuron_training",
+                    artifact="domain_training",
+                    consumer="DomainAdmissionCoordinator",
                 )
                 if not client.health().get("ok"):
-                    return {"status": "deferred", "effect": "deferred",
-                            "skipped_reason": "ollama_no_disponible", "activated": False}
+                    return {
+                        "status": "deferred",
+                        "effect": "deferred",
+                        "skipped_reason": "ollama_no_disponible",
+                        "activated": False,
+                    }
                 model = getattr(config, "model", None) or self._installed_ollama_model()
                 if not model:
                     raise RuntimeError("no_ollama_model_available")
 
                 def generate(probe, prompt, remaining):
                     client.timeout = min(float(config.task_timeout), remaining)
-                    result = client.generate(model, prompt, system=probe.system,
-                                             response_format=probe.response_format,
-                                             options={"temperature": 0, "seed": 7731,
-                                                      "num_predict": 256, "num_ctx": 2048})
+                    result = client.generate(
+                        model,
+                        prompt,
+                        system=probe.system,
+                        response_format=probe.response_format,
+                        options={
+                            "temperature": 0,
+                            "seed": 7731,
+                            "num_predict": 256,
+                            "num_ctx": 2048,
+                        },
+                    )
                     if not result.ok:
                         raise RuntimeError(result.error or "training_generation_failed")
                     return result.text
 
                 coordinator = DomainAdmissionCoordinator(self.db_path)
-                execute = coordinator.certify if task.payload["admission_phase"] == "certification" else coordinator.train
+                execute = (
+                    coordinator.certify
+                    if task.payload["admission_phase"] == "certification"
+                    else coordinator.train
+                )
                 training = execute(
                     int(task.payload["admission_event_id"]),
                     correlation_id=str(task.payload.get("correlation_id") or ""),
                     generate=generate,
                 )
-                return {"status": "completed", "training": training,
-                        "stable_memory_written": False, "activated": bool(training.get("activated"))}
+                return {
+                    "status": "completed",
+                    "training": training,
+                    "stable_memory_written": False,
+                    "activated": bool(training.get("activated")),
+                }
             formation = DomainAdmissionCoordinator(self.db_path).form(
                 int(task.payload["admission_event_id"]),
                 correlation_id=str(task.payload.get("correlation_id") or ""),
             )
-            return {"status": "completed", "formation": formation,
-                    "stable_memory_written": False, "activated": False}
+            return {
+                "status": "completed",
+                "formation": formation,
+                "stable_memory_written": False,
+                "activated": False,
+            }
         pulse = {
             "status": "unknown",
             "summary": "worker background scan",
@@ -3367,9 +3474,12 @@ class WorkerLoop:
         # respetando el gate de activación y evitando duplicados por nombre.
         from triade.core.neuron_creator import NeuronSpec
         from triade.core.neuron_registry import NeuronRegistry
+
         registry = NeuronRegistry(db_path=self.db_path)
         for candidate in formed:
-            name = str(candidate.get("name") or candidate.get("display_name") or "").strip()
+            name = str(
+                candidate.get("name") or candidate.get("display_name") or ""
+            ).strip()
             if not name or registry.get_neuron(name):
                 continue
             spec = candidate.get("creator_spec") or {}
@@ -3377,14 +3487,26 @@ class WorkerLoop:
             neuron_id = registry.register(
                 NeuronSpec(
                     name=str(spec.get("name") or name),
-                    mission=str(spec.get("mission") or candidate.get("mission") or "Candidata formada por worker."),
-                    domain=str(spec.get("domain") or candidate.get("domain") or "system_governance"),
+                    mission=str(
+                        spec.get("mission")
+                        or candidate.get("mission")
+                        or "Candidata formada por worker."
+                    ),
+                    domain=str(
+                        spec.get("domain")
+                        or candidate.get("domain")
+                        or "system_governance"
+                    ),
                     rules=spec.get("rules") or [],
                     triggers=spec.get("triggers") or [],
-                    inputs_allowed=spec.get("inputs_allowed") or contracts.get("inputs_allowed", []),
-                    outputs_allowed=spec.get("outputs_allowed") or contracts.get("outputs_allowed", []),
-                    forbidden_actions=spec.get("forbidden_actions") or contracts.get("forbidden_actions", []),
-                    success_metrics=spec.get("success_metrics") or candidate.get("success_metrics", []),
+                    inputs_allowed=spec.get("inputs_allowed")
+                    or contracts.get("inputs_allowed", []),
+                    outputs_allowed=spec.get("outputs_allowed")
+                    or contracts.get("outputs_allowed", []),
+                    forbidden_actions=spec.get("forbidden_actions")
+                    or contracts.get("forbidden_actions", []),
+                    success_metrics=spec.get("success_metrics")
+                    or candidate.get("success_metrics", []),
                     evidence_required=spec.get("evidence_required") or [],
                     status="candidate",
                     created_by="worker_neuron_formation",
@@ -3728,7 +3850,12 @@ class WorkerLoop:
                     scores["safety_score"],
                     scores["usefulness_score"],
                     scores["traceability_score"],
-                    _json.dumps({"source": "NeuronMissionExecutor", "result": result.get("decision")}),
+                    _json.dumps(
+                        {
+                            "source": "NeuronMissionExecutor",
+                            "result": result.get("decision"),
+                        }
+                    ),
                     "[]",
                     "[]",
                     "[]",
@@ -3740,7 +3867,11 @@ class WorkerLoop:
         try:
             from triade.capabilities.metacognition import CapabilityAwareness
 
-            capability = f"neuron:{int(neuron_id)}:internal_curriculum" if neuron_id is not None else "worker:internal_curriculum"
+            capability = (
+                f"neuron:{int(neuron_id)}:internal_curriculum"
+                if neuron_id is not None
+                else "worker:internal_curriculum"
+            )
             awareness = CapabilityAwareness(self.db_path)
             measured = round(sum(scores.values()) / len(scores), 4)
             awareness.register(
@@ -3756,14 +3887,17 @@ class WorkerLoop:
             # prediction from the already measured outcome contaminates Brier
             # and ECE calibration. Only predictions made before execution may
             # be closed with this result by their originating runtime path.
-        except Exception:  # metacognition is auxiliary to the measured result
-            pass
+        except Exception:  # optional metacognition isolation boundary
+            logging.getLogger(__name__).exception(
+                "Tríade: optional metacognition failed; keeping measured exercise result"
+            )
         # Close the loop in the same worker cycle: the exercise has already
         # written neural activity and a verification report, so the recorder
         # can measure and attach it without waiting for the next scheduler run.
         from triade.neurons.education_applications import (
             NeuronEducationApplicationRecorder,
         )
+
         application = NeuronEducationApplicationRecorder(self.db_path).record_once()
         return {
             "verification_recorded": True,
@@ -3939,12 +4073,17 @@ class WorkerLoop:
         # A worker is not a named human approver. Recompute earned trust from
         # actual runtime outcomes and retain the normal automatic-policy gate.
         from triade.memory.trust_store import TrustLevelStore
+
         TrustLevelStore(self.db_path).recompute_all()
         elegibles = pipe.list_consolidatable(limit=5)
         for candidate in elegibles:
             if str(candidate.get("risk_level") or "low") not in {"none", "low"}:
-                rejected.append({"candidate_id": candidate.get("candidate_id"),
-                                 "reason": "risk_requires_separate_authorization"})
+                rejected.append(
+                    {
+                        "candidate_id": candidate.get("candidate_id"),
+                        "reason": "risk_requires_separate_authorization",
+                    }
+                )
                 continue
             sb = sandbox.run(
                 "analyze_memory_candidate", candidate, timeout=config.task_timeout

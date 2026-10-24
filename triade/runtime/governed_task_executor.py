@@ -11,13 +11,12 @@ import signal
 import subprocess
 import threading
 import time
+import traceback
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 from uuid import uuid4
-
-import traceback
 
 CHILD_EXECUTION_ERRORS = (
     OSError,
@@ -79,7 +78,8 @@ def _append_stderr(stderr_path: str, text: str) -> None:
     `with`; un traceback de excepción se escribe en el fd 2 real del proceso.
     """
     try:
-        Path(stderr_path).open("a", encoding="utf-8").write(text)
+        with Path(stderr_path).open("a", encoding="utf-8") as logfile:
+            logfile.write(text)
     except OSError:
         pass
 

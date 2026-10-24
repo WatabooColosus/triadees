@@ -4,6 +4,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  # Only the newest run for this workflow, event type and ref is useful.
+  # Separate push and PR contexts, and preserve all validation steps.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -42,14 +48,31 @@ jobs:
         run: |
           docker compose -f compose.cloud.yml exec -T triade-api python - <<'PY'
           import json
+          import urllib.error
           import urllib.request
+          from apps.routes.health import ready, build_deep_runtime_health
 
-          for path in ("/health/live", "/health/ready", "/health/deep"):
-              with urllib.request.urlopen(f"http://127.0.0.1:8010{path}", timeout=15) as response:
-                  payload = json.load(response)
-                  assert response.status == 200, (path, response.status, payload)
-                  assert payload.get("status") in {"alive", "ready", "healthy", "degraded"}, (path, payload)
-                  print(path, payload.get("status"))
+          # Health-liveness can be public; deep operational state is protected.
+          with urllib.request.urlopen("http://127.0.0.1:8010/health/live", timeout=15) as response:
+              payload = json.load(response)
+              assert response.status == 200
+              assert payload.get("status") == "alive"
+
+          for protected_path in ("/health/ready", "/health/deep"):
+              try:
+                  urllib.request.urlopen("http://127.0.0.1:8010" + protected_path, timeout=15)
+              except urllib.error.HTTPError as error:
+                  assert error.code in {401, 403}, (protected_path, error.code)
+              else:
+                  raise AssertionError("protected_health_endpoint_exposed: " + protected_path)
+
+          # Inside the trusted container, verify readiness and deep health
+          # without weakening bearer authentication on the public surface.
+          response = ready()
+          assert response.status_code == 200, response.body.decode()
+          deep = build_deep_runtime_health()
+          assert deep.get("status") in {"ok", "degraded"}, deep
+          print("/health/live: alive; ready: ready; deep:", deep.get("status"))
           PY
 
       - name: Diagnostics on failure

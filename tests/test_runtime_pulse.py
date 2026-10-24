@@ -382,7 +382,9 @@ def test_runtime_neuron_nutrition_endpoint(monkeypatch, tmp_path: Path) -> None:
     assert body["identity_core_modified"] is False
 
 
-def test_full_local_does_not_consolidate_without_gates(tmp_path: Path, monkeypatch) -> None:
+def test_full_local_does_not_consolidate_without_gates(
+    tmp_path: Path, monkeypatch
+) -> None:
     from triade.core import resource_probe
 
     original = resource_probe.build_resource_probe

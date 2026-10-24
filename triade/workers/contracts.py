@@ -117,9 +117,12 @@ EVENT_DRIVEN_TASK_TYPES: frozenset[str] = frozenset(
 
 def admission_transition(task_type: str, payload: dict[str, Any]) -> bool:
     """A governed state transition is distinct from periodic formation review."""
-    return bool(task_type == "neuron_candidate_formation"
+    return bool(
+        task_type == "neuron_candidate_formation"
         and payload.get("admission_event_id")
-        and payload.get("admission_phase") in {"training", "certification"})
+        and payload.get("admission_phase") in {"training", "certification"}
+    )
+
 
 # Era `{"completed", "failed", "blocked", "skipped"}`: dejaba fuera `observed`,
 # `dead_letter`, `timeout`, `lease_lost`, `dry_run` y `cancelled`. Sólo los dos

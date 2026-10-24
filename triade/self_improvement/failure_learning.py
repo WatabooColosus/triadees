@@ -306,6 +306,14 @@ class FailureLearningLoop:
                     summary["skipped"].append(outcome)
 
         summary["reconciled"] = self._reconcile_open_signals()
+        # Sólo señales sustentadas por regresiones independientes y por una
+        # especificación neuronal gobernada pueden crear propuestas reales.
+        # Import local: measured_proposals reutiliza este mismo lector de fallos.
+        from .measured_proposals import propose_from_measured_failures
+
+        summary["proposal_readiness"] = propose_from_measured_failures(
+            self.db_path, limit=1
+        )
         return summary
 
     def _reconcile_open_signals(self) -> list[dict[str, Any]]:

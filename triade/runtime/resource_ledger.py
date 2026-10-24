@@ -149,7 +149,8 @@ class _Usage:
 
 def _rusage(which: int | None = None) -> _Usage:
     if resource is not None:
-        return resource.getrusage(which if which is not None else resource.RUSAGE_SELF)
+        usage = resource.getrusage(which if which is not None else resource.RUSAGE_SELF)
+        return _Usage(usage.ru_utime, usage.ru_stime, usage.ru_maxrss)
     # Windows no expone getrusage. thread_time cubre CPU por hilo y psutil aporta
     # el RSS del proceso sin introducir una dependencia obligatoria.
     rss = 0.0
@@ -180,8 +181,8 @@ def _cpu_propio() -> tuple[float, float, str]:
         return time.thread_time(), 0.0, "thread_clock"
     except (AttributeError, OSError):
         pass
-    uso = _rusage()
-    return uso.ru_utime, uso.ru_stime, "process"
+    process_usage = _rusage()
+    return process_usage.ru_utime, process_usage.ru_stime, "process"
 
 
 class ResourceMeasurementCollector:
@@ -189,12 +190,11 @@ class ResourceMeasurementCollector:
         self.started_at = datetime.now(UTC).isoformat()
         self.started_wall = time.monotonic()
         self.self_utime_before, self.self_stime_before, self.cpu_scope = _cpu_propio()
-        # Los hijos siguen siendo del proceso: `RUSAGE_CHILDREN` no se desglosa
-        # por hilo. Un subproceso lanzado por otra tarea a la vez sigue cayendo
-        # aquí, pero son raros y acotados frente a la CPU propia.
-        self.children_before = (
-            _rusage(resource.RUSAGE_CHILDREN) if resource else _Usage()
-        )
+        # RUSAGE_CHILDREN es global al proceso. No puede cargarse a cada worker:
+        # cuando un subproceso termina, TODOS los collectors abiertos reclamarían
+        # su CPU como propia, inflando el presupuesto y degradando el organismo.
+        # Un proceso hijo solo puede imputarse al task que realmente lo lanzó
+        # mediante instrumentación explícita de ese subproceso.
 
     def finish(self) -> ResourceUsageReceipt:
         finished_at = datetime.now(UTC).isoformat()
@@ -211,25 +211,25 @@ class ResourceMeasurementCollector:
                 "time.monotonic",
             ),
             "cpu_user": (
-                self_utime_after
-                - self.self_utime_before
-                + children_after.ru_utime
-                - self.children_before.ru_utime,
+                self_utime_after - self.self_utime_before,
                 "seconds",
-                "time.thread_time (children excluded)" if not resource else f"resource.getrusage[{self.cpu_scope}]",
+                "time.thread_time (children excluded)"
+                if not resource
+                else f"resource.getrusage[{self.cpu_scope}]",
             ),
             "cpu_system": (
-                self_stime_after
-                - self.self_stime_before
-                + children_after.ru_stime
-                - self.children_before.ru_stime,
+                self_stime_after - self.self_stime_before,
                 "seconds",
-                "included in cpu_user (thread clock)" if not resource else f"resource.getrusage[{self.cpu_scope}]",
+                "included in cpu_user (thread clock)"
+                if not resource
+                else f"resource.getrusage[{self.cpu_scope}]",
             ),
             "peak_rss": (
                 float(max(self_after.ru_maxrss, children_after.ru_maxrss)) / 1024,
                 "MiB",
-                "psutil.memory_info.peak_wset" if not resource else "resource.getrusage",
+                "psutil.memory_info.peak_wset"
+                if not resource
+                else "resource.getrusage",
             ),
         }
         items = [

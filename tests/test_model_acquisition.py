@@ -23,16 +23,22 @@ def test_catalog_has_provenance_license_and_budget():
 
 
 def test_reconcile_never_downloads_outside_catalog(tmp_path, monkeypatch):
+    # Parchar subprocess.run desde un módulo parchea el subprocess compartido
+    # por todo Python. Un thread ajeno puede invocar 'file -b python' y hacer
+    # fallar esta prueba sin que Tríade descargue ningún modelo. Interceptamos
+    # exclusivamente la entrada al proceso de adquisición de Ollama.
     with (
         patch(
             "triade.core.model_acquisition.OllamaClient.health",
             return_value={"models": list(MODEL_CATALOG)},
         ),
-        patch("triade.core.model_acquisition.subprocess.run") as run,
+        patch("triade.core.model_acquisition._ollama_binary") as binary,
     ):
         result = reconcile_model_catalog(db_path=tmp_path / "triade.db")
+    assert result["missing_before"] == []
     assert result["downloaded"] == []
-    run.assert_not_called()
+    assert result["failed"] == []
+    binary.assert_not_called()
 
 
 def test_failed_pull_closes_the_original_attempt(tmp_path):

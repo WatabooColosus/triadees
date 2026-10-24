@@ -44,20 +44,28 @@ class EncryptedBackup:
         # ganar si apunta a un fichero real; de lo contrario seguimos con la
         # ubicación canónica del repositorio para que el proceso no quede
         # degradado por una variable obsoleta.
-        if configured:
-            return configured
+        if configured and Path(configured).expanduser().is_file():
+            return str(Path(configured).expanduser())
         from triade.core.runtime_scope import is_test_runtime
 
-        roots = (Path.cwd(),) if is_test_runtime() else (Path.cwd(), Path(__file__).resolve().parents[2])
+        roots = (
+            (Path.cwd(),)
+            if is_test_runtime()
+            else (Path.cwd(), Path(__file__).resolve().parents[2])
+        )
         for root in roots:
             location = root / "config" / "backup_key_location.json"
             try:
-                value = json.loads(location.read_text(encoding="utf-8")).get("key_file", "")
+                value = json.loads(location.read_text(encoding="utf-8")).get(
+                    "key_file", ""
+                )
             except (OSError, ValueError, TypeError, AttributeError):
                 continue
-            if value:
+            if value and Path(str(value)).expanduser().is_file():
                 return str(Path(value).expanduser())
-        return ""
+        # A configured path that no longer exists remains visible in health
+        # diagnostics. Never invent a new encryption key or silently rotate it.
+        return str(Path(configured).expanduser()) if configured else ""
 
     @classmethod
     def key_configured(cls) -> bool:
@@ -68,7 +76,10 @@ class EncryptedBackup:
         if not key_file:
             return False
         try:
-            return bool(Path(key_file).is_file() and Path(key_file).read_text(encoding="utf-8").strip())
+            return bool(
+                Path(key_file).is_file()
+                and Path(key_file).read_text(encoding="utf-8").strip()
+            )
         except OSError:
             return False
 

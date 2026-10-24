@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import json
+from pathlib import Path
 
 from triade.learning.pipeline import LearningPipeline
-from triade.workers.contracts import WorkerRunConfig
-from triade.workers.worker_loop import WorkerLoop
-from triade.workers.contracts import WorkerTask
 from triade.runtime.task_artifacts import _io_path
+from triade.workers.contracts import WorkerRunConfig, WorkerTask
+from triade.workers.task_queue import WorkerTaskQueue
+from triade.workers.worker_loop import WorkerLoop
 
 
 def test_worker_reviews_learning_and_marks_verified_as_used_in_run(
@@ -26,6 +26,15 @@ def test_worker_reviews_learning_and_marks_verified_as_used_in_run(
         risk_level="low",
     )
 
+    # Test the worker review handler deterministically, independently from
+    # unrelated scheduled maintenance tasks and their per-cycle CPU budget.
+    # MissionPlanner's automatic discovery is verified separately in
+    # test_mission_planner.py::test_plan_pending_learning.
+    WorkerTaskQueue(db_path).enqueue(
+        "pending_learning_review",
+        payload={"candidate_id": candidate["candidate_id"], "source": "test-worker"},
+        priority=0,
+    )
     loop = WorkerLoop(
         db_path=db_path,
         runs_dir=tmp_path / "runs",
@@ -60,15 +69,24 @@ def test_worker_reviews_learning_and_marks_verified_as_used_in_run(
 
 
 def test_learning_review_publishes_receipt_on_long_windows_path(tmp_path):
-    loop = WorkerLoop(db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs",
-                      lock_file=tmp_path / "lock", stop_file=tmp_path / "stop")
+    loop = WorkerLoop(
+        db_path=tmp_path / "triade.db",
+        runs_dir=tmp_path / "runs",
+        lock_file=tmp_path / "lock",
+        stop_file=tmp_path / "stop",
+    )
     parent = tmp_path / "artifacts"
     task_dir = parent / ("x" * max(1, 241 - len(str(parent)) - 1))
     task_dir.mkdir(parents=True)
     result = loop._pending_learning_review(
-        WorkerTask(task_type="pending_learning_review"), "long-path-review", task_dir,
+        WorkerTask(task_type="pending_learning_review"),
+        "long-path-review",
+        task_dir,
         WorkerRunConfig(),
     )
     artifact = Path(result["artifact_ref"])
     assert len(str(artifact)) > 260
-    assert json.loads(_io_path(artifact).read_text(encoding="utf-8"))["status"] == "completed"
+    assert (
+        json.loads(_io_path(artifact).read_text(encoding="utf-8"))["status"]
+        == "completed"
+    )

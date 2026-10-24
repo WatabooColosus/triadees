@@ -785,7 +785,9 @@ def _backup_key_configured(root: Path) -> bool:
         return True
     location = root / "config" / "backup_key_location.json"
     try:
-        configured_path = str(json.loads(location.read_text(encoding="utf-8")).get("key_file", ""))
+        configured_path = str(
+            json.loads(location.read_text(encoding="utf-8")).get("key_file", "")
+        )
     except (OSError, ValueError, TypeError, AttributeError):
         return False
     return bool(configured_path and Path(configured_path).expanduser().is_file())
@@ -923,7 +925,11 @@ def _backup_key_file_gaps(root: Path) -> list[str]:
             privacy = inspect_private_file(path)
         except (OSError, ValueError, TimeoutError):
             return ["backup key ACL could not be verified; 0600/private ACL required"]
-        return [] if privacy["private"] else ["backup key requires 0600/private Windows ACL"]
+        return (
+            []
+            if privacy["private"]
+            else ["backup key requires 0600/private Windows ACL"]
+        )
     try:
         mode = path.stat().st_mode & 0o777
     except OSError:

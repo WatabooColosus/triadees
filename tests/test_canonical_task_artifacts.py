@@ -40,12 +40,18 @@ def test_staging_keeps_unique_attempts_and_publishes_task_identity(tmp_path):
     artifacts.finalize(
         task={"task_id": task_id, "task_type": "pending_learning_review"},
         execution={"evidence": [], "resource_usage": {}, "postconditions": {}},
-        result={"status": "completed"}, worker_id="worker-1", lease_generation=1,
-        payload_hash="abc", status="completed", target_path=stage,
+        result={"status": "completed"},
+        worker_id="worker-1",
+        lease_generation=1,
+        payload_hash="abc",
+        status="completed",
+        target_path=stage,
     )
     artifacts.publish(stage)
     artifacts.verify()
-    assert json.loads((artifacts.path / "manifest.json").read_text())["task_id"] == task_id
+    assert (
+        json.loads((artifacts.path / "manifest.json").read_text())["task_id"] == task_id
+    )
 
 
 def test_retry_preserves_the_first_attempt_artifact(tmp_path: Path) -> None:
