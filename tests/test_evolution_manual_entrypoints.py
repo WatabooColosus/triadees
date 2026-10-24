@@ -43,4 +43,7 @@ def test_untrusted_reports_path_cannot_claim_manual_exemption():
 
 def test_scripts_declarations_remain_recognized():
     parsed = ast.parse('TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"\n')
-    assert _declared_entrypoint_kind(parsed, "scripts/manual_report.py") == "manual_diagnostic"
+    assert (
+        _declared_entrypoint_kind(parsed, "scripts/manual_report.py")
+        == "manual_diagnostic"
+    )
