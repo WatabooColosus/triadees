@@ -12,7 +12,9 @@ def test_without_explicit_pid_does_not_call_api(monkeypatch):
         recovery, "get", lambda *_: pytest.fail("API contacted without consent")
     )
     monkeypatch.setattr(
-        recovery.psutil, "Process", lambda *_: pytest.fail("process touched without consent")
+        recovery.psutil,
+        "Process",
+        lambda *_: pytest.fail("process touched without consent"),
     )
     with pytest.raises(SystemExit) as err:
         recovery.main([])
@@ -30,11 +32,11 @@ def test_invalid_pid_fails_without_api(monkeypatch, provided):
 
 
 def test_changed_pid_aborts_before_process_access(monkeypatch):
+    monkeypatch.setattr(recovery, "get", lambda path: (200, {"runtime_pid": 3111}))
     monkeypatch.setattr(
-        recovery, "get", lambda path: (200, {"runtime_pid": 3111})
-    )
-    monkeypatch.setattr(
-        recovery.psutil, "Process", lambda *_: pytest.fail("process accessed after PID mismatch")
+        recovery.psutil,
+        "Process",
+        lambda *_: pytest.fail("process accessed after PID mismatch"),
     )
     with pytest.raises(RuntimeError, match="PID cambió"):
         recovery.main(["--confirm-runtime-pid", "3112"])
