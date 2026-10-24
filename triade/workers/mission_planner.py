@@ -1425,6 +1425,12 @@ class MissionPlanner:
         """Programa misiones solo cuando existe evidencia externa nueva."""
         tasks: list[PlannedTask] = []
         try:
+            from triade.neurons.real_run_signal_intake import RealRunSignalIntake
+
+            # Real completed UI turns can signal a relevant mission. This does
+            # not turn a user's question into validated factual knowledge.
+            # Worker-generated evidence never passes the independent-source gate.
+            RealRunSignalIntake(self.db_path).harvest(limit=2)
             store = NeuronMissionStore(db_path=self.db_path)
             missions = store.list_missions(status="experimental", limit=5)
             missions.extend(store.list_missions(status="stable", limit=5))
@@ -1432,7 +1438,7 @@ class MissionPlanner:
                 with closing(self._connect()) as conn, conn:
                     evidence = conn.execute(
                         """SELECT id,source,refs_json FROM neuron_evidence
-                        WHERE mission_id=? AND source NOT IN ('worker','experimental_light_pulse')
+                        WHERE mission_id=? AND source NOT IN ('worker','experimental_light_pulse','living_worker')
                         AND created_at > COALESCE(
                             (SELECT MAX(created_at) FROM neuron_work_cycles WHERE mission_id=?),
                             '1970-01-01'
