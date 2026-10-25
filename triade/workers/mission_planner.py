@@ -1380,9 +1380,9 @@ class MissionPlanner:
                     evidence = conn.execute(
                         """SELECT id,source,refs_json FROM neuron_evidence
                         WHERE mission_id=? AND source NOT IN ('worker','experimental_light_pulse')
-                        AND created_at > COALESCE(
-                            (SELECT MAX(created_at) FROM neuron_work_cycles WHERE mission_id=?),
-                            '1970-01-01'
+                        AND datetime(created_at) > COALESCE(
+                            (SELECT MAX(datetime(created_at)) FROM neuron_work_cycles WHERE mission_id=?),
+                            '1970-01-01 00:00:00'
                         ) ORDER BY id DESC LIMIT 1""",
                         (m.id, m.id),
                     ).fetchone()
