@@ -1,7 +1,8 @@
 import sqlite3
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
+
 from triade.core.verified_run_mission_bridge import bridge_verified_user_run
 
 CREATE = """

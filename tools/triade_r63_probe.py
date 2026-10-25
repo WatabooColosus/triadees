@@ -7,10 +7,11 @@ This runner neither changes stable memory nor certifies causal improvement.
 """
 
 from __future__ import annotations
+
 import argparse
 import json
-from pathlib import Path
 import sqlite3
+from pathlib import Path
 
 
 def main(argv=None):
@@ -31,9 +32,9 @@ def main(argv=None):
         p.error("Bodega R5 no localizada")
     from triade.neurons.functional_evidence import (
         CASES,
-        supported_domain,
-        register_actual_probe,
         functional_comparison,
+        register_actual_probe,
+        supported_domain,
     )
 
     with sqlite3.connect(db) as c:

@@ -5,14 +5,17 @@ The functional evaluator independently rechecks provenance and semantic-quaranti
 """
 
 from __future__ import annotations
+
 import argparse
 import json
 import sqlite3
+from datetime import UTC
 from pathlib import Path
+
 from triade.neurons.functional_evidence import (
     CASES,
-    supported_domain,
     register_actual_probe,
+    supported_domain,
 )
 
 
@@ -81,10 +84,10 @@ def recover(*, neuron_id: int, limit: int, apply: bool) -> dict:
     # A verified consistent SQLite backup before the FIRST insert.
     if not candidates:
         return result
-    from datetime import datetime, timezone
     import os
+    from datetime import datetime
 
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     folder = Path("/content/triade_operacion_r5/actualizaciones/r631_recovery") / stamp
     folder.mkdir(parents=True, exist_ok=False)
     os.chmod(folder, 0o700)

@@ -6,6 +6,7 @@ No secret material, weights, or SQLite snapshots are committed to Git.
 """
 
 from __future__ import annotations
+
 import ast
 import datetime as dt
 import hashlib
@@ -174,7 +175,7 @@ def rehydrate(r5):
         "db_counts_before": before,
         "db_counts_after": after,
         "api_http": 200,
-        "verified_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "verified_at": dt.datetime.now(dt.UTC).isoformat(),
     }
     local = Path(r5.WORK) / "actualizaciones" / "continuidad_git_r631.json"
     local.parent.mkdir(parents=True, exist_ok=True)

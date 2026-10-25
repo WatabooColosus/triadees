@@ -6,15 +6,16 @@ and backs up the original module. Does NOT alter live SQLite or memory.
 """
 
 from __future__ import annotations
+
 import ast
 import datetime as dt
 import hashlib
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 ROOT = Path("/content/Triade")
 WORK = Path("/content/triade_operacion_r5")
@@ -148,7 +149,7 @@ def main():
         backup = (
             WORK
             / "actualizaciones/r631_backup"
-            / dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            / dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%SZ")
         )
         backup.mkdir(parents=True, exist_ok=False)
         os.chmod(backup, 0o700)

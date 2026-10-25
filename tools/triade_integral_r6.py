@@ -14,7 +14,7 @@ import os
 import sqlite3
 import sys
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
@@ -162,7 +162,7 @@ def assess(con):
         }:
             movements[table] = last_id(con, table, field)
     result = {
-        "time_utc": datetime.now(timezone.utc).isoformat(),
+        "time_utc": datetime.now(UTC).isoformat(),
         "quick_check": integrity,
         "counts": counts,
         "neurons": neurons,
@@ -240,7 +240,7 @@ def repair(db: Path, audit: dict, backup_path: Path):
                 > 0
             ):
                 continue
-            now = datetime.now(timezone.utc).isoformat()
+            now = datetime.now(UTC).isoformat()
             con.execute(
                 """INSERT INTO neuron_missions
                 (neuron_id,title,mission,domain,allowed_sources_json,
@@ -402,7 +402,7 @@ def main(argv=None):
     if args.mode == "repair":
         backup = out / (
             "pre_repair_"
-            + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            + datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
             + "_"
             + str(os.getpid())
             + ".sqlite3"

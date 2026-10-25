@@ -8,11 +8,11 @@ without baseline cannot be retroactively certified.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
 import re
 import sqlite3
+from dataclasses import dataclass
 from pathlib import Path
 
 VERSION = "functional-probe-1"

@@ -2,10 +2,11 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+
 from triade.neurons.functional_evidence import (
     assess_answer,
-    register_actual_probe,
     functional_comparison,
+    register_actual_probe,
 )
 
 SCHEMA = """

@@ -5,16 +5,17 @@ The patch affects only mission links after explicit confirmation and guarded bac
 """
 
 from __future__ import annotations
+
 import ast
 import hashlib
 import json
 import os
-from pathlib import Path
 import sqlite3
 import subprocess
 import sys
+from pathlib import Path
 from urllib.request import urlopen
-from zipfile import ZipFile, BadZipFile
+from zipfile import BadZipFile, ZipFile
 
 VERSION = "R6.0"
 PATCH_NAME = "triade_integral_r6.py"
@@ -250,7 +251,7 @@ def execute(
 
 def render_r5_update_area(ns: dict):
     import ipywidgets as w
-    from IPython.display import display, clear_output
+    from IPython.display import clear_output, display
 
     r5 = ns.get("r5")
     if r5 is None:

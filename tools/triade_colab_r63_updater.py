@@ -5,12 +5,12 @@ Never writes to Google Drive, canonical snapshots, identity or SQLite live table
 """
 
 from __future__ import annotations
+
 import ast
 import datetime as dt
 import hashlib
 import json
 import os
-from pathlib import Path
 import shutil
 import signal
 import sqlite3
@@ -18,6 +18,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+from pathlib import Path
 
 VERSION = "R6.3-rc"
 COMMIT = "777dd370dd8b23f5d93303afa7796ceba51166ba"
@@ -220,7 +221,7 @@ def prepare(r5):
         "counts": counts,
         "tests": "pass",
         "tests_detail": test_result.decode(errors="replace")[-700:],
-        "prepared_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "prepared_at": dt.datetime.now(dt.UTC).isoformat(),
     }
     _json(stage / "stage.json", meta)
     return meta
@@ -263,6 +264,7 @@ def _savedb(src, dest):
 
 def _stop_r5_owned(r5, root, work):
     import psutil
+
     from tools.colab_service_lifecycle import process_owned
 
     record = work / "api_ownership.json"
@@ -311,7 +313,7 @@ def apply_and_restart(r5, authorization):
         for rel in FILES
     ):
         return {"status": "already_installed", "version": VERSION, "no_restart": True}
-    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stamp = dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%SZ")
     backup = work / "actualizaciones" / "r63_backup" / stamp
     backup.mkdir(parents=True, exist_ok=False)
     os.chmod(backup, 0o700)
@@ -406,7 +408,7 @@ def apply_and_restart(r5, authorization):
         "identity_untouched": True,
         "api_http": 200,
         "backup": str(backup),
-        "verified_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "verified_at": dt.datetime.now(dt.UTC).isoformat(),
     }
     _json(work / "actualizaciones" / "r63_active.json", out)
     return out
@@ -414,7 +416,7 @@ def apply_and_restart(r5, authorization):
 
 def render_panel(r5):
     import ipywidgets as widgets
-    from IPython.display import display, clear_output
+    from IPython.display import clear_output, display
 
     header = widgets.HTML(
         '<div style="background:#0d214b;color:white;padding:16px;border-radius:14px"><b>TRÍADE Ω · R6.3 Git</b><p>Verifica código y pruebas antes de autorizar. Solo se reinicia la API propia cuando tú lo indicas.</p></div>'
