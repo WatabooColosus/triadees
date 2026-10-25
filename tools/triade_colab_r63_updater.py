@@ -133,7 +133,7 @@ def _stage_dir(work):
 
 def prepare(r5):
     """Fetch a *fixed commit* to FETCH_HEAD; stage source and test, no writes to API code."""
-    root, work, db, counts = _runtime(r5)
+    root, work, db, counts = _runtime(r5)  # noqa: RUF059 - tuple shape retained for continuity
     _cmd(
         [
             "git",
@@ -253,7 +253,7 @@ def _verify_stage(r5):
 
 def _savedb(src, dest):
     # Consistent SQLite online backup, independent of active WAL.
-    with sqlite3.connect(src.as_uri() + "?mode=ro", uri=True, timeout=40) as inp:
+    with sqlite3.connect(src.as_uri() + "?mode=ro", uri=True, timeout=40) as inp:  # noqa: SIM117 - backup integrity scope
         with sqlite3.connect(dest, timeout=40) as out:
             inp.backup(out, pages=128, sleep=0.1)
     with sqlite3.connect(dest) as conn:
