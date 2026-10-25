@@ -20,7 +20,7 @@ import subprocess
 import threading
 import urllib.request
 
-VERSION = "R7.0-panel-candidate"
+VERSION = "R7.1-panel-candidate"
 PIN = "8fdd397b09d7c7da5da8db30235ce626d6a271ec"
 REHYDRATOR_COMMIT = "ada140cf2fad8926e33843540570a1e02494c7fe"
 REHYDRATOR_PATH = "tools/triade_colab_continuity_r631.py"
@@ -197,6 +197,21 @@ class Center:
             "record": pointer,
         }
 
+    def _release_verified(self, meta):
+        if not meta or meta.get("status") != "rehydrated_candidate":
+            return False
+        if meta.get("r631_source") != "70e17c7e3f98b162cddf98a6441830e9802e3e55":
+            return False
+        file = self.root / "triade/neurons/functional_evidence.py"
+        expected = meta.get("verified_module_sha256")
+        return bool(
+            isinstance(expected, str)
+            and len(expected) == 64
+            and file.is_file()
+            and not file.is_symlink()
+            and _sha(file) == expected
+        )
+
     def _floor(self):
         floor = dict(MIN_OBSERVED)
         manifest = _read_json(self.drive / "operacion_colab_r7" / "last_success.json")
@@ -236,10 +251,12 @@ class Center:
             except (RuntimeError, sqlite3.Error) as ex:
                 result["bodega"] = "BLOQUEADA: " + str(ex)[:150]
         meta = _read_json(self.work / "actualizaciones" / "continuidad_git_r631.json")
-        if meta and meta.get("status") == "rehydrated_candidate":
+        if self._release_verified(meta):
             result["release"] = (
                 "R6.3.1 candidata / Git " + str(meta.get("r631_source", ""))[:10]
             )
+        elif meta:
+            result["release"] = "R6.3.1 registrada, código local SIN VERIFICAR"
         else:
             for tag in ("r63_active.json", "r62_active.json"):
                 st = _read_json(self.work / "actualizaciones" / tag)
@@ -290,7 +307,10 @@ class Center:
                 raise RuntimeError(
                     "Respaldo de revisión no supera al V2 en todas las tablas; revisión manual"
                 )
-            if any(review["counts"][x] > prior[x] for x in GUARD_TABLES):
+            if any(
+                review["counts"][x] > prior[x]
+                for x in (*GUARD_TABLES, "neuron_activity")
+            ):
                 chosen = review
         if chosen is None:
             failures = {k: n for k, n in self._floor().items() if prior.get(k, 0) < n}
@@ -419,6 +439,10 @@ class Center:
                 self.work / "actualizaciones" / "continuidad_git_r631.json"
             )
             if existing and existing.get("status") == "rehydrated_candidate":
+                if not self._release_verified(existing):
+                    raise RuntimeError(
+                        "La versión registrada y el código no coinciden; no se declara instalada"
+                    )
                 return {"state": "already_installed", "status": self.status()}
             _git(
                 self.root,
