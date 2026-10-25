@@ -2031,9 +2031,19 @@ class WorkerLoop:
         lesson: dict[str, Any] = {}
         try:
             with sqlite3.connect(self.db_path) as conn:
+                # R6.2: repartir la educación entre neuronas con menos usos
+                # realmente medidos; a igualdad, priorizar la menos ejercitada.
+                # No modifica fechas, puntuaciones ni contadores históricos.
                 row = conn.execute(
-                    "SELECT neuron_id, lesson_json FROM neuron_education_sessions "
-                    "WHERE state='lesson_prepared' ORDER BY created_at LIMIT 1"
+                    "SELECT s.neuron_id, s.lesson_json "
+                    "FROM neuron_education_sessions s "
+                    "WHERE s.state='lesson_prepared' "
+                    "ORDER BY "
+                    "(SELECT COUNT(*) FROM neuron_education_applications a "
+                    " WHERE a.session_id=s.session_id) ASC, "
+                    "COALESCE((SELECT MAX(c.created_at) FROM neuron_work_cycles c "
+                    " WHERE c.neuron_id=s.neuron_id),'1970-01-01') ASC, "
+                    "s.created_at ASC LIMIT 1"
                 ).fetchone()
             if row:
                 training_neuron_id = int(row[0]) if row[0] is not None else None
