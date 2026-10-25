@@ -3,12 +3,17 @@
 No manufactured runs, no altered report states, no identity changes.
 The functional evaluator independently rechecks provenance and semantic-quarantine safety.
 """
+
 from __future__ import annotations
 import argparse
 import json
 import sqlite3
 from pathlib import Path
-from triade.neurons.functional_evidence import CASES, supported_domain, register_actual_probe
+from triade.neurons.functional_evidence import (
+    CASES,
+    supported_domain,
+    register_actual_probe,
+)
 
 
 def recover(*, neuron_id: int, limit: int, apply: bool) -> dict:
@@ -17,7 +22,9 @@ def recover(*, neuron_id: int, limit: int, apply: bool) -> dict:
     if not db.is_file():
         raise RuntimeError("Bodega de Colab R5 no encontrada")
     with sqlite3.connect(db.as_uri() + "?mode=ro", uri=True, timeout=25) as c:
-        neuron = c.execute("SELECT name,domain FROM neurons WHERE id=?", (neuron_id,)).fetchone()
+        neuron = c.execute(
+            "SELECT name,domain FROM neurons WHERE id=?", (neuron_id,)
+        ).fetchone()
         if neuron is None:
             raise RuntimeError("Neurona desconocida")
         domain = supported_domain(str(neuron[0]), str(neuron[1]))
@@ -37,8 +44,11 @@ def recover(*, neuron_id: int, limit: int, apply: bool) -> dict:
         seen = set()
         for run_id, prompt, episode in records:
             case = next(
-                (item for item in cases
-                 if str(prompt).startswith(item.question + "\nContexto de dominio:")),
+                (
+                    item
+                    for item in cases
+                    if str(prompt).startswith(item.question + "\nContexto de dominio:")
+                ),
                 None,
             )
             if case is None or case.id in seen:
@@ -46,7 +56,7 @@ def recover(*, neuron_id: int, limit: int, apply: bool) -> dict:
             prefix = "Usuario: " + str(prompt) + "\nRespuesta: "
             if not isinstance(episode, str) or not episode.startswith(prefix):
                 continue
-            response = episode[len(prefix):]
+            response = episode[len(prefix) :]
             if not response.strip():
                 continue
             candidates.append((str(run_id), case.id, response))
@@ -54,11 +64,17 @@ def recover(*, neuron_id: int, limit: int, apply: bool) -> dict:
             if len(candidates) >= limit:
                 break
 
-    result = {"status":"preview" if not apply else "applied",
-              "neuron_id":neuron_id,"source":"archived_real_runner_outputs",
-              "recoverable_cases":[case_id for _,case_id,_ in candidates],
-              "run_count":len(candidates),"recorded":0,"rejected":[],
-              "learning_proven":False,"causal_proof":False}
+    result = {
+        "status": "preview" if not apply else "applied",
+        "neuron_id": neuron_id,
+        "source": "archived_real_runner_outputs",
+        "recoverable_cases": [case_id for _, case_id, _ in candidates],
+        "run_count": len(candidates),
+        "recorded": 0,
+        "rejected": [],
+        "learning_proven": False,
+        "causal_proof": False,
+    }
     if not apply:
         return result
 
@@ -67,6 +83,7 @@ def recover(*, neuron_id: int, limit: int, apply: bool) -> dict:
         return result
     from datetime import datetime, timezone
     import os
+
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     folder = Path("/content/triade_operacion_r5/actualizaciones/r631_recovery") / stamp
     folder.mkdir(parents=True, exist_ok=False)
@@ -83,19 +100,38 @@ def recover(*, neuron_id: int, limit: int, apply: bool) -> dict:
 
     for run_id, case_id, answer in candidates:
         try:
-            outcome = register_actual_probe(db, run_id=run_id, neuron_id=neuron_id,
-                                            case_id=case_id, phase="pre", answer=answer)
-            result["recorded"] += int(outcome["status"] in ("recorded", "already_recorded"))
-            print(json.dumps({"case_id":case_id,"run_id":run_id,
-                              "rubric_score":outcome["score"],
-                              "status":outcome["status"]}, ensure_ascii=False), flush=True)
+            outcome = register_actual_probe(
+                db,
+                run_id=run_id,
+                neuron_id=neuron_id,
+                case_id=case_id,
+                phase="pre",
+                answer=answer,
+            )
+            result["recorded"] += int(
+                outcome["status"] in ("recorded", "already_recorded")
+            )
+            print(
+                json.dumps(
+                    {
+                        "case_id": case_id,
+                        "run_id": run_id,
+                        "rubric_score": outcome["score"],
+                        "status": outcome["status"],
+                    },
+                    ensure_ascii=False,
+                ),
+                flush=True,
+            )
         except (ValueError, sqlite3.Error) as exc:
-            result["rejected"].append({"case_id":case_id,"reason":str(exc)[:170]})
+            result["rejected"].append({"case_id": case_id, "reason": str(exc)[:170]})
     return result
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description="Tríade R6.3.1 · recuperación fiel de pruebas PRE")
+    p = argparse.ArgumentParser(
+        description="Tríade R6.3.1 · recuperación fiel de pruebas PRE"
+    )
     p.add_argument("--neuron", type=int, default=11)
     p.add_argument("--limit", type=int, default=5)
     p.add_argument("--apply", action="store_true")
