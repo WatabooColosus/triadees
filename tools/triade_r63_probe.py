@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Optional real functional battery; independent of internal worker scores.
 
 Run only in private Colab. Phase 'pre' must truly happen BEFORE a new lesson.
@@ -109,7 +108,7 @@ def main(argv=None):
                 f"✓ {case.id} resultado={out['score']} run={runid} (se registra solo si la neurona intervino)",
                 flush=True,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - guarded runtime/UI recovery boundary
             print(
                 f"! {case.id} no acreditado: {type(exc).__name__}: {str(exc)[:260]}",
                 flush=True,
