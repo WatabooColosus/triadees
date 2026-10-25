@@ -218,7 +218,7 @@ def execute(
         str(output),
     ]
     process = subprocess.run(
-        argv, cwd=r5_module.ROOT, capture_output=True, text=True, timeout=210
+        argv, check=False, cwd=r5_module.ROOT, capture_output=True, text=True, timeout=210
     )
     if process.stdout:
         print(process.stdout[-8500:])
@@ -305,7 +305,7 @@ def render_r5_update_area(ns: dict):
             clear_output(wait=True)
             try:
                 v = picker.value
-                item = list(v.values())[0] if isinstance(v, dict) else v[0]
+                item = list(v.values())[0] if isinstance(v, dict) else v[0]  # noqa: RUF015 - preserve existing selection semantics
                 content = item["content"] if isinstance(item, dict) else item.content
                 name = (
                     item.get("name", "uploaded.zip")
