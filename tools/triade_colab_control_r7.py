@@ -16,7 +16,6 @@ from pathlib import Path
 import shutil
 import sqlite3
 import subprocess
-import sys
 import threading
 import urllib.request
 
@@ -217,7 +216,7 @@ class Center:
         # Close SQLite source, use an isolated backup and fsync replacement with WAL absent.
         if Path(str(self.db) + '-wal').exists() or Path(str(self.db) + '-shm').exists():
             raise RuntimeError('WAL/SHM local presente: restauración bloqueada antes del backend')
-        stamp = dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+        stamp = dt.datetime.now(dt.UTC).strftime('%Y%m%dT%H%M%SZ')
         vault = self.work / 'control_r7' / 'before_review_restore' / stamp
         vault.mkdir(parents=True, exist_ok=False)
         backup = vault / 'v2_pre_restore.sqlite3'
@@ -333,7 +332,6 @@ class Center:
         with self.lock:
             if not self.drive.is_dir() or not self.db.is_file():
                 raise RuntimeError('Sin Drive o Bodega')
-            counts = _counts(self.db)
             proof = _read_json(self.work / 'restore_proof.json')
             if not proof or not self._origin_verified():
                 raise RuntimeError('Sin identidad/checkout R5 acreditados')
@@ -346,14 +344,14 @@ class Center:
             manifest = {'schema': 'triade_r7_operational_checkpoint_v1', 'lineage': '90e9a51dd7ffef31',
                         'release': self.status()['release'], 'r5_commit': PIN,
                         'observed_counts': review['counts'], 'snapshot_sha256': review['sha256'],
-                        'snapshot_file': review['file'].name, 'written_at': dt.datetime.now(dt.timezone.utc).isoformat()}
+                        'snapshot_file': review['file'].name, 'written_at': dt.datetime.now(dt.UTC).isoformat()}
             self._write_local(self.drive / 'operacion_colab_r7' / 'last_success.json', manifest)
             return manifest
 
 
 def render(r5):
     import ipywidgets as w
-    from IPython.display import HTML, display, clear_output
+    from IPython.display import HTML, clear_output, display
     from html import escape
     center = Center(r5)
     display(HTML('''<style>.r7hero{background:linear-gradient(120deg,#071b37,#162354 53%,#38134d);padding:22px;border-radius:18px;border:1px solid #3f8fdd;color:#f0f8ff;font:15px system-ui}
