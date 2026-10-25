@@ -1,9 +1,8 @@
 import sqlite3
 import tempfile
 import unittest
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from functional_evidence import assess_answer,register_actual_probe,functional_comparison,VERSION
+from triade.neurons.functional_evidence import assess_answer, register_actual_probe, functional_comparison
 
 SCHEMA='''
 CREATE TABLE neurons(id INTEGER PRIMARY KEY,name TEXT,domain TEXT);
