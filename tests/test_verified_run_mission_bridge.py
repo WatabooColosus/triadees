@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 import tempfile
 import unittest
-from verified_run_mission_bridge import bridge_verified_user_run
+from triade.core.verified_run_mission_bridge import bridge_verified_user_run
 
 CREATE = '''
 CREATE TABLE neurons (id INTEGER PRIMARY KEY);
