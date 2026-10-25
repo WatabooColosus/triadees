@@ -218,7 +218,12 @@ def execute(
         str(output),
     ]
     process = subprocess.run(
-        argv, check=False, cwd=r5_module.ROOT, capture_output=True, text=True, timeout=210
+        argv,
+        check=False,
+        cwd=r5_module.ROOT,
+        capture_output=True,
+        text=True,
+        timeout=210,
     )
     if process.stdout:
         print(process.stdout[-8500:])

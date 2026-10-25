@@ -31,7 +31,11 @@ def bridge_verified_user_run(db_path: str | Path, run_id: str) -> dict:
     No llama al planificador, modelo o red. Los datos proceden solo de la DB.
     Evita duplicados en reintentos o llamadas repetidas del mismo run.
     """
-    result: dict[str, Any] = {"run_id": str(run_id), "created": [], "status": "not_eligible"}
+    result: dict[str, Any] = {
+        "run_id": str(run_id),
+        "created": [],
+        "status": "not_eligible",
+    }
     if not run_id:
         return result
     with sqlite3.connect(str(db_path), timeout=15) as conn:
