@@ -1,0 +1,39 @@
+name: R7 temporary AST-safe code formatting
+
+on:
+  push:
+    branches: [feat/triade-colab-control-r7-20261025]
+    paths:
+      - .github/workflows/triade-r7-format-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format-r7:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install formatter
+        run: python -m pip install 'ruff==0.14.6'
+      - name: Apply only safe fixes and formatting
+        run: |
+          set -euo pipefail
+          files=(tools/triade_colab_control_r7.py tests/test_colab_control_r7.py)
+          python -m ruff check --fix "${files[@]}" || true
+          python -m ruff format "${files[@]}"
+          python -m compileall -q "${files[@]}"
+          python -m ruff check "${files[@]}"
+          python -m ruff format --check "${files[@]}"
+          git diff --check
+          git config user.name 'triade-r7-format'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- "${files[@]}"
+          if ! git diff --cached --quiet; then
+            git commit -m 'style(colab): format R7 controller and safety tests'
+            git push origin HEAD:feat/triade-colab-control-r7-20261025
+          fi
