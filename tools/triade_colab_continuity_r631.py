@@ -74,6 +74,28 @@ def rehydrate(r5):
                for p in ("restore_proof.json","r5_continuity.json")):
         raise RuntimeError("No hay prueba de continuidad de R5; no actualizar")
 
+    # Latest *user-observed* R6.3 measurements before Colab disconnected.
+    # If R5 restored an earlier Drive snapshot, do not silently report continuity.
+    with sqlite3.connect(db.as_uri() + "?mode=ro", uri=True, timeout=20) as c:
+        certified = {
+            "neuron_activity": 6,
+            "neuron_education_applications": 15,
+        }
+        recovered = {
+            "neuron_activity": c.execute(
+                "SELECT COUNT(*) FROM neuron_activity WHERE activated=1"
+            ).fetchone()[0],
+            "neuron_education_applications": c.execute(
+                "SELECT COUNT(*) FROM neuron_education_applications"
+            ).fetchone()[0],
+        }
+    if any(recovered[k] < certified[k] for k in certified):
+        raise RuntimeError(
+            "La Bodega restaurada es anterior a la última medición conocida "
+            "(activaciones>=6, aplicaciones>=15): " + str(recovered)
+            + ". No se aplicó código. Verifica cuál snapshot de Drive restauró R5."
+        )
+
     r62 = _loader("triade_r62_stable_loader", R62_LOADER,
                   "tools/triade_colab_r62_updater.py")
     r63 = _loader("triade_r63_stable_loader", R63_LOADER,
