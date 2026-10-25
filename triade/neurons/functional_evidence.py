@@ -118,13 +118,43 @@ def register_actual_probe(db_path: str | Path, *, run_id: str, neuron_id: int,
         neuron = conn.execute("SELECT name,domain FROM neurons WHERE id=?", (neuron_id,)).fetchone()
         if not neuron or supported_domain(neuron[0], neuron[1])!=CASES_BY_ID[case_id].domain:
             raise ValueError('Caso no corresponde a una competencia funcional de la neurona')
-        row = conn.execute("SELECT source FROM runs WHERE run_id=?",(run_id,)).fetchone()
-        if not row or str(row[0]) != 'neuron_functional_probe':
-            raise ValueError('Origen no es una prueba funcional real')
+        row = conn.execute("SELECT source,status FROM runs WHERE run_id=?",(run_id,)).fetchone()
+        if not row or str(row[0]) != 'neuron_functional_probe' or str(row[1]) != 'ok':
+            raise ValueError('Origen o estado no es una prueba funcional real terminada')
         exists = conn.execute("SELECT 1 FROM neuron_activity WHERE run_id=? AND neuron_id=? AND activated=1",(run_id,neuron_id)).fetchone()
         if exists is None:raise ValueError('La neurona no participó realmente en el run')
-        proof = conn.execute("SELECT 1 FROM verification_reports WHERE run_id=? AND status='ok' AND safety_score>=0.6 LIMIT 1",(run_id,)).fetchone()
-        if proof is None:raise ValueError('Run no verificado o inseguro')
+        # An approved semantic quarantine is a protection, not a safety failure.
+        # The LAST verifier report must have no errors, safety>=0.6 and either
+        # be fully OK or contain ONLY this precise governance quarantine notice.
+        # All other warnings, malformed JSON and blocked runs fail closed.
+        proof = conn.execute(
+            "SELECT status,safety_score,errors,warnings FROM verification_reports "
+            "WHERE run_id=? ORDER BY id DESC LIMIT 1", (run_id,)
+        ).fetchone()
+        if proof is None:
+            raise ValueError('Run no verificado o inseguro')
+        try:
+            status, safety_score, raw_errors, raw_warnings = proof
+            errors = json.loads(raw_errors)
+            warnings = json.loads(raw_warnings)
+            valid_format = isinstance(errors, list) and isinstance(warnings, list)
+            valid_safety = safety_score is not None and 0.6 <= float(safety_score) <= 1.0
+            benign_governance = (
+                status == "warning" and len(warnings) == 1
+                and isinstance(warnings[0], str)
+                and re.fullmatch(
+                    r"Gobierno semántico dejó en cuarentena [1-9][0-9]* "
+                    r"recuerdo\\(s\\) recuperado\\(s\\) no autorizado\\(s\\)\\.",
+                    warnings[0],
+                ) is not None
+            )
+            verified = valid_format and not errors and valid_safety and (
+                (status == 'ok' and not warnings) or benign_governance
+            )
+        except (TypeError, ValueError, json.JSONDecodeError):
+            verified = False
+        if not verified:
+            raise ValueError('Run no verificado o inseguro')
         # A real run's DB timestamp, not the time this function was called.
         date = conn.execute("SELECT created_at FROM neuron_activity WHERE run_id=? AND neuron_id=? AND activated=1 ORDER BY id LIMIT 1",(run_id,neuron_id)).fetchone()
         when = str(date[0]) if date else ''
