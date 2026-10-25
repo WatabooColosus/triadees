@@ -103,6 +103,11 @@ def stage_from_git() -> dict:
     if not GIT_REF or GIT_REF.startswith('__'):raise RuntimeError('Git todavía no tiene release pinneada')
     with urlopen(GIT_URL,timeout=25) as response:
         code=response.read(MAX_ARCHIVE+1)
+    # GitHub puede servir el archivo sin el LF final presente en el ZIP.
+    # Solo se normaliza si el SHA del contenido resultante coincide EXACTAMENTE
+    # con el SHA fijado; no se acepta codigo distinto.
+    if sha256(code) != PATCH_SHA256 and sha256(code + b'\n') == PATCH_SHA256:
+        code += b'\n'
     _checked_source(code)
     BASE.mkdir(parents=True,exist_ok=True)
     dest=BASE/f'{PATCH_NAME[:-3]}_{PATCH_SHA256[:12]}.py'
