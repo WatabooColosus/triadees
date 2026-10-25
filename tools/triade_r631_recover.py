@@ -92,7 +92,7 @@ def recover(*, neuron_id: int, limit: int, apply: bool) -> dict:
     folder.mkdir(parents=True, exist_ok=False)
     os.chmod(folder, 0o700)
     snapshot = folder / "pre_recovery.sqlite3"
-    with sqlite3.connect(db.as_uri() + "?mode=ro", uri=True, timeout=30) as src:
+    with sqlite3.connect(db.as_uri() + "?mode=ro", uri=True, timeout=30) as src:  # noqa: SIM117 - consistent SQLite copy
         with sqlite3.connect(snapshot) as dst:
             src.backup(dst, pages=128, sleep=0.1)
     with sqlite3.connect(snapshot) as c:
