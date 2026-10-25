@@ -313,7 +313,7 @@ def render_r5_update_area(ns: dict):
                     else item.name
                 )
                 stage(stage_from_bytes(bytes(content), filename=name, source="upload"))
-            except Exception as ex:
+            except Exception as ex:  # noqa: BLE001 - guarded runtime/UI recovery boundary
                 print("✗:", type(ex).__name__, str(ex))
 
     picker.observe(uploaded, names="value")
@@ -332,7 +332,7 @@ def render_r5_update_area(ns: dict):
                     )
                     return
                 stage(stage_from_file(f, drive_only=True))
-            except Exception as ex:
+            except Exception as ex:  # noqa: BLE001 - guarded runtime/UI recovery boundary
                 print("✗:", type(ex).__name__, str(ex))
 
     from_drive.on_click(load_drive)
@@ -342,7 +342,7 @@ def render_r5_update_area(ns: dict):
             clear_output(wait=True)
             try:
                 stage(stage_from_git())
-            except Exception as ex:
+            except Exception as ex:  # noqa: BLE001 - guarded runtime/UI recovery boundary
                 print("✗:", type(ex).__name__, str(ex))
 
     git.on_click(load_git)
@@ -359,7 +359,7 @@ def render_r5_update_area(ns: dict):
                 state["audited"] = True
                 apply.disabled = False
                 print("✓ R6 auditado, sin modificaciones. Informe:", r["report"])
-            except Exception as ex:
+            except Exception as ex:  # noqa: BLE001 - guarded runtime/UI recovery boundary
                 print("✗:", type(ex).__name__, str(ex))
 
     inspect.on_click(on_audit)
@@ -383,7 +383,7 @@ def render_r5_update_area(ns: dict):
                 print(
                     "NOTA: R6 es parche operativo, NO promoción de versión del núcleo Git."
                 )
-            except Exception as ex:
+            except Exception as ex:  # noqa: BLE001 - guarded runtime/UI recovery boundary
                 print("✗:", type(ex).__name__, str(ex))
 
     apply.on_click(on_apply)
