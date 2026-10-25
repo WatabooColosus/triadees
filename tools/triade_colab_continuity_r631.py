@@ -49,7 +49,7 @@ def _loader(name: str, commit: str, path: str):
         raise RuntimeError("Módulo inválido: " + name)
     tree = ast.parse(data.decode("utf-8"), filename=path)
     module = types.ModuleType(name)
-    exec(compile(tree, path, "exec"), module.__dict__)
+    exec(compile(tree, path, "exec"), module.__dict__)  # noqa: S102 - immutable Git commit and AST check
     return module
 
 
