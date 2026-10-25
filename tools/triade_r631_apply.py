@@ -64,6 +64,11 @@ def main():
     current = live.read_bytes()
     if current not in (baseline, sources[TARGET]):
         raise RuntimeError("El módulo R6.3 tiene modificaciones desconocidas; no sobrescribir")
+    script = ROOT / "tools/triade_r631_recover.py"
+    if script.is_symlink() or (script.exists() and script.read_bytes() != sources[FILES[2]]):
+        raise RuntimeError("Herramienta de recuperación en conflicto; no modificar")
+    if script.parent.is_symlink():
+        raise RuntimeError("Ruta de recuperación con enlace simbólico; no modificar")
 
     stage = WORK / "actualizaciones/r631_stage"
     stage.mkdir(parents=True, exist_ok=True)
