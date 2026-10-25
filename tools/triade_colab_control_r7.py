@@ -13,12 +13,12 @@ import datetime as dt
 import hashlib
 import json
 import os
-from pathlib import Path
 import shutil
 import sqlite3
 import subprocess
 import threading
 import urllib.request
+from pathlib import Path
 
 VERSION = "R7.1-panel-candidate"
 PIN = "8fdd397b09d7c7da5da8db30235ce626d6a271ec"
@@ -465,14 +465,14 @@ class Center:
             import types
 
             module = types.ModuleType("triade_colab_continuity_r631")
-            exec(
+            exec(  # noqa: S102 - pinned audited Git commit
                 compile(
                     ast.parse(source.decode("utf-8"), filename=REHYDRATOR_PATH),
                     REHYDRATOR_PATH,
                     "exec",
                 ),
                 module.__dict__,
-            )  # noqa: S102 - code is pinned to immutable verified Git SHA
+            )
             receipt = module.rehydrate(self.r5)
             if (
                 receipt.get("status") != "rehydrated_candidate"
@@ -556,9 +556,10 @@ class Center:
 
 
 def render(r5):
+    from html import escape
+
     import ipywidgets as w
     from IPython.display import HTML, clear_output, display
-    from html import escape
 
     center = Center(r5)
     display(
