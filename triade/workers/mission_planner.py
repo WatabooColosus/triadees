@@ -1370,8 +1370,11 @@ class MissionPlanner:
         tasks: list[PlannedTask] = []
         try:
             store = NeuronMissionStore(db_path=self.db_path)
-            missions = store.list_missions(status="experimental", limit=5)
-            missions.extend(store.list_missions(status="stable", limit=5))
+            # R6.2: listar todas las misiones elegibles, no solo las cinco
+            # primeras de cada estado. La evidencia reciente sigue siendo
+            # obligatoria y plan_cycle mantiene su límite global de 15 tareas.
+            missions = store.list_missions(status="experimental", limit=200)
+            missions.extend(store.list_missions(status="stable", limit=200))
             for m in missions:
                 with closing(self._connect()) as conn, conn:
                     evidence = conn.execute(
