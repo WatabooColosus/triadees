@@ -1454,6 +1454,27 @@ class TriadeRunner:
             "neuron_learning_candidates", []
         )
 
+        # R6.2: solo entradas humanas reales y evaluadas; nunca un pulso worker
+        # o un run sintético. El puente añade evidencia trazable a la misión,
+        # sin convertirla en una validación externa independiente.
+        try:
+            from .verified_run_mission_bridge import bridge_verified_user_run
+
+            evidence_bridge = bridge_verified_user_run(
+                self.db_path, input_packet.run_id
+            )
+        except (OSError, RuntimeError, ValueError, TypeError, sqlite3.Error) as exc:
+            from .error_bus import record_internal_error
+
+            record_internal_error(
+                "runner.verified_neuron_mission_evidence",
+                exc,
+                run_id=input_packet.run_id,
+                db_path=self.db_path,
+            )
+            evidence_bridge = {"status": "error", "created": []}
+        output.memory_diff["neuron_mission_evidence_bridge"] = evidence_bridge
+
         neuron_contribution_summary = _process_neuron_contributions(
             contributions=neuron_contributions,
             safety=safety,
