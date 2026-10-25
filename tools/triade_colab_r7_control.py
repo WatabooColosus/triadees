@@ -518,6 +518,7 @@ def show_panel(r5):
     state = w.HTML()
     desired = w.Dropdown(description="Versión:", options=[(label,val) for label,val in RELEASES.items()], value="R5", style={"description_width":"initial"}, layout=w.Layout(width="100%"))
     approve = w.Text(description="Autorización:", placeholder="ACTUALIZAR R6.3.1", style={"description_width":"initial"}, layout=w.Layout(width="100%"))
+    loss_confirm = w.Text(description="Recuperar copia anterior:", placeholder="ACEPTO COPIA ANTERIOR", style={"description_width":"initial"}, layout=w.Layout(width="100%"))
     output = w.Output(layout=w.Layout(border="1px solid #365a83", padding="8px", max_height="420px", overflow="auto"))
     buttons = []
     busy = threading.Lock()
@@ -569,6 +570,12 @@ def show_panel(r5):
         preferred = (_json(Path(r5.BASE) / "operacion_colab_r7" / "version_preferida.json") or {}).get("version")
         return boot(r5, chosen=preferred, reporter=print)
 
+    def start_older_with_consent():
+        if loss_confirm.value.strip() != "ACEPTO COPIA ANTERIOR":
+            raise RuntimeError("Escribe ACEPTO COPIA ANTERIOR. Podría perderse actividad no respaldada.")
+        preferred = (_json(Path(r5.BASE) / "operacion_colab_r7" / "version_preferida.json") or {}).get("version")
+        return boot(r5, chosen=preferred, allow_older_backup=True, reporter=print)
+
     def check_release():
         st = inspect(r5)
         try:
@@ -602,10 +609,12 @@ def show_panel(r5):
         action("Guardar elección en Drive", choose, "245px"),
         action("Actualizar R6.3.1", manual_candidate, "220px"),
         action("Auditar workers (30s)", lambda: r5.audit_progress(30), "220px"),
-        action("Respaldo verificado", backup, "220px"),
+        action("Checkpoint R7 ahora", lambda: _save_r7_snapshot(r5), "225px"),
+        action("Recuperar copia anterior*", start_older_with_consent, "245px"),
+        action("Respaldo R5 original", backup, "220px"),
         action("Abrir Tríade React", r5.open_frontend, "215px"),
         action("Actualizar indicadores", refresh, "220px"),
     ]
-    display(banner, state, desired, approve, w.Box(controls, layout=w.Layout(display="flex", flex_flow="row wrap", gap="6px")), output)
+    display(banner, state, desired, approve, loss_confirm, w.Box(controls, layout=w.Layout(display="flex", flex_flow="row wrap", gap="6px")), output)
     refresh()
     return {"refresh":refresh, "output":output}
