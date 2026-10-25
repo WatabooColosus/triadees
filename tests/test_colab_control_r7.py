@@ -121,6 +121,21 @@ class ControllerTests(unittest.TestCase):
         )
         self.assertEqual(r7._counts(self.r5.DB)["autonomous_tasks"], 2501)
 
+    def test_activation_only_review_is_recovered(self):
+        self.checkpoint(apps=15, activity=10, tasks=2500)
+        with patch.object(r7, "_check_api", return_value=False):
+            out = self.center._restore_best_before_api()
+        self.assertEqual(out["status"], "review_restored_validated")
+        self.assertEqual(r7._counts(self.r5.DB)["neuron_activity"], 10)
+
+    def test_stale_version_receipt_is_not_trusted(self):
+        receipt = {
+            "status": "rehydrated_candidate",
+            "r631_source": "70e17c7e3f98b162cddf98a6441830e9802e3e55",
+            "verified_module_sha256": "0" * 64,
+        }
+        self.assertFalse(self.center._release_verified(receipt))
+
     def test_hash_mismatch_no_changes(self):
         self.checkpoint(bad_hash=True)
         before = r7._sha(self.r5.DB)
