@@ -144,7 +144,7 @@ def register_actual_probe(db_path: str | Path, *, run_id: str, neuron_id: int,
                 and isinstance(warnings[0], str)
                 and re.fullmatch(
                     r"Gobierno semántico dejó en cuarentena [1-9][0-9]* "
-                    r"recuerdo\\(s\\) recuperado\\(s\\) no autorizado\\(s\\)\\.",
+                    r"recuerdo\(s\) recuperado\(s\) no autorizado\(s\)\.",
                     warnings[0],
                 ) is not None
             )
