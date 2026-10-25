@@ -23,7 +23,7 @@ jobs:
           python-version: '3.12'
       - name: Install Ruff
         run: python -m pip install 'ruff==0.14.6'
-      - name: Apply only automated safe lint and formatting fixes to R6 files
+      - name: Apply AST-checked lint fixes and formatting only to integrated R6 modules
         shell: bash
         run: |
           set -euo pipefail
