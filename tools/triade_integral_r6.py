@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Auditor y reparador limitado R6 para todas las neuronas existentes.
 
 No crea neuronas, contenidos educativos, eventos, evaluaciones ni logros.
@@ -345,7 +344,7 @@ def graph_debt(root: Path, db: Path):
             "categories": signals,
             "limitations": "Sin modificar grafos ni autoejecutar scripts; las categorías contractuales requieren revisión individual.",
         }
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - guarded runtime/UI recovery boundary
         result = {
             "status": "error",
             "reason": type(exc).__name__,
@@ -452,6 +451,6 @@ def main(argv=None):
 if __name__ == "__main__":
     try:
         main()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - guarded runtime/UI recovery boundary
         print("BLOQUEADO:", f"{type(exc).__name__}: {exc}", file=sys.stderr)
         sys.exit(1)
