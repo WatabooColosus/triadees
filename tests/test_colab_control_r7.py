@@ -1,6 +1,5 @@
 import importlib.util
 import json
-import shutil
 import sqlite3
 import tempfile
 import unittest
@@ -78,16 +77,14 @@ class ControllerTests(unittest.TestCase):
     def test_hash_mismatch_no_changes(self):
         self.checkpoint(bad_hash=True)
         before=r7._sha(self.r5.DB)
-        with patch.object(r7,'_check_api',return_value=False):
-            with self.assertRaisesRegex(RuntimeError, 'SHA'):
+        with patch.object(r7,'_check_api',return_value=False), self.assertRaisesRegex(RuntimeError, 'SHA'):
                 self.center._restore_best_before_api()
         self.assertEqual(before,r7._sha(self.r5.DB))
 
     def test_prevent_old_review(self):
         self.checkpoint(apps=14,tasks=2400)
         before=r7._sha(self.r5.DB)
-        with patch.object(r7,'_check_api',return_value=False):
-            with self.assertRaisesRegex(RuntimeError,'no supera'):
+        with patch.object(r7,'_check_api',return_value=False), self.assertRaisesRegex(RuntimeError,'no supera'):
                 self.center._restore_best_before_api()
         self.assertEqual(before,r7._sha(self.r5.DB))
 
@@ -99,15 +96,13 @@ class ControllerTests(unittest.TestCase):
     def test_review_required_if_v2_regressed(self):
         self.r5.DB.unlink()
         make_db(self.r5.DB,applications=0,activity=1)
-        with patch.object(r7,'_check_api',return_value=False):
-            with self.assertRaisesRegex(RuntimeError,'retrocede'):
+        with patch.object(r7,'_check_api',return_value=False), self.assertRaisesRegex(RuntimeError,'retrocede'):
                 self.center._restore_best_before_api()
 
     def test_no_live_db_swap(self):
         self.checkpoint()
         before=r7._sha(self.r5.DB)
-        with patch.object(r7,'_check_api',return_value=True):
-            with self.assertRaisesRegex(RuntimeError,'API activa'):
+        with patch.object(r7,'_check_api',return_value=True), self.assertRaisesRegex(RuntimeError,'API activa'):
                 self.center._restore_best_before_api()
         self.assertEqual(before,r7._sha(self.r5.DB))
 
@@ -134,16 +129,14 @@ class ControllerTests(unittest.TestCase):
         self.r5.connect_verified_v2 = lambda: None
         self.r5.model_ready = lambda: self.fail('model started despite regressed Bodega')
         self.r5.start_real_backend = lambda: self.fail('API started despite regressed Bodega')
-        with patch.object(r7,'_check_api',return_value=False):
-            with self.assertRaisesRegex(RuntimeError,'retrocede'):
+        with patch.object(r7,'_check_api',return_value=False), self.assertRaisesRegex(RuntimeError,'retrocede'):
                 self.center.start()
 
     def test_manifest_older_than_current_blocks(self):
         file=self.r5.BASE/'operacion_colab_r7'/'last_success.json'
         file.parent.mkdir(parents=True)
         file.write_text(json.dumps({'lineage':'90e9a51dd7ffef31','observed_counts':{'neuron_activity':30}}))
-        with patch.object(r7,'_check_api',return_value=False):
-            with self.assertRaisesRegex(RuntimeError,'retrocede'):
+        with patch.object(r7,'_check_api',return_value=False), self.assertRaisesRegex(RuntimeError,'retrocede'):
                 self.center._restore_best_before_api()
 
 
