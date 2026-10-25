@@ -33,7 +33,7 @@ FILES = [
 
 def cmd(*argv, timeout=120):
     p = subprocess.run(
-        argv, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout
+        argv, cwd=ROOT, capture_output=True, check=False, timeout=timeout
     )
     if p.returncode:
         raise RuntimeError(p.stderr.decode(errors="replace")[-900:])
@@ -130,6 +130,7 @@ def main():
         env=env,
         text=True,
         capture_output=True,
+        check=False,
         timeout=90,
     )
     if proc.returncode:
