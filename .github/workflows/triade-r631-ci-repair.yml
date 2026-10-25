@@ -41,6 +41,11 @@ jobs:
             tools/triade_integral_r6.py
             tools/triade_update_center.py
           )
+          present=()
+          for path in "${files[@]}"; do
+            if [[ -f "$path" ]]; then present+=("$path"); fi
+          done
+          files=("${present[@]}")
           python -m ruff check --fix "${files[@]}" || true
           python -m ruff format "${files[@]}"
           python -m compileall -q "${files[@]}"
