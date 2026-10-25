@@ -217,8 +217,10 @@ class NeuronEducationResolver:
                 from .functional_evidence import functional_comparison
 
                 functional = functional_comparison(
-                    conn, neuron_id=int(neuron_id),
-                    session_id=session_id, lesson_at=str(sesion["created_at"])
+                    conn,
+                    neuron_id=int(neuron_id),
+                    session_id=session_id,
+                    lesson_at=str(sesion["created_at"]),
                 )
                 post = None
                 if not functional.get("ready"):
@@ -231,7 +233,10 @@ class NeuronEducationResolver:
                 else:
                     measured_baseline = float(functional["baseline"])
                     post = float(functional["post"])
-                    if baseline is not None and abs(float(baseline) - measured_baseline) > 0.0001:
+                    if (
+                        baseline is not None
+                        and abs(float(baseline) - measured_baseline) > 0.0001
+                    ):
                         decision = "insufficient_evidence"
                         motivo = "baseline histórico no corresponde al examen funcional; no sobrescribir"
                     else:
@@ -247,10 +252,14 @@ class NeuronEducationResolver:
                         delta = float(functional["delta"])
                         if delta <= DEGRADATION_DELTA:
                             decision = "degraded"
-                            motivo = f"regresión funcional observada, delta={delta:+.4f}"
+                            motivo = (
+                                f"regresión funcional observada, delta={delta:+.4f}"
+                            )
                         elif abs(delta) < IMPROVEMENT_DELTA:
                             decision = "neutral"
-                            motivo = f"sin mejora funcional relevante, delta={delta:+.4f}"
+                            motivo = (
+                                f"sin mejora funcional relevante, delta={delta:+.4f}"
+                            )
                         else:
                             # A/B pareado muestra asociación, no causalidad.
                             # No marcar 'improved' ni promover asignaciones
@@ -286,7 +295,8 @@ class NeuronEducationResolver:
                         post,
                         (
                             int(functional["post_distinct_runs"])
-                            if functional.get("ready") else len(scores)
+                            if functional.get("ready")
+                            else len(scores)
                         ),
                         rollback_ref,
                         # `finished_at` es NOT NULL en el esquema real. Se
