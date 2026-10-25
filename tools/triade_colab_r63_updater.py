@@ -44,8 +44,8 @@ def _cmd(args, *, cwd=None, timeout=75, env=None):
         args,
         cwd=cwd,
         timeout=timeout,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
+        check=False,
         env=env,
     )
     if p.returncode:
@@ -369,7 +369,7 @@ def apply_and_restart(r5, authorization):
         ) as response:
             if response.status != 200:
                 raise RuntimeError("R6.3 sin HTTP 200")
-    except Exception as exc:  # noqa: BLE001 - guarded runtime/UI recovery boundary
+    except Exception as exc:
         # Roll back code only if API is no longer listening, to avoid mixing versions.
         import psutil
 
