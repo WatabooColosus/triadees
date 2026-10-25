@@ -369,7 +369,7 @@ def apply_and_restart(r5, authorization):
         ) as response:
             if response.status != 200:
                 raise RuntimeError("R6.3 sin HTTP 200")
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - guarded runtime/UI recovery boundary
         # Roll back code only if API is no longer listening, to avoid mixing versions.
         import psutil
 
@@ -388,7 +388,7 @@ def apply_and_restart(r5, authorization):
             print("✗ Código original restaurado. Intentando levantar R5 anterior...")
             try:
                 r5.start_real_backend()
-            except Exception as rollback_exc:
+            except Exception as rollback_exc:  # noqa: BLE001 - guarded runtime/UI recovery boundary
                 print(
                     "✗ No se pudo iniciar R5 anterior:",
                     type(rollback_exc).__name__,
@@ -451,7 +451,7 @@ def render_panel(r5):
                 print("✓ Integridad DB:", r["sqlite_integrity"])
                 print("✓ Archivos:", r["changes"])
                 print("AÚN NO se modificó backend ni se reiniciaron servicios")
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - guarded runtime/UI recovery boundary
                 state["prepared"] = False
                 install_button.disabled = True
                 print("✗", type(exc).__name__, str(exc))
@@ -466,7 +466,7 @@ def render_panel(r5):
                 print("✓ Resultado:", json.dumps(x, ensure_ascii=False, indent=2))
                 approval.value = ""
                 install_button.disabled = True
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - guarded runtime/UI recovery boundary
                 print("✗", type(exc).__name__, str(exc))
 
     prepare_button.on_click(prepare_click)
