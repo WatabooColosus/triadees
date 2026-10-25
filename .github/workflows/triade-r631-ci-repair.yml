@@ -46,6 +46,7 @@ jobs:
             if [[ -f "$path" ]]; then present+=("$path"); fi
           done
           files=("${present[@]}")
+          python tools/triade_r631_style_repair.py "${files[@]}"
           python -m ruff check --fix "${files[@]}" || true
           python -m ruff format "${files[@]}"
           python -m compileall -q "${files[@]}"
@@ -60,4 +61,4 @@ jobs:
           fi
       - name: Report remaining lint and tests
         run: |
-          python -m ruff check triade/core/verified_run_mission_bridge.py triade/neurons/functional_evidence.py tests/test_verified_run_mission_bridge.py tests/test_neuron_functional_evidence.py tools/triade_colab_continuity_r631.py tools/triade_colab_r62_updater.py tools/triade_colab_r63_updater.py tools/triade_r63_probe.py tools/triade_r631_apply.py tools/triade_r631_recover.py tools/triade_integral_r6.py tools/triade_update_center.py
+          python -m ruff check triade/core/verified_run_mission_bridge.py triade/neurons/functional_evidence.py tests/test_verified_run_mission_bridge.py tests/test_neuron_functional_evidence.py tools/triade_colab_continuity_r631.py tools/triade_colab_r63_updater.py tools/triade_r63_probe.py tools/triade_r631_apply.py tools/triade_r631_recover.py tools/triade_integral_r6.py tools/triade_update_center.py
