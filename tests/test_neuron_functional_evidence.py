@@ -7,9 +7,9 @@ from functional_evidence import assess_answer,register_actual_probe,functional_c
 
 SCHEMA='''
 CREATE TABLE neurons(id INTEGER PRIMARY KEY,name TEXT,domain TEXT);
-CREATE TABLE runs(run_id TEXT PRIMARY KEY,source TEXT);
+CREATE TABLE runs(run_id TEXT PRIMARY KEY,source TEXT,status TEXT NOT NULL DEFAULT 'ok');
 CREATE TABLE neuron_activity(id INTEGER PRIMARY KEY AUTOINCREMENT,run_id TEXT,neuron_id INTEGER,activated INTEGER,created_at TEXT);
-CREATE TABLE verification_reports(id INTEGER PRIMARY KEY AUTOINCREMENT,run_id TEXT,status TEXT,safety_score REAL);
+CREATE TABLE verification_reports(id INTEGER PRIMARY KEY AUTOINCREMENT,run_id TEXT,status TEXT,safety_score REAL,errors TEXT NOT NULL DEFAULT '[]',warnings TEXT NOT NULL DEFAULT '[]');
 CREATE TABLE neuron_education_sessions(session_id TEXT PRIMARY KEY,neuron_id INTEGER,created_at TEXT);
 '''
 class ProbeTests(unittest.TestCase):
@@ -23,11 +23,11 @@ class ProbeTests(unittest.TestCase):
             c.execute('INSERT INTO neurons VALUES(11,?,?)',('Neurona Visual','visual_semantics'))
             c.execute('INSERT INTO neuron_education_sessions VALUES(?,?,?)',('session-1',11,self.after))
     def tearDown(self):self.temp.cleanup()
-    def run_event(self, run, when, *, origin='neuron_functional_probe', activated=1, safety=.9):
+    def run_event(self, run, when, *, origin='neuron_functional_probe', activated=1, safety=.9, verifier='ok', errors='[]', warnings='[]', run_status='ok'):
         with sqlite3.connect(self.db) as c:
-            c.execute('INSERT INTO runs VALUES(?,?)',(run,origin))
+            c.execute('INSERT INTO runs(run_id,source,status) VALUES(?,?,?)',(run,origin,run_status))
             c.execute('INSERT INTO neuron_activity(run_id,neuron_id,activated,created_at) VALUES(?,?,?,?)',(run,11,activated,when))
-            c.execute('INSERT INTO verification_reports(run_id,status,safety_score) VALUES(?,?,?)',(run,'ok',safety))
+            c.execute('INSERT INTO verification_reports(run_id,status,safety_score,errors,warnings) VALUES(?,?,?,?,?)',(run,verifier,safety,errors,warnings))
     def test_exact_rubric_not_string_containment(self):
         self.assertEqual(assess_answer('py1','4')['score'],1.0)
         self.assertEqual(assess_answer('py1','La respuesta es 4')['score'],0.0)
@@ -40,6 +40,38 @@ class ProbeTests(unittest.TestCase):
     def test_requires_verified_safety(self):
         self.run_event('faux',self.before,safety=.2)
         with self.assertRaisesRegex(ValueError,'inseguro'):register_actual_probe(self.db,run_id='faux',neuron_id=11,case_id='vis1',phase='pre',answer='#ff0000')
+    def test_benign_semantic_quarantine_warning_allowed(self):
+        warning='["Gobierno semántico dejó en cuarentena 3 recuerdo(s) recuperado(s) no autorizado(s)."]'
+        self.run_event('quarantine',self.before,verifier='warning',warnings=warning)
+        x=register_actual_probe(self.db,run_id='quarantine',neuron_id=11,case_id='vis1',phase='pre',answer='#ff0000')
+        self.assertEqual(x['status'],'recorded')
+    def test_another_warning_blocked(self):
+        self.run_event('degraded',self.before,verifier='warning',warnings='["Cristal detectó degradación temporal"]')
+        with self.assertRaisesRegex(ValueError,'inseguro'):
+            register_actual_probe(self.db,run_id='degraded',neuron_id=11,case_id='vis1',phase='pre',answer='#ff0000')
+    def test_mixed_warning_blocked(self):
+        warnings='["Gobierno semántico dejó en cuarentena 3 recuerdo(s) recuperado(s) no autorizado(s).","Cristal detectó degradación temporal"]'
+        self.run_event('mixed',self.before,verifier='warning',warnings=warnings)
+        with self.assertRaisesRegex(ValueError,'inseguro'):
+            register_actual_probe(self.db,run_id='mixed',neuron_id=11,case_id='vis1',phase='pre',answer='#ff0000')
+    def test_warning_with_errors_blocked(self):
+        warning='["Gobierno semántico dejó en cuarentena 3 recuerdo(s) recuperado(s) no autorizado(s)."]'
+        self.run_event('errors',self.before,verifier='warning',warnings=warning,errors='["Error real"]')
+        with self.assertRaisesRegex(ValueError,'inseguro'):
+            register_actual_probe(self.db,run_id='errors',neuron_id=11,case_id='vis1',phase='pre',answer='#ff0000')
+    def test_warning_with_low_safety_blocked(self):
+        warning='["Gobierno semántico dejó en cuarentena 3 recuerdo(s) recuperado(s) no autorizado(s)."]'
+        self.run_event('low',self.before,verifier='warning',warnings=warning,safety=0.59)
+        with self.assertRaisesRegex(ValueError,'inseguro'):
+            register_actual_probe(self.db,run_id='low',neuron_id=11,case_id='vis1',phase='pre',answer='#ff0000')
+    def test_malformed_warning_json_blocked(self):
+        self.run_event('broken',self.before,verifier='warning',warnings='not-json')
+        with self.assertRaisesRegex(ValueError,'inseguro'):
+            register_actual_probe(self.db,run_id='broken',neuron_id=11,case_id='vis1',phase='pre',answer='#ff0000')
+    def test_incomplete_run_blocked(self):
+        self.run_event('incomplete',self.before,run_status='warning')
+        with self.assertRaisesRegex(ValueError,'Origen o estado'):
+            register_actual_probe(self.db,run_id='incomplete',neuron_id=11,case_id='vis1',phase='pre',answer='#ff0000')
     def test_wrong_domain_blocked(self):
         self.run_event('true-pre',self.before)
         with self.assertRaisesRegex(ValueError,'competencia funcional'):
