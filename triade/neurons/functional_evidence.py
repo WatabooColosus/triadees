@@ -331,7 +331,7 @@ def functional_comparison(
         ORDER BY datetime(created_at) DESC, id DESC""",
         (neuron_id, VERSION, lesson_at),
     ).fetchall()
-    baseline = {}
+    baseline: dict[str, float] = {}
     for case, score in pres:
         baseline.setdefault(case, float(score))
     post = conn.execute(
