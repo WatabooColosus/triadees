@@ -31,8 +31,8 @@ ORIGIN = "https://github.com/WatabooColosus/triadees.git"
 def _git(*args, timeout=180):
     result = subprocess.run(
         ["git", "-C", str(ROOT), *args],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
+        check=False,
         timeout=timeout,
     )
     if result.returncode != 0:
