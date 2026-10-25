@@ -6,9 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-import sys
-sys.path.insert(0,'/mnt/data')
-import triade_r7_control as ctl
+from tools import triade_colab_r7_control as ctl
 
 class MockR5:
     def __init__(self,home):
