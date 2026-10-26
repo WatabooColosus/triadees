@@ -72,6 +72,15 @@ Nunca elige una imagen que reduzca las tablas protegidas o actividades activadas
 Un conflicto real mantiene el arranque detenido y **Estado real** sigue disponible
 después de una instalación incompleta, sin exigir instalar otra vez para verlo.
 
+La presencia de archivos WAL/SHM locales no se interpreta por sí sola como un
+fallo. Antes de recuperar una revisión más completa, se guarda la memoria local
+con la API de backup de SQLite, incluidos los datos confirmados del WAL. La
+restauración usa esa misma API transaccional sobre la Bodega existente, sin
+borrar archivos laterales ni reemplazar su inode. Un escritor que mantiene la
+base ocupada, un cambio de recuentos durante la preparación o un listener API
+activo (aunque su salud no responda 200) mantienen el bloqueo. Las copias
+originales de Drive no se modifican.
+
 ## Validación
 
 `tests/test_colab_continuous.py` comprueba VM vacía, instalación de dependencias,

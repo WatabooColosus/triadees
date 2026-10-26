@@ -132,6 +132,81 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(out["status"], "review_restored_validated")
         self.assertEqual(r7._counts(self.r5.DB)["neuron_activity"], 10)
 
+    def wal_connection(self, applications=16):
+        conn = sqlite3.connect(self.r5.DB)
+        self.addCleanup(conn.close)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA wal_autocheckpoint=0")
+        conn.executemany(
+            "INSERT INTO neuron_education_applications(id) VALUES (?)",
+            [(i,) for i in range(16, applications + 1)],
+        )
+        conn.commit()
+        return conn
+
+    def test_restore_with_committed_wal_preserves_full_original(self):
+        self.checkpoint()
+        self.wal_connection()
+        inode = self.r5.DB.stat().st_ino
+        self.assertGreater(Path(str(self.r5.DB) + "-wal").stat().st_size, 0)
+        with patch.object(r7, "_check_api", return_value=False):
+            out = self.center._restore_best_before_api()
+        self.assertEqual(out["restore_method"], "sqlite_backup_transaction")
+        self.assertEqual(
+            r7._counts(Path(out["backup_original"]))["neuron_education_applications"],
+            16,
+        )
+        self.assertEqual(r7._counts(self.r5.DB)["neuron_education_applications"], 20)
+        self.assertEqual(self.r5.DB.stat().st_ino, inode)
+
+    def test_committed_wal_counts_cannot_be_replaced_by_older_review(self):
+        self.checkpoint()
+        self.wal_connection(applications=30)
+        with (
+            patch.object(r7, "_check_api", return_value=False),
+            self.assertRaisesRegex(RuntimeError, "supera"),
+        ):
+            self.center._restore_best_before_api()
+        self.assertEqual(r7._counts(self.r5.DB)["neuron_education_applications"], 30)
+
+    def test_active_wal_writer_blocks_restore_without_losing_memory(self):
+        self.checkpoint()
+        conn = self.wal_connection()
+        conn.execute("BEGIN IMMEDIATE")
+        with (
+            patch.object(r7, "_check_api", return_value=False),
+            self.assertRaisesRegex(RuntimeError, "ocupada"),
+        ):
+            self.center._restore_best_before_api()
+        conn.rollback()
+        self.assertEqual(r7._counts(self.r5.DB)["neuron_education_applications"], 16)
+
+    def test_unhealthy_api_listener_also_blocks_memory_restore(self):
+        self.checkpoint()
+        before = r7._sha(self.r5.DB)
+        with (
+            patch.object(r7, "_check_api", return_value=False),
+            patch.object(r7, "_api_port_open", return_value=True),
+            self.assertRaisesRegex(RuntimeError, "API activa"),
+        ):
+            self.center._restore_best_before_api()
+        self.assertEqual(r7._sha(self.r5.DB), before)
+
+    def test_interrupted_sqlite_backup_rolls_back_destination(self):
+        image = self.checkpoint()
+        with sqlite3.connect(image) as conn:
+            conn.execute("CREATE TABLE backup_test_payload(data BLOB)")
+            conn.executemany(
+                "INSERT INTO backup_test_payload VALUES (zeroblob(8192))", [()] * 200
+            )
+        before = r7._counts(self.r5.DB)
+        with (
+            patch.object(r7.time, "monotonic", side_effect=[0, 61]),
+            self.assertRaisesRegex(RuntimeError, "agotado"),
+        ):
+            r7._sqlite_backup(image, self.r5.DB)
+        self.assertEqual(r7._counts(self.r5.DB), before)
+
     def test_stale_version_receipt_is_not_trusted(self):
         receipt = {
             "status": "rehydrated_candidate",

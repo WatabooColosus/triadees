@@ -14,13 +14,15 @@ import hashlib
 import json
 import os
 import shutil
+import socket
 import sqlite3
 import subprocess
 import threading
+import time
 import urllib.request
 from pathlib import Path
 
-VERSION = "R7.3-drive-candidate"
+VERSION = "R7.4-wal-candidate"
 PIN = "8fdd397b09d7c7da5da8db30235ce626d6a271ec"
 REHYDRATOR_COMMIT = "ada140cf2fad8926e33843540570a1e02494c7fe"
 REHYDRATOR_PATH = "tools/triade_colab_continuity_r631.py"
@@ -54,6 +56,40 @@ def _read_json(path: Path):
         return value if isinstance(value, dict) else None
     except (OSError, ValueError):
         return None
+
+
+def _api_port_open():
+    """An unhealthy listener must also prevent automatic memory restoration."""
+    try:
+        with socket.create_connection(("127.0.0.1", 8010), timeout=0.3):
+            return True
+    except OSError:
+        return False
+
+
+def _sqlite_backup(source, destination, timeout=60):
+    """Copy committed SQLite state, including WAL, without unlinking sidecars.
+
+    SQLite owns the destination transaction and rolls it back on backup error.
+    Abort on a busy writer rather than waiting indefinitely or deleting locks.
+    """
+    deadline = time.monotonic() + timeout
+
+    def progress(status, remaining, total):
+        if status == sqlite3.SQLITE_DONE:
+            return
+        if status in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
+            raise RuntimeError("Bodega ocupada por otra conexión; memoria conservada")
+        if time.monotonic() > deadline:
+            raise RuntimeError("Tiempo de copia SQLite agotado; memoria conservada")
+
+    with (
+        contextlib.closing(
+            sqlite3.connect(source.resolve().as_uri() + "?mode=ro", uri=True, timeout=0)
+        ) as src,
+        contextlib.closing(sqlite3.connect(destination, timeout=0)) as dst,
+    ):
+        src.backup(dst, pages=128, progress=progress, sleep=0.01)
 
 
 def _counts(path: Path):
@@ -351,7 +387,7 @@ class Center:
     def _restore_best_before_api(self):
         """Replace only the just-restored V2 local copy, with a strictly verifiable later image."""
         self._sync_paths()
-        if _check_api("http://127.0.0.1:8010/health/live"):
+        if _check_api("http://127.0.0.1:8010/health/live") or _api_port_open():
             raise RuntimeError("API activa: nunca sustituir Bodega viva")
         proof = _read_json(self.work / "restore_proof.json")
         if not proof:
@@ -387,20 +423,14 @@ class Center:
             raise RuntimeError(
                 "La copia Drive más reciente sigue siendo antigua: " + str(failures)
             )
-        # Close SQLite source, use an isolated backup and fsync replacement with WAL absent.
-        if Path(str(self.db) + "-wal").exists() or Path(str(self.db) + "-shm").exists():
-            raise RuntimeError(
-                "WAL/SHM local presente: restauración bloqueada antes del backend"
-            )
-        stamp = dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%SZ")
+        # WAL/SHM presence alone is normal, including after read-only checks.
+        # Let SQLite preserve committed WAL state and restore transactionally;
+        # never replace the database inode underneath existing sidecars/readers.
+        stamp = dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%S%fZ")
         vault = self.work / "control_r7" / "before_review_restore" / stamp
         vault.mkdir(parents=True, exist_ok=False)
         backup = vault / "v2_pre_restore.sqlite3"
-        with (
-            contextlib.closing(sqlite3.connect(self.db)) as src,
-            contextlib.closing(sqlite3.connect(backup)) as dst,
-        ):
-            src.backup(dst, pages=128, sleep=0.1)
+        _sqlite_backup(self.db, backup)
         if _counts(backup) != prior:
             raise RuntimeError("Backup local previo incompleto; DB original conservada")
         staged = vault / "review_staged.sqlite3"
@@ -408,7 +438,9 @@ class Center:
         if _sha(staged) != chosen["sha256"] or _counts(staged) != current:
             raise RuntimeError("SHA o recuentos de imagen staged divergentes")
         self.r5._owner_account_status(staged)
-        os.replace(staged, self.db)
+        if _api_port_open() or _counts(self.db) != prior:
+            raise RuntimeError("La Bodega cambió durante la preparación; sin restaurar")
+        _sqlite_backup(staged, self.db)
         if _counts(self.db) != current:
             raise RuntimeError("Imagen restaurada no coincide; no arrancar API")
         self.r5.check_working_identity()
@@ -417,6 +449,7 @@ class Center:
             "file": chosen["file"].name,
             "sha256": chosen["sha256"],
             "backup_original": str(backup),
+            "restore_method": "sqlite_backup_transaction",
             "counts": current,
         }
         self._write_local(self.work / "control_r7" / "last_restore.json", receipt)
