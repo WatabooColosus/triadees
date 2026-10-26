@@ -83,13 +83,16 @@ def validate_manifest(value):
         if not isinstance(path, str):
             raise TypeError("Ruta de publicación inválida")
         parts = PurePosixPath(path)
+        allowed_path = bool(
+            re.fullmatch(r"tools/[A-Za-z0-9_./-]+\.py", path)
+            or path == "triade/models/model_router.py"
+        )
         if (
             parts.is_absolute()
-            or not re.fullmatch(r"tools/[A-Za-z0-9_./-]+\.py", path)
+            or not allowed_path
             or ".." in parts.parts
             or "\\" in path
             or parts.as_posix() != path
-            or not path.startswith("tools/")
             or not path.endswith(".py")
             or path in paths
             or not _HASH.fullmatch(str(record.get("sha256", "")))
