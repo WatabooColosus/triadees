@@ -7,6 +7,8 @@ without changing the notebook or offering a button for each historical patch.
 
 from __future__ import annotations
 
+import ast
+import datetime as dt
 import hashlib
 import importlib.util
 import json
@@ -177,6 +179,76 @@ def _protection(context):
     return context["protection_module"]
 
 
+def _apply_router_patch(context):
+    """Apply the verified router module to an already-running R5 session."""
+    staged_path = context.get("files", {}).get("router")
+    if not staged_path:
+        return {"status": "not_declared", "restarted": False}
+    r5 = context["r5"]
+    root = Path(r5.ROOT).resolve()
+    work = Path(r5.WORK).resolve()
+    target = (root / "triade/models/model_router.py").resolve()
+    staged = Path(staged_path).resolve()
+    if (
+        not target.is_file()
+        or target.is_symlink()
+        or not staged.is_file()
+        or staged.is_symlink()
+    ):
+        raise RuntimeError("Ruta del router ausente o insegura")
+    source = staged.read_bytes()
+    ast.parse(source.decode("utf-8"), filename="triade/models/model_router.py")
+    digest = hashlib.sha256(source).hexdigest()
+    if target.read_bytes() == source:
+        return {"status": "already_installed", "sha256": digest, "restarted": False}
+    center = _center(context)
+    if not center._origin_verified():
+        raise RuntimeError("Checkout R5 no verificado; no sustituir el router")
+    stamp = dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%S%fZ")
+    backup = work / "actualizaciones" / "router_patch" / stamp
+    backup.mkdir(parents=True, exist_ok=False)
+    shutil.copy2(target, backup / "model_router.py")
+    (backup / "before.sha256").write_text(
+        hashlib.sha256(target.read_bytes()).hexdigest(), encoding="utf-8"
+    )
+    sys.path.insert(0, str(root))
+    from tools.colab_service_lifecycle import stop_owned
+
+    ownership = work / "api_ownership.json"
+    stop_owned(root, ownership, port=8010)
+    temporary = target.with_name(".model_router.py.r710tmp")
+    if temporary.exists() or temporary.is_symlink():
+        raise RuntimeError("Temporal de router existente en conflicto")
+    try:
+        fd = os.open(str(temporary), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(source)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, target)
+        if hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+            raise RuntimeError("SHA del router instalado no coincide")
+        r5.start_real_backend()
+        with urllib.request.urlopen(
+            "http://127.0.0.1:8010/health/live", timeout=15
+        ) as response:
+            if response.status != 200:
+                raise RuntimeError("API sin HTTP 200 después del parche del router")
+    except Exception:
+        if temporary.exists():
+            temporary.unlink()
+        shutil.copy2(backup / "model_router.py", target)
+        try:
+            r5.start_real_backend()
+        except (OSError, RuntimeError, ValueError, TypeError) as rollback_error:
+            context["progress"](
+                "No se pudo reactivar la API tras el rollback: "
+                + type(rollback_error).__name__
+            )
+        raise
+    return {"status": "patched_and_restarted", "sha256": digest, "restarted": True}
+
+
 def _learning(context):
     if "learning" not in context.get("files", {}):
         return None
@@ -215,11 +287,13 @@ def install(context):
         context["progress"](
             "Actualizando el auditor del panel; Tríade sigue encendida…"
         )
+        router_patch = _apply_router_patch(context)
         protection = _attach_panel_components(context)
         return {
             "status": "ready",
             "dependencies": {"status": "existing_runtime_verified"},
             "runtime": {"state": "already_running_verified"},
+            "router_patch": router_patch,
             "backup_protection": protection,
         }
     dependencies = ensure_dependencies(context)
@@ -230,19 +304,31 @@ def install(context):
         "already_running_verified",
     ):
         raise RuntimeError("El arranque no terminó verificado")
+    router_patch = _apply_router_patch(context)
     protection = _attach_panel_components(context)
     return {
         "status": "ready",
         "dependencies": dependencies,
         "runtime": result,
+        "router_patch": router_patch,
         "backup_protection": protection,
     }
 
 
 def verify(context):
+    router_path = context.get("files", {}).get("router")
+    router_ok = True
+    if router_path:
+        live_router = Path(context["r5"].ROOT) / "triade/models/model_router.py"
+        router_ok = bool(
+            Path(router_path).is_file()
+            and live_router.is_file()
+            and live_router.read_bytes() == Path(router_path).read_bytes()
+        )
     observed = _center(context).status()
     ready = bool(
-        observed.get("api_http_200") is True
+        router_ok
+        and observed.get("api_http_200") is True
         and observed.get("ollama_http_200") is True
         and observed.get("bodega", "").startswith("SQLite ok")
         and observed.get("known_regression") is None
