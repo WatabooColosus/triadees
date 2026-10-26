@@ -151,10 +151,22 @@ class ModelRouter:
                     f"se usó {fallback} como fallback generativo compatible."
                 )
             else:
-                fallback = "unavailable:no-generative-model-installed"
-                fallback_reason = (
-                    "No hay un modelo generativo compatible instalado para este rol."
+                has_generation_model = any(
+                    not self._is_embedding_model(model)
+                    and (normalized_role == "coder" or "coder" not in model.lower())
+                    for model in self.available_models
                 )
+                if has_generation_model and self.hardware is not None:
+                    fallback = "unavailable:no-hardware-compatible-model"
+                    fallback_reason = (
+                        "Hay modelos generativos instalados, pero ninguno cabe "
+                        "en el presupuesto de hardware para este rol."
+                    )
+                else:
+                    fallback = "unavailable:no-generative-model-installed"
+                    fallback_reason = (
+                        "No hay un modelo generativo compatible instalado para este rol."
+                    )
         return ModelRouteDecision(
             role=normalized_role,
             selected_model=fallback,
@@ -242,7 +254,7 @@ class ModelRouter:
                 allowed.append(model)
             else:
                 rejected.append(model)
-        return allowed or candidates[-2:], rejected
+        return allowed, rejected
 
     def _model_fits(self, model: str) -> bool:
         if self.hardware is None:
