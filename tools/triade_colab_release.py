@@ -316,7 +316,12 @@ def install(context):
 def verify(context):
     router_path = context.get("files", {}).get("router")
     live_router = Path(context["r5"].ROOT) / "triade/models/model_router.py"
-    router_ok = bool(\n        router_path\n        and Path(router_path).is_file()\n        and live_router.is_file()\n        and live_router.read_bytes() == Path(router_path).read_bytes()\n    )
+    router_ok = bool(
+        router_path
+        and Path(router_path).is_file()
+        and live_router.is_file()
+        and live_router.read_bytes() == Path(router_path).read_bytes()
+    )
     observed = _center(context).status()
     ready = bool(
         router_ok
