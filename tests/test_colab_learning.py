@@ -72,19 +72,39 @@ def test_budget_denial_never_calls_model(monkeypatch):
 
 def test_planning_requires_native_source_and_safety_gates(tmp_path):
     db, neuron = _database(tmp_path)
+    long_research_tail = " " + " ".join(f"archiveword{index}" for index in range(80))
     _material(
         db,
         "https://docs.python.org/testing",
         "Pruebas",
-        "reparar código requiere pruebas reproducibles",
+        "reparar código requiere pruebas reproducibles" + long_research_tail,
     )
     _material(
         db,
         "https://sqlite.org/testing.html",
         "Validación",
-        "código reparado requiere pruebas y validación independiente",
+        "código reparado requiere pruebas y validación independiente"
+        + long_research_tail,
     )
     engine = learning._engine(db)
+    from triade.learning.retrieval import LearningRetriever
+    from triade.neurons.curriculum import domain_query, relevant_material
+
+    candidate_materials = engine._candidate_materials()
+    query = f"{engine._target(force=True, target_neuron_id=neuron)['mission']} {domain_query('code_repair')}"
+    selected = relevant_material(candidate_materials, query, "code_repair")
+    assert selected
+    assert all(
+        not LearningRetriever(db)
+        .retrieve_decision(
+            query,
+            run_id="short-query-control",
+            domain="code_repair",
+            only_candidate_ids={item["candidate_id"]},
+        )
+        .injected_ids
+        for item in selected
+    )
     target = learning._target(engine, db)
     assert target["neuron_id"] == neuron
     assert target["suite"] == "python_text"
@@ -204,16 +224,15 @@ def test_probe_requires_actual_model_response_and_native_activation_proof(
 
 def test_unauthorized_post_material_stops_before_model(monkeypatch, tmp_path):
     from triade.core import ollama_blood
-    from triade.learning import retrieval
     from triade.neurons.functional_evidence import CASES_BY_ID
 
     monkeypatch.setattr(
         ollama_blood, "check_ollama_blood", lambda: {"reasoning_model": "fixture"}
     )
     monkeypatch.setattr(
-        retrieval.LearningRetriever,
-        "retrieve_decision",
-        lambda *args, **kw: SimpleNamespace(injected_ids=[], matches=[]),
+        learning,
+        "_authorize_material_ids",
+        lambda *args, **kw: [],
     )
     state = {
         "domain": "code_repair",

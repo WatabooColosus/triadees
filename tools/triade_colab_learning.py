@@ -302,8 +302,43 @@ def _engine(db, material_ids=None, baseline_run_ids=()):
     return engine
 
 
-def _target(engine, db):
+def _authorize_material_ids(db, candidate_ids, domain, run_id):
+    """Apply the native retrieval gates to curriculum-selected material IDs.
+
+    Curriculum relevance is established by ``relevant_material`` before this
+    helper is called.  The native retriever's lexical threshold is designed for
+    open-ended search, so comparing a short question against a long research
+    document silently drops otherwise eligible material.  Here each selected
+    document is retrieved only against its own content and ID; state,
+    provenance, canonicality, domain and safety checks remain native.
+    """
     from triade.learning.retrieval import LearningRetriever
+
+    ids = sorted({str(candidate_id) for candidate_id in candidate_ids if candidate_id})
+    if not ids:
+        return []
+    placeholders = ",".join("?" for _ in ids)
+    with contextlib.closing(_connect(db)) as conn:
+        rows = conn.execute(
+            f"SELECT candidate_id,content FROM learning_queue "
+            f"WHERE candidate_id IN ({placeholders}) AND domain=?",
+            (*ids, domain),
+        ).fetchall()
+    retriever = LearningRetriever(db)
+    matches = []
+    for row in rows:
+        decision = retriever.retrieve_decision(
+            str(row["content"] or ""),
+            run_id=run_id,
+            limit=1,
+            domain=domain,
+            only_candidate_ids={str(row["candidate_id"])},
+        )
+        matches.extend(decision.matches)
+    return matches
+
+
+def _target(engine, db):
     from triade.neurons.curriculum import domain_query, relevant_material, source_domain
     from triade.neurons.functional_evidence import supported_domain
 
@@ -340,16 +375,14 @@ def _target(engine, db):
             ):
                 chosen.append(material)
                 seen.add(material["candidate_id"])
-        authorized = LearningRetriever(db).retrieve_decision(
-            query,
-            run_id="study-planning-" + uuid.uuid4().hex,
-            limit=300,
-            domain=target["domain"],
-            only_candidate_ids={item["candidate_id"] for item in chosen},
+        authorized = _authorize_material_ids(
+            db,
+            {item["candidate_id"] for item in chosen},
+            target["domain"],
+            "study-planning-" + uuid.uuid4().hex,
         )
-        chosen = [
-            item for item in chosen if item["candidate_id"] in authorized.injected_ids
-        ]
+        authorized_ids = {match.candidate_id for match in authorized}
+        chosen = [item for item in chosen if item["candidate_id"] in authorized_ids]
         sources = {
             source_domain(ref)
             for item in chosen
@@ -387,21 +420,21 @@ def _probe(r5, state, case, phase):
     prompt = f"{case.question}\nContexto de dominio: {state['domain']}."
     material_ids = []
     if phase == "post":
-        from triade.learning.retrieval import LearningRetriever, build_learning_block
+        from triade.learning.retrieval import build_learning_block
 
         # This is a bounded experiment, not production knowledge injection.
         # The native experimental retriever keeps state, source, deduplication
         # and safety gates. Nothing is consolidated or reclassified here.
-        decision = LearningRetriever(r5.DB).retrieve_decision(
-            f"{state['material_query']} {case.question}",
-            run_id="study-" + uuid.uuid4().hex,
-            domain=state["domain"],
-            only_candidate_ids=set(state.get("candidate_ids", [])),
+        matches = _authorize_material_ids(
+            r5.DB,
+            set(state.get("candidate_ids", [])),
+            state["domain"],
+            "study-" + uuid.uuid4().hex,
         )
-        material_ids = list(decision.injected_ids)
+        material_ids = [match.candidate_id for match in matches]
         if not material_ids:
             raise NotReady("lesson_material_not_authorized_by_experimental_retriever")
-        prompt = build_learning_block(decision.matches) + "\n" + prompt
+        prompt = build_learning_block(matches) + "\n" + prompt
         context["experimental_material_ids"] = material_ids
     runner = TriadeRunner(
         db_path=r5.DB,
