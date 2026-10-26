@@ -224,18 +224,14 @@ class ResourceMeasurementCollector:
                 "time.monotonic",
             ),
             "cpu_user": (
-                self_utime_after
-                - self.self_utime_before
-                + children_user_delta,
+                self_utime_after - self.self_utime_before + children_user_delta,
                 "seconds",
                 "time.thread_time (children excluded)"
                 if not resource
                 else f"resource.getrusage[{self.cpu_scope}]",
             ),
             "cpu_system": (
-                self_stime_after
-                - self.self_stime_before
-                + children_system_delta,
+                self_stime_after - self.self_stime_before + children_system_delta,
                 "seconds",
                 "included in cpu_user (thread clock)"
                 if not resource
