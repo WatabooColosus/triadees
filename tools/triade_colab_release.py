@@ -183,7 +183,7 @@ def _apply_router_patch(context):
     """Apply the verified router module to an already-running R5 session."""
     staged_path = context.get("files", {}).get("router")
     if not staged_path:
-        raise RuntimeError("Publicación sin componente router verificable")
+        return {"status": "not_declared", "restarted": False}
     r5 = context["r5"]
     root = Path(r5.ROOT).resolve()
     work = Path(r5.WORK).resolve()
@@ -318,9 +318,8 @@ def install(context):
 def verify(context):
     router_path = context.get("files", {}).get("router")
     live_router = Path(context["r5"].ROOT) / "triade/models/model_router.py"
-    router_ok = bool(
-        router_path
-        and Path(router_path).is_file()
+    router_ok = not router_path or bool(
+        Path(router_path).is_file()
         and live_router.is_file()
         and live_router.read_bytes() == Path(router_path).read_bytes()
     )
