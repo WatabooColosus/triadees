@@ -209,9 +209,66 @@ class NeuronEducationResolver:
                 neuron_id = sesion["neuron_id"]
                 baseline = sesion["baseline_score"]
                 scores = self._applications(conn, session_id)
-                decision, motivo, post = self._decide(
-                    None if baseline is None else float(baseline), scores
+
+                # R6.3: las puntuaciones internas de continuidad/ciclos son
+                # telemetría, NO un examen funcional ni una prueba causal.
+                # Los runs sintéticos 'neuron_activity' y verificaciones
+                # 'internal_curriculum' no acreditan mejora educativa.
+                from .functional_evidence import functional_comparison
+
+                functional = functional_comparison(
+                    conn,
+                    neuron_id=int(neuron_id),
+                    session_id=session_id,
+                    lesson_at=str(sesion["created_at"]),
                 )
+                post = None
+                if not functional.get("ready"):
+                    decision = "insufficient_evidence"
+                    motivo = (
+                        "R6.3: pruebas funcionales antes/después insuficientes "
+                        f"({functional.get('reason')}); {len(scores)} asociaciones "
+                        "históricas conservadas únicamente como telemetría"
+                    )
+                else:
+                    measured_baseline = float(functional["baseline"])
+                    post = float(functional["post"])
+                    if (
+                        baseline is not None
+                        and abs(float(baseline) - measured_baseline) > 0.0001
+                    ):
+                        decision = "insufficient_evidence"
+                        motivo = "baseline histórico no corresponde al examen funcional; no sobrescribir"
+                    else:
+                        # Solo una medición realmente anterior a la lección
+                        # puede inaugurar el baseline de esta sesión.
+                        if baseline is None:
+                            conn.execute(
+                                "UPDATE neuron_education_sessions SET baseline_score=? "
+                                "WHERE session_id=? AND baseline_score IS NULL",
+                                (measured_baseline, session_id),
+                            )
+                        baseline = measured_baseline
+                        delta = float(functional["delta"])
+                        if delta <= DEGRADATION_DELTA:
+                            decision = "degraded"
+                            motivo = (
+                                f"regresión funcional observada, delta={delta:+.4f}"
+                            )
+                        elif abs(delta) < IMPROVEMENT_DELTA:
+                            decision = "neutral"
+                            motivo = (
+                                f"sin mejora funcional relevante, delta={delta:+.4f}"
+                            )
+                        else:
+                            # A/B pareado muestra asociación, no causalidad.
+                            # No marcar 'improved' ni promover asignaciones
+                            # sin prueba de control/holdout independiente.
+                            decision = "insufficient_evidence"
+                            motivo = (
+                                f"mejora funcional observada delta={delta:+.4f}, "
+                                "pero falta control causal independiente"
+                            )
 
                 # La versión anterior se conserva SIEMPRE que se toca la sesión:
                 # sin ella no hay rollback posible más adelante, ni para
@@ -236,7 +293,11 @@ class NeuronEducationResolver:
                         nuevo_estado,
                         decision,
                         post,
-                        len(scores),
+                        (
+                            int(functional["post_distinct_runs"])
+                            if functional.get("ready")
+                            else len(scores)
+                        ),
                         rollback_ref,
                         # `finished_at` es NOT NULL en el esquema real. Se
                         # descubrió al correr contra una copia de produccion:
@@ -278,6 +339,7 @@ class NeuronEducationResolver:
                         "baseline": baseline,
                         "post": post,
                         "applied_runs": len(scores),
+                        "functional_assessment": functional,
                         "reason": motivo,
                         "rollback_ref": rollback_ref,
                         "rolled_back": rolled_back,
@@ -297,6 +359,7 @@ class NeuronEducationResolver:
                     "baseline": baseline,
                     "post_score": post,
                     "applied_runs": len(scores),
+                    "functional_assessment": functional,
                     "rollback_ref": rollback_ref,
                     "rolled_back": rolled_back,
                     "state": nuevo_estado,

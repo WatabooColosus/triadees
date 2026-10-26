@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import os
 import sqlite3
-import subprocess
 import sys
 import time
 from pathlib import Path

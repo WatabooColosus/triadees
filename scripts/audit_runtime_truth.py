@@ -5,13 +5,15 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 from typing import Any
-from contextlib import closing
 
 
 def audit(db_path: str | Path) -> dict[str, Any]:
-    with closing(sqlite3.connect(Path(db_path).resolve().as_uri() + "?mode=ro", uri=True)) as conn:
+    with closing(
+        sqlite3.connect(Path(db_path).resolve().as_uri() + "?mode=ro", uri=True)
+    ) as conn:
         conn.row_factory = sqlite3.Row
         errors: list[dict[str, str]] = []
 

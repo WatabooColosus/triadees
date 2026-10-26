@@ -25,17 +25,27 @@ def test_guard_blocks_private_hosts():
         _assert_public_url("file:///etc/passwd")
 
 
-@pytest.mark.parametrize("query", [
-    "quiero que busques en internet y me des la fuente de donde lo sacaste, dame los 5 presidentes de latinoamierca actuales",
-    "investigues en la web", "consulta internet", "verifiques en internet",
-])
+@pytest.mark.parametrize(
+    "query",
+    [
+        "quiero que busques en internet y me des la fuente de donde lo sacaste, dame los 5 presidentes de latinoamierca actuales",
+        "investigues en la web",
+        "consulta internet",
+        "verifiques en internet",
+    ],
+)
 def test_conjugated_explicit_requests(query):
     assert requests_web_research(query)
 
 
-@pytest.mark.parametrize("query", [
-    "no busques en internet", "sin consultar internet", "evita buscar en la web",
-])
+@pytest.mark.parametrize(
+    "query",
+    [
+        "no busques en internet",
+        "sin consultar internet",
+        "evita buscar en la web",
+    ],
+)
 def test_negative_web_requests(query):
     assert not requests_web_research(query)
 
@@ -45,8 +55,13 @@ def test_failed_explicit_search_cannot_fall_back_to_model_facts():
 
     request = "quiero que busques en internet los presidentes actuales"
     for result in (None, {}, {"status": "error", "sources": []}):
-        assert "No puedo confirmar los datos actuales" in web_failure_response(request, result)
-    assert web_failure_response(request, {"sources": [{"url": "https://example.org"}]}) is None
+        assert "No puedo confirmar los datos actuales" in web_failure_response(
+            request, result
+        )
+    assert (
+        web_failure_response(request, {"sources": [{"url": "https://example.org"}]})
+        is None
+    )
     assert web_failure_response("hola", None) is None
 
 
@@ -58,10 +73,18 @@ def test_learning_filter_rejects_irrelevant_conversation_sources(monkeypatch, tm
 
     original = {"sources": [{"url": "https://example.org", "excerpt": "Evidence"}]}
     packet = SimpleNamespace(context={"guarded_web_research": original})
-    monkeypatch.setattr("triade.memory.continuity_truth.memory_truth_snapshot", lambda path: {})
+    monkeypatch.setattr(
+        "triade.memory.continuity_truth.memory_truth_snapshot", lambda path: {}
+    )
     monkeypatch.setattr(AutonomousResearchEngine, "__init__", lambda self, path: None)
-    monkeypatch.setattr(AutonomousResearchEngine, "ingest_result", lambda *a, **k: {"status": "insufficient_material", "sources": []})
-    enrich_research(packet, SimpleNamespace(), "busques en internet", "test", tmp_path / "test.db")
+    monkeypatch.setattr(
+        AutonomousResearchEngine,
+        "ingest_result",
+        lambda *a, **k: {"status": "insufficient_material", "sources": []},
+    )
+    enrich_research(
+        packet, SimpleNamespace(), "busques en internet", "test", tmp_path / "test.db"
+    )
     assert packet.context["guarded_web_research"]["sources"] == []
     assert packet.context["autonomous_research"]["status"] == "insufficient_material"
 

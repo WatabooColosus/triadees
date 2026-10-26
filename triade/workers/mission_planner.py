@@ -80,6 +80,7 @@ class MissionPlanner:
         tasks: list[PlannedTask] = []
 
         tasks.extend(self._plan_baseline())
+        tasks.extend(self._plan_unharvested_regressions())
         tasks.extend(self._plan_pending_learning())
         tasks.extend(self._plan_failed_recent())
         tasks.extend(self._plan_memory_consolidation())
@@ -125,7 +126,11 @@ class MissionPlanner:
         # planificar la copia; no se imprime ni se almacena la clave.
         from triade.core.runtime_scope import is_test_runtime
 
-        canonical_location = (Path.cwd() if is_test_runtime() else Path(__file__).resolve().parents[2]) / "config" / "backup_key_location.json"
+        canonical_location = (
+            (Path.cwd() if is_test_runtime() else Path(__file__).resolve().parents[2])
+            / "config"
+            / "backup_key_location.json"
+        )
         try:
             location = json.loads(canonical_location.read_text(encoding="utf-8"))
             canonical_key = Path(str(location.get("key_file", ""))).expanduser()
@@ -147,7 +152,9 @@ class MissionPlanner:
             )
         else:
             record_internal_error(
-                "mission_planner.backup_key_missing" if backup_key_status.get("source") == "none" else "mission_planner.backup_key_degraded",
+                "mission_planner.backup_key_missing"
+                if backup_key_status.get("source") == "none"
+                else "mission_planner.backup_key_degraded",
                 RuntimeError(
                     "backup degradado: falta TRIADE_BACKUP_KEY o "
                     "TRIADE_BACKUP_KEY_FILE; no se planifica copia cifrada"
@@ -303,8 +310,14 @@ class MissionPlanner:
                     reason=f"conocimiento consolidado {candidate_id} sin destino neuronal",
                     source="governed_neural_learning",
                     planner_score=0.85,
-                    payload={"candidate_id": candidate_id,
-                             **({"correlation_id": str(row["correlation_id"])} if row["correlation_id"] else {})},
+                    payload={
+                        "candidate_id": candidate_id,
+                        **(
+                            {"correlation_id": str(row["correlation_id"])}
+                            if row["correlation_id"]
+                            else {}
+                        ),
+                    },
                 )
             ]
         except MISSION_PLANNER_ERRORS as exc:
@@ -651,7 +664,9 @@ class MissionPlanner:
                         # consecuencia de un evento, no mantenimiento periódico.
                         # No debe esperar el intervalo adaptativo del ciclo.
                         payload={
-                            "resolution_ready": bool(resolvable_sessions or pending_sessions),
+                            "resolution_ready": bool(
+                                resolvable_sessions or pending_sessions
+                            ),
                             "education_training": bool(pending_sessions),
                         },
                     )
@@ -1039,6 +1054,74 @@ class MissionPlanner:
 
         return tasks
 
+    def _plan_unharvested_regressions(self) -> list[PlannedTask]:
+        """Despierta la cosecha de regresiones sin depender de learning_queue.
+
+        Antes, pending_learning_review sólo se planificaba si había candidatos
+        en candidate/evaluated. Una regresión real podía permanecer sin cosechar
+        eternamente cuando esos estados estaban vacíos. Este productor consulta
+        informes reales todavía sin lección, pero nunca escribe filas.
+        """
+        try:
+            with closing(self._connect()) as conn:
+                tables = {
+                    str(row[0])
+                    for row in conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table'"
+                    )
+                }
+                if "regression_reports" not in tables:
+                    return []
+                where_unharvested = (
+                    """ AND NOT EXISTS (
+                          SELECT 1 FROM improvement_failure_lessons lesson
+                          WHERE lesson.report_id=report.report_id
+                            AND lesson.metric_id=(CASE
+                              WHEN json_valid(finding.value)
+                                THEN json_extract(finding.value,'$.metric_id')
+                              ELSE NULL END)
+                        )"""
+                    if "improvement_failure_lessons" in tables
+                    else ""
+                )
+                sql = (
+                    """SELECT report.report_id FROM regression_reports report,
+                         json_each(CASE WHEN json_valid(report.findings_json)
+                             THEN report.findings_json ELSE '[]' END) finding
+                       WHERE report.decision='fail'
+                         AND COALESCE(report.capability,'') != ''
+                         AND (CASE WHEN json_valid(finding.value)
+                                THEN json_extract(finding.value,'$.status')
+                                ELSE NULL END)='fail'
+                         AND COALESCE(
+                              CASE WHEN json_valid(finding.value)
+                                THEN json_extract(finding.value,'$.metric_id')
+                                ELSE NULL END, '') != ''
+                    """
+                    + where_unharvested
+                    + " LIMIT 1"
+                )
+                row = conn.execute(sql).fetchone()
+                if row is None:
+                    return []
+                return [
+                    PlannedTask(
+                        task_type="pending_learning_review",
+                        priority=5,
+                        reason="regresión verificada aún sin cosechar",
+                        source="measured_regression_backlog",
+                        planner_score=0.95,
+                        payload={"regression_report_id": str(row["report_id"])},
+                    )
+                ]
+        except MISSION_PLANNER_ERRORS as exc:
+            record_internal_error(
+                "mission_planner.unharvested_regressions",
+                exc,
+                db_path=self.db_path,
+            )
+            return []
+
     def _plan_pending_learning(self) -> list[PlannedTask]:
         """Encola revisión de candidatos de aprendizaje pendientes."""
         tasks: list[PlannedTask] = []
@@ -1287,16 +1370,19 @@ class MissionPlanner:
         tasks: list[PlannedTask] = []
         try:
             store = NeuronMissionStore(db_path=self.db_path)
-            missions = store.list_missions(status="experimental", limit=5)
-            missions.extend(store.list_missions(status="stable", limit=5))
+            # R6.2: listar todas las misiones elegibles, no solo las cinco
+            # primeras de cada estado. La evidencia reciente sigue siendo
+            # obligatoria y plan_cycle mantiene su límite global de 15 tareas.
+            missions = store.list_missions(status="experimental", limit=200)
+            missions.extend(store.list_missions(status="stable", limit=200))
             for m in missions:
                 with closing(self._connect()) as conn, conn:
                     evidence = conn.execute(
                         """SELECT id,source,refs_json FROM neuron_evidence
                         WHERE mission_id=? AND source NOT IN ('worker','experimental_light_pulse')
-                        AND created_at > COALESCE(
-                            (SELECT MAX(created_at) FROM neuron_work_cycles WHERE mission_id=?),
-                            '1970-01-01'
+                        AND datetime(created_at) > COALESCE(
+                            (SELECT MAX(datetime(created_at)) FROM neuron_work_cycles WHERE mission_id=?),
+                            '1970-01-01 00:00:00'
                         ) ORDER BY id DESC LIMIT 1""",
                         (m.id, m.id),
                     ).fetchone()
@@ -1489,18 +1575,25 @@ class MissionPlanner:
                     ORDER BY e.id DESC LIMIT 10"""
                 ).fetchall()
                 from triade.neurons.domain_admission import _reusable
+
                 formation_task = None
                 training_task = None
                 for admission in admissions:
                     payload = json.loads(admission["payload_json"])
-                    if _reusable(payload, domain=payload["domain"],
-                                 correlation_id=payload["correlation_id"],
-                                 required_capability=payload["required_capability"]):
+                    if _reusable(
+                        payload,
+                        domain=payload["domain"],
+                        correlation_id=payload["correlation_id"],
+                        required_capability=payload["required_capability"],
+                    ):
                         formation_task = PlannedTask(
-                            task_type="neuron_candidate_formation", priority=28,
+                            task_type="neuron_candidate_formation",
+                            priority=28,
                             reason="Verified domain need requires governed candidate formation",
-                            payload={"admission_event_id": int(admission["id"]),
-                                     "correlation_id": payload["correlation_id"]},
+                            payload={
+                                "admission_event_id": int(admission["id"]),
+                                "correlation_id": payload["correlation_id"],
+                            },
                         )
                         break
                 formed = conn.execute(
@@ -1516,15 +1609,21 @@ class MissionPlanner:
                 ).fetchall()
                 for admission in formed:
                     payload = json.loads(admission["payload_json"])
-                    if _reusable(payload, domain=payload["domain"],
-                                 correlation_id=payload["correlation_id"],
-                                 required_capability=payload["required_capability"]):
+                    if _reusable(
+                        payload,
+                        domain=payload["domain"],
+                        correlation_id=payload["correlation_id"],
+                        required_capability=payload["required_capability"],
+                    ):
                         training_task = PlannedTask(
-                            task_type="neuron_candidate_formation", priority=5,
+                            task_type="neuron_candidate_formation",
+                            priority=5,
                             reason="Formed domain candidate requires executable curriculum",
-                            payload={"admission_event_id": int(admission["id"]),
-                                     "admission_phase": "training",
-                                     "correlation_id": payload["correlation_id"]},
+                            payload={
+                                "admission_event_id": int(admission["id"]),
+                                "admission_phase": "training",
+                                "correlation_id": payload["correlation_id"],
+                            },
                         )
                         break
                 trained = conn.execute(
@@ -1542,21 +1641,34 @@ class MissionPlanner:
                 ).fetchall()
                 for admission in trained:
                     payload = json.loads(admission["payload_json"])
-                    from triade.neurons.domain_admission import DomainAdmissionCoordinator
-                    certification_attempt = DomainAdmissionCoordinator(self.db_path).certification_attempt(int(admission["id"]))
+                    from triade.neurons.domain_admission import (
+                        DomainAdmissionCoordinator,
+                    )
+
+                    certification_attempt = DomainAdmissionCoordinator(
+                        self.db_path
+                    ).certification_attempt(int(admission["id"]))
                     if certification_attempt is None:
                         continue
-                    if _reusable(payload, domain=payload["domain"],
-                                 correlation_id=payload["correlation_id"],
-                                 required_capability=payload["required_capability"]):
-                        return [PlannedTask(
-                            task_type="neuron_candidate_formation", priority=5,
-                            reason="Trained domain candidate requires held-out certification",
-                            payload={"admission_event_id": int(admission["id"]),
-                                     "admission_phase": "certification",
-                                     "certification_attempt": certification_attempt,
-                                     "correlation_id": payload["correlation_id"]},
-                        )]
+                    if _reusable(
+                        payload,
+                        domain=payload["domain"],
+                        correlation_id=payload["correlation_id"],
+                        required_capability=payload["required_capability"],
+                    ):
+                        return [
+                            PlannedTask(
+                                task_type="neuron_candidate_formation",
+                                priority=5,
+                                reason="Trained domain candidate requires held-out certification",
+                                payload={
+                                    "admission_event_id": int(admission["id"]),
+                                    "admission_phase": "certification",
+                                    "certification_attempt": certification_attempt,
+                                    "correlation_id": payload["correlation_id"],
+                                },
+                            )
+                        ]
                 if training_task is not None:
                     return [training_task]
                 if formation_task is not None:

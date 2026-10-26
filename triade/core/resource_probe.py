@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import copy
 import os
 import platform
 import shutil
-import copy
 import threading
 import time
 from pathlib import Path
@@ -185,11 +185,7 @@ def _build_resource_probe_uncached() -> dict[str, Any]:
     }
 
     # Power
-    power = (
-        _linux_power()
-        if platform.system().lower() == "linux"
-        else probe_battery()
-    )
+    power = _linux_power() if platform.system().lower() == "linux" else probe_battery()
 
     # Thermal
     thermal = (

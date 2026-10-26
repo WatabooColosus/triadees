@@ -1,0 +1,41 @@
+name: Triade 5.8.0 two-file import repair
+
+on:
+  push:
+    branches: [fix/triade-580-audit-safe-20261022]
+    paths:
+      - .github/workflows/triade-580-isort-repair.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair-imports:
+    if: github.ref == 'refs/heads/fix/triade-580-audit-safe-20261022'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply only import sorting to two test modules
+        run: |
+          python -m pip install ruff
+          ruff check --select I001 --fix \
+            tests/test_audit_triade_full_readiness.py \
+            tests/test_check_triade_updates_release_gate.py
+          ruff check --select I001 \
+            tests/test_audit_triade_full_readiness.py \
+            tests/test_check_triade_updates_release_gate.py
+          git diff --check
+      - name: Commit only the two reviewed test modules
+        run: |
+          git config user.name "triade-ci-isort"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/test_audit_triade_full_readiness.py tests/test_check_triade_updates_release_gate.py
+          if ! git diff --cached --quiet; then
+            git commit -m "style(tests): Ruff-safe import sorting on two 5.8 audit tests"
+            git push origin HEAD:fix/triade-580-audit-safe-20261022
+          fi

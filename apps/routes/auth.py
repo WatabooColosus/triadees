@@ -5,7 +5,9 @@ import os
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from triade.db import sqlite3
 from triade.security.distributed_auth import DistributedAuthUnavailable
+from triade.security.email_delivery import public_registration_status
 from triade.security.public_auth import PublicAuthStore
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -15,12 +17,15 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
+
 class RegisterRequest(BaseModel):
     email: str
     password: str
 
+
 class VerifyEmailRequest(BaseModel):
     token: str
+
 
 class ApiKeyRequest(BaseModel):
     provider: str
@@ -44,14 +49,35 @@ def login(payload: LoginRequest) -> dict[str, object]:
     except PermissionError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
 
+
+@router.get("/registration-status")
+def registration_status() -> dict[str, object]:
+    status = public_registration_status()
+    return {
+        "mode": status["mode"],
+        "available": status["available"],
+        "verification": "email",
+        "reason": status["reason"],
+    }
+
+
 @router.post("/register")
-def register(payload: RegisterRequest) -> dict[str, object]:
+def register(payload: RegisterRequest, request: Request) -> dict[str, object]:
     try:
-        return store().register_email(payload.email, payload.password)
+        peer = request.client.host if request.client else "unknown"
+        return store().register_email(payload.email, payload.password, client_host=peer)
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=429, detail="registration_rate_limited"
+        ) from exc
     except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        code = 403 if str(exc) == "registration_closed" else 503
+        raise HTTPException(status_code=code, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except sqlite3.IntegrityError as exc:
+        raise HTTPException(status_code=400, detail="registration_unavailable") from exc
+
 
 @router.post("/verify-email")
 def verify_email(payload: VerifyEmailRequest) -> dict[str, object]:
@@ -60,6 +86,7 @@ def verify_email(payload: VerifyEmailRequest) -> dict[str, object]:
     except PermissionError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+
 @router.post("/api-keys")
 def put_api_key(payload: ApiKeyRequest, request: Request) -> dict[str, object]:
     value = request.headers.get("Authorization", "")
@@ -67,23 +94,29 @@ def put_api_key(payload: ApiKeyRequest, request: Request) -> dict[str, object]:
         raise HTTPException(status_code=401, detail="bearer_required")
     try:
         principal = store().authorize(value[7:])
-        return store().put_api_key(principal["user_id"], payload.provider, payload.label, payload.secret)
+        return store().put_api_key(
+            principal["user_id"], payload.provider, payload.label, payload.secret
+        )
     except (PermissionError, KeyError) as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
+
 @router.get("/api-keys")
 def list_api_keys(request: Request) -> dict[str, object]:
     value = request.headers.get("Authorization", "")
-    if not value.startswith("Bearer "): raise HTTPException(status_code=401, detail="bearer_required")
+    if not value.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="bearer_required")
     principal = store().authorize(value[7:])
     return {"keys": store().list_api_keys(principal["user_id"])}
+
 
 @router.get("/audit")
 def audit(request: Request) -> dict[str, object]:
     value = request.headers.get("Authorization", "")
-    if not value.startswith("Bearer "): raise HTTPException(status_code=401, detail="bearer_required")
+    if not value.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="bearer_required")
     principal = store().authorize(value[7:])
     return {"events": store().audit_for_user(principal["user_id"])}
 

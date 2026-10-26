@@ -105,18 +105,28 @@ class GovernedFileWriteCapability(GovernedCapability):
         self.rollback_manifest = self.workspace / "rollback-spec.json"
         if self.rollback_manifest.exists():
             saved = json.loads(self.rollback_manifest.read_text(encoding="utf-8"))
-            if (Path(saved.get("target", "")).resolve() != self.target.resolve()
-                    or saved.get("content_sha256") != hashlib.sha256(self.content.encode()).hexdigest()):
+            if (
+                Path(saved.get("target", "")).resolve() != self.target.resolve()
+                or saved.get("content_sha256")
+                != hashlib.sha256(self.content.encode()).hexdigest()
+            ):
                 raise ValueError("prepared_file_intent_changed")
             self.existed = bool(saved["existed"])
             backup = saved.get("backup_ref")
             self.backup_ref = Path(backup) if backup else None
-            if self.backup_ref and (not self.backup_ref.resolve().is_relative_to(self.workspace.resolve()) or not self.backup_ref.is_file()):
+            if self.backup_ref and (
+                not self.backup_ref.resolve().is_relative_to(self.workspace.resolve())
+                or not self.backup_ref.is_file()
+            ):
                 raise ValueError("prepared_backup_unavailable_or_out_of_scope")
             if self.existed and self.backup_ref is None:
                 raise ValueError("prepared_backup_required")
-            return {"existed":self.existed,"backup_ref":str(self.backup_ref or ""),
-                    "rollback_ref":str(self.rollback_manifest),"resumed_preparation":True}
+            return {
+                "existed": self.existed,
+                "backup_ref": str(self.backup_ref or ""),
+                "rollback_ref": str(self.rollback_manifest),
+                "resumed_preparation": True,
+            }
         self.existed = self.target.is_file()
         if self.existed:
             self.backup_ref = self.workspace / f"backup-{uuid4().hex}.bin"
@@ -171,10 +181,18 @@ class GovernedFileWriteCapability(GovernedCapability):
     def execute(self) -> dict[str, Any]:
         if self.target.is_file() and self.target.read_bytes() == self.content.encode():
             self.write_performed = False
-            return {"target":str(self.target),"write_performed":False,"idempotent_replay":True}
+            return {
+                "target": str(self.target),
+                "write_performed": False,
+                "idempotent_replay": True,
+            }
         AtomicArtifactWriter.write_bytes(self.target, self.content.encode())
         self.write_performed = True
-        return {"target": str(self.target), "write_performed":True,"idempotent_replay":False}
+        return {
+            "target": str(self.target),
+            "write_performed": True,
+            "idempotent_replay": False,
+        }
 
     def verify(self) -> EffectReceipt:
         expected = hashlib.sha256(self.content.encode()).hexdigest()

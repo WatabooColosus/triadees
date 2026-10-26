@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import sqlite3
 import threading
 import time
-import sqlite3
+
 import pytest
 
 from triade.runtime.event_scheduler import EventDrivenScheduler
@@ -28,6 +29,7 @@ def test_real_sqlite_contention_defers_job_without_losing_other_due_work(tmp_pat
     clock = FakeClock()
     scheduler = EventDrivenScheduler(clock=clock)
     calls = []
+
     def write():
         connection = sqlite3.connect(path, timeout=0)
         try:
@@ -35,8 +37,13 @@ def test_real_sqlite_contention_defers_job_without_losing_other_due_work(tmp_pat
             connection.commit()
         finally:
             connection.close()
-    scheduler.add_job("pulse", write, interval_seconds=5, priority=0, run_immediately=True)
-    scheduler.add_job("other", lambda: calls.append("ran"), interval_seconds=5, run_immediately=True)
+
+    scheduler.add_job(
+        "pulse", write, interval_seconds=5, priority=0, run_immediately=True
+    )
+    scheduler.add_job(
+        "other", lambda: calls.append("ran"), interval_seconds=5, run_immediately=True
+    )
     try:
         results = scheduler.execute_due()
         assert results[0]["status"] == "retry_pending"
@@ -52,10 +59,14 @@ def test_real_sqlite_contention_defers_job_without_losing_other_due_work(tmp_pat
 
 def test_scheduler_does_not_hide_non_contention_database_faults(tmp_path):
     scheduler = EventDrivenScheduler()
+
     def invalid_query():
         with sqlite3.connect(tmp_path / "invalid.db") as connection:
             connection.execute("SELECT * FROM absent_table")
-    scheduler.add_job("invalid", invalid_query, interval_seconds=5, run_immediately=True)
+
+    scheduler.add_job(
+        "invalid", invalid_query, interval_seconds=5, run_immediately=True
+    )
     with pytest.raises(sqlite3.OperationalError, match="no such table"):
         scheduler.execute_due()
 
@@ -160,6 +171,7 @@ def test_recreated_heartbeat_does_not_reset_shared_counter(tmp_path):
 
 def test_concurrent_heartbeat_instances_increment_atomically(tmp_path):
     from concurrent.futures import ThreadPoolExecutor
+
     db = tmp_path / "runtime.db"
     instances = [LiveHeartbeat(db) for _ in range(4)]
     with ThreadPoolExecutor(max_workers=4) as pool:

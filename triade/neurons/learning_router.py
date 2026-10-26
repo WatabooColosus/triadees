@@ -255,8 +255,12 @@ class NeuralLearningRouter:
             "scores": scores,
         }
 
-    def route(self, candidate_id: str, *, correlation_id: str | None = None) -> dict[str, Any]:
-        if correlation_id is not None and not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", correlation_id):
+    def route(
+        self, candidate_id: str, *, correlation_id: str | None = None
+    ) -> dict[str, Any]:
+        if correlation_id is not None and not re.fullmatch(
+            r"[A-Za-z0-9_.:-]{1,128}", correlation_id
+        ):
             raise ValueError("invalid_route_correlation_id")
         candidate = self._verified_candidate(candidate_id)
         neuron, contract = self._select_neuron(candidate)

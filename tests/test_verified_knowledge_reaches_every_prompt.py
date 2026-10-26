@@ -28,6 +28,7 @@ aparecer en el prompt. Si no, la traza miente.
 from __future__ import annotations
 
 from typing import Any, ClassVar
+
 import pytest
 
 from triade.core.central import Central
@@ -40,8 +41,12 @@ BLOQUE = (
 
 
 def test_declared_output_schema_cannot_embed_the_expected_answer():
-    schema = {"type": "object", "properties": {"expression": {"type": ["string", "null"]}},
-              "required": ["expression"], "additionalProperties": False}
+    schema = {
+        "type": "object",
+        "properties": {"expression": {"type": ["string", "null"]}},
+        "required": ["expression"],
+        "additionalProperties": False,
+    }
     packet = _Packet("Return the requested object", {"declared_output_schema": schema})
     assert Central._declared_output_schema(packet) == schema
     schema["properties"]["expression"]["const"] = "hardcoded answer"
@@ -51,18 +56,30 @@ def test_declared_output_schema_cannot_embed_the_expected_answer():
 
 def test_structured_consumer_selects_provider_route_without_unsupported_peft():
     from types import SimpleNamespace
+
     from triade.models.ollama_client import ModelResult
+
     calls = []
+
     class Client:
         def generate(self, model, **kwargs):
             calls.append(kwargs)
             assert kwargs["use_active_peft"] is False
             return ModelResult(ok=True, text='{"value":"observed"}', model=model)
-    schema = {"type": "object", "properties": {"value": {"type": "string"}},
-              "required": ["value"], "additionalProperties": False}
-    packet = _Packet("Return the value in the declared object", {"declared_output_schema": schema})
+
+    schema = {
+        "type": "object",
+        "properties": {"value": {"type": "string"}},
+        "required": ["value"],
+        "additionalProperties": False,
+    }
+    packet = _Packet(
+        "Return the value in the declared object", {"declared_output_schema": schema}
+    )
     memory = SimpleNamespace(identity_matches=[], semantic_matches=[])
-    result = Central(model_client=Client()).respond(packet, _Signals(), memory, _Vacio(), _Vacio())
+    result = Central(model_client=Client()).respond(
+        packet, _Signals(), memory, _Vacio(), _Vacio()
+    )
     assert result.model_ok is True
     assert calls[0]["response_format"] == schema
 
@@ -71,12 +88,18 @@ def test_large_historical_context_keeps_verified_knowledge_next_to_current_task(
     class LargePlan:
         def to_dict(self):
             return {"history": "old context " * 4000}
-    packet = _Packet("Apply the current rule to the new input", {
-        "verified_knowledge_block": BLOQUE,
-        "memory_truth": {"history": "old context " * 4000},
-    })
+
+    packet = _Packet(
+        "Apply the current rule to the new input",
+        {
+            "verified_knowledge_block": BLOQUE,
+            "memory_truth": {"history": "old context " * 4000},
+        },
+    )
     for audit in (False, True):
-        prompt = Central._build_prompt("Triade", packet, _Signals(), _Memory(), _Vacio(), LargePlan(), audit)
+        prompt = Central._build_prompt(
+            "Triade", packet, _Signals(), _Memory(), _Vacio(), LargePlan(), audit
+        )
         assert len(prompt) > 40000
         assert BLOQUE in prompt[-4096:]
         assert prompt.rindex(packet.user_input) > prompt.index(BLOQUE)

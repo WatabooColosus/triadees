@@ -167,7 +167,7 @@ def _apply_five_runs(db: Path, *, score: float) -> list[dict]:
     return traces
 
 
-def test_consolidado_nutre_neurona_y_mejora_causalmente(
+def test_consolidado_nutre_neurona_sin_certificar_causalidad(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("TRIADE_NEURAL_LEARNING_ROUTING", "1")
@@ -197,15 +197,16 @@ def test_consolidado_nutre_neurona_y_mejora_causalmente(
     traces = _apply_five_runs(db, score=0.90)
     assert all(trace["confirmed"][0]["neuron_id"] == neuron_id for trace in traces)
     verdict = NeuronEducationResolver(db).resolve_once()
-    assert verdict["decision"] == "improved"
+    assert verdict["decision"] == "insufficient_evidence"
+    assert verdict["functional_assessment"]["reason"] == "no_functional_assessments"
     assignment = NeuralLearningRouter(db).history(neuron_id)[0]
     assert assignment["candidate_id"] == candidate_id
-    assert assignment["status"] == "beneficial"
+    assert assignment["status"] == "experimental"
     assert assignment["use_count"] == 5
-    assert assignment["outcome_score"] == 0.90
+    assert assignment["outcome_score"] is None
 
 
-def test_conocimiento_inferior_se_revierte_y_deja_de_inyectarse(
+def test_telemetria_inferior_no_acredita_regresion_funcional(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("TRIADE_NEURAL_LEARNING_ROUTING", "1")
@@ -214,12 +215,13 @@ def test_conocimiento_inferior_se_revierte_y_deja_de_inyectarse(
     _apply_five_runs(db, score=0.40)
 
     verdict = NeuronEducationResolver(db).resolve_once()
-    assert verdict["decision"] == "degraded"
-    assert verdict["rolled_back"] is True
+    assert verdict["decision"] == "insufficient_evidence"
+    assert verdict["functional_assessment"]["reason"] == "no_functional_assessments"
+    assert verdict["rolled_back"] is False
     assignment = NeuralLearningRouter(db).history(neuron_id)[0]
-    assert assignment["status"] == "rolled_back"
+    assert assignment["status"] == "experimental"
     injection = ProductionKnowledgeInjector(db).build(QUERY, run_id="after-rollback")
-    assert candidate_id not in injection.injected_ids
+    assert candidate_id in injection.injected_ids
 
 
 def test_no_distribuye_sin_consolidacion_ni_evidencia(tmp_path: Path) -> None:

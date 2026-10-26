@@ -11,19 +11,23 @@ import os
 import socket
 from pathlib import Path
 from typing import Any
-
-from triade.observability.cycle_trace import CognitiveCycleTrace
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
+
+from triade.observability.cycle_trace import CognitiveCycleTrace
 
 router = APIRouter(prefix="/health", tags=["health"])
 
 
 @router.get("/source")
 def loaded_source(request: Request) -> dict[str, Any]:
-    return getattr(request.app.state, "loaded_source_revision", {"status": "UNVERIFIED", "verified": False})
+    return getattr(
+        request.app.state,
+        "loaded_source_revision",
+        {"status": "UNVERIFIED", "verified": False},
+    )
 
 
 def _tcp_check(url: str | None, default_port: int) -> dict[str, Any]:

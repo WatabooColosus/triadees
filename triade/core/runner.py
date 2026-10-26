@@ -18,8 +18,8 @@ from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_search import SemanticSearchEngine
 from triade.memory.semantic_store import SemanticMemoryStore
 from triade.models.hardware_profile import HardwareProfiler
-from triade.models.model_router import ModelRouter
 from triade.models.model_client_factory import create_model_client
+from triade.models.model_router import ModelRouter
 from triade.qualia.adapters import build_run_experiences, qualia_context_for_memory
 from triade.qualia.bus import QualiaBus
 from triade.qualia.store import QualiaStore
@@ -211,7 +211,9 @@ class TriadeRunner:
         if use_ollama:
             self.model_client = create_model_client(
                 self.model_provider,
-                base_url=self.ollama_base_url if self.model_provider == "ollama" else None,
+                base_url=self.ollama_base_url
+                if self.model_provider == "ollama"
+                else None,
                 timeout=self.ollama_timeout,
                 db_path=self.db_path,
             )
@@ -254,20 +256,23 @@ class TriadeRunner:
 
         injector = ProductionKnowledgeInjector(self.db_path)
         contexto = getattr(input_packet, "context", None)
-        candidate_ids = {
-            str(value)
-            for value in (contexto or {}).get("learning_candidate_ids", [])
-            if str(value).strip()
-        } if isinstance(contexto, dict) else set()
+        candidate_ids = (
+            {
+                str(value)
+                for value in (contexto or {}).get("learning_candidate_ids", [])
+                if str(value).strip()
+            }
+            if isinstance(contexto, dict)
+            else set()
+        )
         injection = injector.build(
             str(getattr(input_packet, "user_input", "") or ""),
             run_id=str(getattr(input_packet, "run_id", "") or "run"),
             candidate_ids=candidate_ids or None,
         )
-        if injection.block:
-            if isinstance(contexto, dict):
-                contexto["verified_knowledge_block"] = injection.block
-                contexto["verified_knowledge_ids"] = injection.injected_ids
+        if injection.block and isinstance(contexto, dict):
+            contexto["verified_knowledge_block"] = injection.block
+            contexto["verified_knowledge_ids"] = injection.injected_ids
         injector.persist(injection)
         return injection
 
@@ -1140,7 +1145,11 @@ class TriadeRunner:
         from .guarded_web import web_failure_response
 
         web_failure = web_failure_response(input_packet.user_input, web_research)
-        if web_failure and output.status not in {"blocked", "pending_approval", "sandbox"}:
+        if web_failure and output.status not in {
+            "blocked",
+            "pending_approval",
+            "sandbox",
+        }:
             output.response = web_failure
             output.actions_taken.append("guarded_web_missing_evidence")
         output_gate["expression_cortex"] = {
@@ -1444,6 +1453,27 @@ class TriadeRunner:
         neuron_learning_candidates = neuron_orchestration.get(
             "neuron_learning_candidates", []
         )
+
+        # R6.2: solo entradas humanas reales y evaluadas; nunca un pulso worker
+        # o un run sintético. El puente añade evidencia trazable a la misión,
+        # sin convertirla en una validación externa independiente.
+        try:
+            from .verified_run_mission_bridge import bridge_verified_user_run
+
+            evidence_bridge = bridge_verified_user_run(
+                self.db_path, input_packet.run_id
+            )
+        except (OSError, RuntimeError, ValueError, TypeError, sqlite3.Error) as exc:
+            from .error_bus import record_internal_error
+
+            record_internal_error(
+                "runner.verified_neuron_mission_evidence",
+                exc,
+                run_id=input_packet.run_id,
+                db_path=self.db_path,
+            )
+            evidence_bridge = {"status": "error", "created": []}
+        output.memory_diff["neuron_mission_evidence_bridge"] = evidence_bridge
 
         neuron_contribution_summary = _process_neuron_contributions(
             contributions=neuron_contributions,

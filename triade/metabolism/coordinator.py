@@ -322,9 +322,7 @@ class MetabolicCoordinator:
             resource_state = sensors.get("resources") or self.health._check_resources()
             governor = resource_state.get("governor") or {}
             with self._lock:
-                self._effective_mode = str(
-                    governor.get("effective_mode") or self._mode
-                )
+                self._effective_mode = str(governor.get("effective_mode") or self._mode)
                 self._resource_governor = dict(governor)
             needs = self.needs_queue.detect(sensors, cycle_id)
             self.signals.emit(

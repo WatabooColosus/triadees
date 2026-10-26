@@ -10,6 +10,7 @@ import math
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from triade.models.model_provider import ModelProvider
 from triade.models.ollama_client import OllamaClient
 
 from .semantic_embedding_engine import SemanticEmbeddingEngine
@@ -38,7 +39,7 @@ class SemanticSearchEngine:
     def __init__(
         self,
         store: SemanticMemoryStore | None = None,
-        client: OllamaClient | None = None,
+        client: ModelProvider | None = None,
         embedding_engine: SemanticEmbeddingEngine | None = None,
     ) -> None:
         self.store = store or SemanticMemoryStore()

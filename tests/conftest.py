@@ -76,11 +76,11 @@ def pytest_configure(config):
     memory.mkdir(parents=True)
     (root / "runs").mkdir()
     (root / "artifacts").mkdir()
-    _link_or_copy(memory / "schemas.sql",
-        source_root / "triade" / "memory" / "schemas.sql"
+    _link_or_copy(
+        memory / "schemas.sql", source_root / "triade" / "memory" / "schemas.sql"
     )
-    _link_or_copy(memory / "migrations",
-        source_root / "triade" / "memory" / "migrations"
+    _link_or_copy(
+        memory / "migrations", source_root / "triade" / "memory" / "migrations"
     )
     _link_or_copy(root / "scripts", source_root / "scripts")
     _link_or_copy(root / "docs", source_root / "docs")

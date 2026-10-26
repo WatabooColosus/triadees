@@ -201,7 +201,11 @@ def test_factual_question_no_triade_dump(tmp_path: Path, monkeypatch) -> None:
 
 def test_failed_web_query_does_not_publish_stale_model_answer(tmp_path, monkeypatch):
     runner = _runner(tmp_path)
-    _wire(monkeypatch, runner, response="No tengo internet. El presidente actual es Antiguo.")
+    _wire(
+        monkeypatch,
+        runner,
+        response="No tengo internet. El presidente actual es Antiguo.",
+    )
     monkeypatch.setattr(
         "triade.core.guarded_web.guarded_web_research",
         lambda *args, **kwargs: {"status": "error", "sources": []},

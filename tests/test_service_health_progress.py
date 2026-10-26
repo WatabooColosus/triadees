@@ -21,8 +21,9 @@ tampoco es una cola sana si la cola de verdad está en otro sitio.
 from __future__ import annotations
 
 import sqlite3
-import pytest
 from pathlib import Path
+
+import pytest
 
 from triade.runtime.service_health import ServiceHealth
 

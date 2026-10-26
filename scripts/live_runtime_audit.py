@@ -379,8 +379,10 @@ def snapshot(deep: bool = False) -> dict[str, Any]:
         # Windows has no POSIX load average.  Keep a stable shape and expose
         # the scheduler-visible CPU percentage instead.
         load_average = (
-            round(psutil.cpu_percent(interval=0.0) / 100.0, 3),
-        ) if psutil is not None else None
+            (round(psutil.cpu_percent(interval=0.0) / 100.0, 3),)
+            if psutil is not None
+            else None
+        )
     return {
         "timestamp": _iso(time.time()),
         "monotonic": round(time.monotonic(), 3),

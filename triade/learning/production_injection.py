@@ -13,8 +13,8 @@ Dos diferencias con el retrieval de evaluación, y las dos importan:
 
 from __future__ import annotations
 
-import os
 import hashlib
+import os
 import re
 import unicodedata
 from dataclasses import dataclass, field
@@ -165,7 +165,9 @@ class ProductionKnowledgeInjector:
                 only_candidate_ids=(
                     routed_candidates
                     if routed_candidates
-                    else set(route_by_candidate) if routed_only else None
+                    else set(route_by_candidate)
+                    if routed_only
+                    else None
                 ),
             )
         except Exception:  # noqa: BLE001 -- se degrada, no se oculta: se anota abajo
@@ -174,17 +176,31 @@ class ProductionKnowledgeInjector:
         # A measured equation must still describe its observed schema at use
         # time. Preserve historical knowledge; withhold stale/unbound context.
         from triade.learning.knowledge_probe import build_probe
+
         schema_blocked = []
         for match in list(decision.matches):
             probe = build_probe(self.db_path, match.candidate_id)
             if probe is not None and not probe.production_eligible:
                 schema_blocked.append(match.candidate_id)
-                decision.skipped.append({'candidate_id':match.candidate_id,'reason':'source_schema_unverified'})
+                decision.skipped.append(
+                    {
+                        "candidate_id": match.candidate_id,
+                        "reason": "source_schema_unverified",
+                    }
+                )
         if schema_blocked:
-            decision.matches = [m for m in decision.matches if m.candidate_id not in schema_blocked]
-            decision.injected_ids = [cid for cid in decision.injected_ids if cid not in schema_blocked]
-            decision.authorized_ids = [cid for cid in decision.authorized_ids if cid not in schema_blocked]
-            decision.learning_context_hash = hashlib.sha256('|'.join(m.content_hash for m in decision.matches).encode()).hexdigest()
+            decision.matches = [
+                m for m in decision.matches if m.candidate_id not in schema_blocked
+            ]
+            decision.injected_ids = [
+                cid for cid in decision.injected_ids if cid not in schema_blocked
+            ]
+            decision.authorized_ids = [
+                cid for cid in decision.authorized_ids if cid not in schema_blocked
+            ]
+            decision.learning_context_hash = hashlib.sha256(
+                "|".join(m.content_hash for m in decision.matches).encode()
+            ).hexdigest()
         bloqueados = schema_blocked + [
             str(s.get("candidate_id"))
             for s in decision.skipped
@@ -291,12 +307,18 @@ class ProductionKnowledgeInjector:
                 # Procedural application is not token repetition. Bind the
                 # source-attested probe to this task and evaluate the actual
                 # response with the bounded executor and independent SQL oracle.
-                from triade.learning.knowledge_probe import build_probe, build_application_probe
+                from triade.learning.knowledge_probe import (
+                    build_application_probe,
+                    build_probe,
+                )
+
                 template = build_probe(self.db_path, candidate_id)
                 application_score = outcome_score
                 measurement = "distinctive_token_presence"
                 if template is not None and template.response_format is not None:
-                    probe = build_application_probe(self.db_path, candidate_id, injection.decision.query)
+                    probe = build_application_probe(
+                        self.db_path, candidate_id, injection.decision.query
+                    )
                     aplicado = bool(probe and probe.evaluator(str(response)))
                     objetivo = probe.expected if probe else None
                     application_score = float(aplicado)

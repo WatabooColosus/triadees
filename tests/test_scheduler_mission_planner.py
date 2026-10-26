@@ -29,40 +29,82 @@ def make_db(tmp_path: Path) -> Path:
     return db_path
 
 
-def test_admission_state_transition_is_not_postponed_as_periodic_formation(tmp_path, monkeypatch):
+def test_admission_state_transition_is_not_postponed_as_periodic_formation(
+    tmp_path, monkeypatch
+):
     scheduler = WorkerScheduler(db_path=make_db(tmp_path))
     monkeypatch.setattr(scheduler.adaptive, "should_skip_task", lambda task_type: True)
     for index, phase in enumerate(("training", "certification"), start=1):
-        tasks = scheduler._enqueue_planned([PlannedTask(
-            task_type="neuron_candidate_formation",
-            payload={"admission_event_id":index,"admission_phase":phase,"correlation_id":"need-lineage"},
-        )])
+        tasks = scheduler._enqueue_planned(
+            [
+                PlannedTask(
+                    task_type="neuron_candidate_formation",
+                    payload={
+                        "admission_event_id": index,
+                        "admission_phase": phase,
+                        "correlation_id": "need-lineage",
+                    },
+                )
+            ]
+        )
         assert len(tasks) == 1
         assert tasks[0]["payload"]["admission_phase"] == phase
         assert tasks[0]["payload"]["correlation_id"] == "need-lineage"
 
 
-def test_periodic_or_incomplete_formation_still_obeys_adaptive_interval(tmp_path, monkeypatch):
+def test_periodic_or_incomplete_formation_still_obeys_adaptive_interval(
+    tmp_path, monkeypatch
+):
     scheduler = WorkerScheduler(db_path=make_db(tmp_path))
     monkeypatch.setattr(scheduler.adaptive, "should_skip_task", lambda task_type: True)
-    for payload in ({}, {"admission_phase":"training"}, {"admission_event_id":1,"admission_phase":"unknown"}):
-        assert scheduler._enqueue_planned([PlannedTask(task_type="neuron_candidate_formation",payload=payload)]) == []
+    for payload in (
+        {},
+        {"admission_phase": "training"},
+        {"admission_event_id": 1, "admission_phase": "unknown"},
+    ):
+        assert (
+            scheduler._enqueue_planned(
+                [PlannedTask(task_type="neuron_candidate_formation", payload=payload)]
+            )
+            == []
+        )
 
 
 def test_worker_consumer_preserves_pending_admission_transition(tmp_path, monkeypatch):
-    from triade.workers.worker_loop import WorkerLoop
     from triade.workers.contracts import WorkerTask
-    loop = WorkerLoop(db_path=make_db(tmp_path), runs_dir=tmp_path / "runs",
-        lock_file=tmp_path / "lock", stop_file=tmp_path / "stop")
-    monkeypatch.setattr(loop.adaptive_scheduler, "should_skip_task", lambda task_type: True)
+    from triade.workers.worker_loop import WorkerLoop
+
+    loop = WorkerLoop(
+        db_path=make_db(tmp_path),
+        runs_dir=tmp_path / "runs",
+        lock_file=tmp_path / "lock",
+        stop_file=tmp_path / "stop",
+    )
+    monkeypatch.setattr(
+        loop.adaptive_scheduler, "should_skip_task", lambda task_type: True
+    )
     config = WorkerRunConfig(dry_run=True)
-    periodic = loop._execute_task(WorkerTask(task_type="neuron_candidate_formation"),
-        "periodic-test", tmp_path / "runs", config)
+    periodic = loop._execute_task(
+        WorkerTask(task_type="neuron_candidate_formation"),
+        "periodic-test",
+        tmp_path / "runs",
+        config,
+    )
     assert periodic["reason"] == "adaptive_interval_not_elapsed"
     for phase in ("training", "certification"):
-        result = loop._execute_task(WorkerTask(task_type="neuron_candidate_formation",
-            payload={"admission_event_id":1,"admission_phase":phase,"correlation_id":"lineage"}),
-            "transition-test", tmp_path / "runs", config)
+        result = loop._execute_task(
+            WorkerTask(
+                task_type="neuron_candidate_formation",
+                payload={
+                    "admission_event_id": 1,
+                    "admission_phase": phase,
+                    "correlation_id": "lineage",
+                },
+            ),
+            "transition-test",
+            tmp_path / "runs",
+            config,
+        )
         assert result.get("reason") != "adaptive_interval_not_elapsed"
         assert result["status"] == "dry_run"
 

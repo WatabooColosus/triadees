@@ -48,11 +48,17 @@ class EncryptedBackup:
             return configured
         from triade.core.runtime_scope import is_test_runtime
 
-        roots = (Path.cwd(),) if is_test_runtime() else (Path.cwd(), Path(__file__).resolve().parents[2])
+        roots = (
+            (Path.cwd(),)
+            if is_test_runtime()
+            else (Path.cwd(), Path(__file__).resolve().parents[2])
+        )
         for root in roots:
             location = root / "config" / "backup_key_location.json"
             try:
-                value = json.loads(location.read_text(encoding="utf-8")).get("key_file", "")
+                value = json.loads(location.read_text(encoding="utf-8")).get(
+                    "key_file", ""
+                )
             except (OSError, ValueError, TypeError, AttributeError):
                 continue
             if value:
@@ -68,7 +74,10 @@ class EncryptedBackup:
         if not key_file:
             return False
         try:
-            return bool(Path(key_file).is_file() and Path(key_file).read_text(encoding="utf-8").strip())
+            return bool(
+                Path(key_file).is_file()
+                and Path(key_file).read_text(encoding="utf-8").strip()
+            )
         except OSError:
             return False
 

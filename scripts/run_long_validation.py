@@ -29,6 +29,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import psutil
+
 ROOT = Path(__file__).resolve().parent.parent
 DB = ROOT / "triade/memory/triade.db"
 HEARTBEAT = "http://localhost:8010/api/runtime/heartbeat"
@@ -74,8 +76,6 @@ def _proc_metrics() -> dict[str, Any]:
     """RSS y descriptores del proceso de la app, si está viva."""
     if os.name == "nt":
         try:
-            import psutil
-
             with urllib.request.urlopen(HEARTBEAT, timeout=10) as response:
                 heartbeat = json.load(response)
             pid = int(heartbeat.get("runtime_pid") or 0)
@@ -83,15 +83,28 @@ def _proc_metrics() -> dict[str, Any]:
                 return {"alive": False, "reason": "runtime_pid_missing"}
             process = psutil.Process(pid)
             if "scripts.serve_local_api" not in " ".join(process.cmdline()):
-                return {"alive": False, "reason": "runtime_pid_command_mismatch", "pid": pid}
+                return {
+                    "alive": False,
+                    "reason": "runtime_pid_command_mismatch",
+                    "pid": pid,
+                }
             return {
-                "alive": process.is_running(), "pid": pid,
+                "alive": process.is_running(),
+                "pid": pid,
                 "rss_kb": process.memory_info().rss // 1024,
-                "handles": process.num_handles(), "threads": process.num_threads(),
+                "handles": process.num_handles(),
+                "threads": process.num_threads(),
                 "cpu_times": process.cpu_times()._asdict(),
-                "created_at": process.create_time(), "authority": "heartbeat_pid_and_process_command",
+                "created_at": process.create_time(),
+                "authority": "heartbeat_pid_and_process_command",
             }
-        except Exception as exc:
+        except (
+            psutil.Error,
+            urllib.error.URLError,
+            OSError,
+            ValueError,
+            RuntimeError,
+        ) as exc:
             return {"alive": False, "reason": f"{type(exc).__name__}: {exc}"}
     try:
         out = subprocess.run(

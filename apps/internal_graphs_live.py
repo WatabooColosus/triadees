@@ -213,7 +213,9 @@ _ARTIFACT_MAX_AGE_SECONDS = 6 * 60 * 60
 REFRESHER = GraphRefresher(ROOT, ARTIFACT_DIR, _db_path())
 
 
-def refresh_artifacts(*, force: bool = False, stale_seconds: float | None = None) -> str:
+def refresh_artifacts(
+    *, force: bool = False, stale_seconds: float | None = None
+) -> str:
     """Lanza la reconstrucción en segundo plano si el artefacto ha caducado.
 
     Se llama desde cada lectura y no espera: quien pregunta recibe lo que hay

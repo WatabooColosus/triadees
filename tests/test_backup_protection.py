@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 
 import pytest
-from file_permission_helpers import set_file_mode, assert_private
+from file_permission_helpers import assert_private, set_file_mode
 
 from triade.memory.encrypted_backup import EncryptedBackup
 from triade.observability.introspection import (

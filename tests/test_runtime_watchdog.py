@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from triade.db import sqlite3
 from datetime import UTC, datetime, timedelta
 
+from triade.db import sqlite3
 from triade.runtime.runtime_recovery import RuntimeRecovery
 from triade.runtime.service_health import ServiceHealth
 from triade.runtime.task_leases import AutonomousTaskStore

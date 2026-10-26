@@ -23,12 +23,21 @@ def brave_urls(query: str, *, timeout: int) -> list[str]:
         {"q": query, "count": 8, "search_lang": "es"}
     )
     _assert_public_url(url)
-    request = urllib.request.Request(url, headers={
-        "Accept": "application/json", "User-Agent": USER_AGENT,
-        "X-Subscription-Token": key,
-    })
-    with urllib.request.build_opener(_NoRedirect()).open(request, timeout=timeout) as response:
-        if "application/json" not in str(response.headers.get("Content-Type", "")).lower():
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Accept": "application/json",
+            "User-Agent": USER_AGENT,
+            "X-Subscription-Token": key,
+        },
+    )
+    with urllib.request.build_opener(_NoRedirect()).open(
+        request, timeout=timeout
+    ) as response:
+        if (
+            "application/json"
+            not in str(response.headers.get("Content-Type", "")).lower()
+        ):
             raise ValueError("search_provider_content_type")
         raw = response.read(MAX_RESPONSE_BYTES + 1)
         if len(raw) > MAX_RESPONSE_BYTES:
@@ -51,13 +60,23 @@ def rapidapi_urls(query: str, *, timeout: int) -> list[str]:
         {"q": query, "num": 8, "hl": "es"}
     )
     _assert_public_url(url)
-    request = urllib.request.Request(url, headers={
-        "Accept": "application/json", "User-Agent": USER_AGENT,
-        "X-RapidAPI-Key": key, "X-RapidAPI-Host": host,
-    })
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Accept": "application/json",
+            "User-Agent": USER_AGENT,
+            "X-RapidAPI-Key": key,
+            "X-RapidAPI-Host": host,
+        },
+    )
     # No retries or redirects: a quota/authentication failure must remain visible.
-    with urllib.request.build_opener(_NoRedirect()).open(request, timeout=timeout) as response:
-        if "application/json" not in str(response.headers.get("Content-Type", "")).lower():
+    with urllib.request.build_opener(_NoRedirect()).open(
+        request, timeout=timeout
+    ) as response:
+        if (
+            "application/json"
+            not in str(response.headers.get("Content-Type", "")).lower()
+        ):
             raise ValueError("search_provider_content_type")
         raw = response.read(MAX_RESPONSE_BYTES + 1)
         if len(raw) > MAX_RESPONSE_BYTES:

@@ -9,7 +9,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from .adaptive_scheduler import AdaptiveScheduler
-from .contracts import EVENT_DRIVEN_TASK_TYPES, WORKER_TASK_TYPES, WorkerRunConfig, admission_transition
+from .contracts import (
+    EVENT_DRIVEN_TASK_TYPES,
+    WORKER_TASK_TYPES,
+    WorkerRunConfig,
+    admission_transition,
+)
 from .task_queue import WorkerTaskQueue
 
 

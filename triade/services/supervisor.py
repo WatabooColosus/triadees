@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import threading
 from collections import Counter
@@ -430,7 +431,7 @@ class InternalRuntimeSupervisor:
                     break
                 try:
                     self.run_once(mode=self.mode)
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 - contain failures in 24/7 supervisor
                     # A transient SQLite/filesystem error during snapshot construction
                     # must not kill the Always-On thread. Keep the loop alive so the
                     # next cycle can recover after concurrent startup activity settles.
@@ -442,8 +443,10 @@ class InternalRuntimeSupervisor:
                             run_id=self.runtime_id,
                             db_path=self.db_path,
                         )
-                    except Exception:
-                        pass
+                    except Exception:  # logger is the last fallback
+                        logging.getLogger(__name__).exception(
+                            "Tríade supervisor could not persist an internal error"
+                        )
                     self._stop.wait(min(10, max(1, self.interval_seconds)))
                 cycle += 1
                 if self.max_cycles > 0 and cycle >= self.max_cycles:

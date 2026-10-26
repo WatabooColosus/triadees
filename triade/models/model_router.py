@@ -39,8 +39,19 @@ class ModelRouter:
         "evaluator": ["qwen3:4b", "qwen2.5:3b-instruct"],
         "vision": ["gemma3:4b"],
         "summarizer": ["qwen3:1.7b", "qwen2.5:3b-instruct"],
-        "hypothalamus": ["qwen2.5:1.5b", "qwen2.5:3b-instruct", "qwen3:1.7b", "qwen3:4b"],
-        "central": ["qwen2.5:1.5b", "qwen2.5:3b-instruct", "llama3:latest", "llama3.1:8b", "qwen3:4b"],
+        "hypothalamus": [
+            "qwen2.5:1.5b",
+            "qwen2.5:3b-instruct",
+            "qwen3:1.7b",
+            "qwen3:4b",
+        ],
+        "central": [
+            "qwen2.5:1.5b",
+            "qwen2.5:3b-instruct",
+            "llama3:latest",
+            "llama3.1:8b",
+            "qwen3:4b",
+        ],
         "creator": ["qwen2.5:3b-instruct", "qwen3:4b", "llama3:latest"],
         "trainer": ["qwen2.5:3b-instruct", "qwen3:4b", "llama3:latest"],
         "coder": ["qwen2.5-coder:3b", "qwen2.5-coder:1.5b-base", "qwen2.5:3b-instruct"],
@@ -88,7 +99,9 @@ class ModelRouter:
     ) -> None:
         self.available_models = available_models or []
         self.hardware = hardware
-        self.provider = (provider or os.getenv("TRIADE_MODEL_PROVIDER", "ollama")).strip()
+        self.provider = (
+            provider or os.getenv("TRIADE_MODEL_PROVIDER", "ollama") or "ollama"
+        ).strip()
 
     def route(
         self,
@@ -126,25 +139,32 @@ class ModelRouter:
                 rejected_by_hardware=rejected,
             )
 
-        if self.available_models and normalized_role != "embedding":
-            fallback = self.available_models[0]
-            fallback_reason = (
-                f"Ningún candidato recomendado está disponible; se usó {fallback} "
-                f"como primer modelo instalado."
-            )
-        elif normalized_role == "embedding":
+        if normalized_role == "embedding":
             fallback = "disabled:embedding-on-demand"
-            fallback_reason = (
-                "No hay un modelo de embeddings instalado; embeddings quedan bajo demanda."
-            )
+            fallback_reason = "No hay un modelo de embeddings instalado; embeddings quedan bajo demanda."
         else:
-            # Un hardware low no debe anunciar un 3B que puede forzar swap.
-            # El modelo es sólo una recomendación de proveedor; Tríade sigue
-            # funcionando en fallback determinista si aún no está instalado.
-            fallback = os.getenv("TRIADE_LOW_RESOURCE_MODEL", "qwen2.5:1.5b")
-            fallback_reason = (
-                f"No hay modelos instalados en Ollama; se usó fallback ligero {fallback}."
-            )
+            compatible_fallback = self._first_compatible_fallback(normalized_role)
+            if compatible_fallback is not None:
+                fallback = compatible_fallback
+                fallback_reason = (
+                    f"Ningún candidato recomendado para {normalized_role} está instalado; "
+                    f"se usó {fallback} como fallback generativo compatible."
+                )
+            else:
+                has_generation_model = any(
+                    not self._is_embedding_model(model)
+                    and (normalized_role == "coder" or "coder" not in model.lower())
+                    for model in self.available_models
+                )
+                if has_generation_model and self.hardware is not None:
+                    fallback = "unavailable:no-hardware-compatible-model"
+                    fallback_reason = (
+                        "Hay modelos generativos instalados, pero ninguno cabe "
+                        "en el presupuesto de hardware para este rol."
+                    )
+                else:
+                    fallback = "unavailable:no-generative-model-installed"
+                    fallback_reason = "No hay un modelo generativo compatible instalado para este rol."
         return ModelRouteDecision(
             role=normalized_role,
             selected_model=fallback,
@@ -176,6 +196,8 @@ class ModelRouter:
         if not isinstance(selected, str) or selected not in self.available_models:
             return None
         if not self._model_fits(selected):
+            return None
+        if role != "embedding" and self._is_embedding_model(selected):
             return None
         return ModelRouteDecision(
             role=role,
@@ -230,7 +252,7 @@ class ModelRouter:
                 allowed.append(model)
             else:
                 rejected.append(model)
-        return allowed or candidates[-2:], rejected
+        return allowed, rejected
 
     def _model_fits(self, model: str) -> bool:
         if self.hardware is None:
@@ -254,6 +276,32 @@ class ModelRouter:
             if model in installed:
                 return model
         return None
+
+    @staticmethod
+    def _is_embedding_model(model: str) -> bool:
+        return "embed" in model.lower()
+
+    def _first_compatible_fallback(self, role: str) -> str | None:
+        eligible = [
+            model
+            for model in set(self.available_models)
+            if not self._is_embedding_model(model)
+            and (role == "coder" or "coder" not in model.lower())
+            and self._model_fits(model)
+        ]
+        if role == "coder":
+            eligible.sort(
+                key=lambda model: (
+                    "coder" not in model.lower(),
+                    self._estimate_ram(model),
+                    model,
+                )
+            )
+        elif role == "deep":
+            eligible.sort(key=lambda model: (-self._estimate_ram(model), model))
+        else:
+            eligible.sort(key=lambda model: (self._estimate_ram(model), model))
+        return eligible[0] if eligible else None
 
     @staticmethod
     def _normalize_role(

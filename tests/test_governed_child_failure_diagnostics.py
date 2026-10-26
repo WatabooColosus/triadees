@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
+from typing import ClassVar
 
 from triade.runtime.governed_task_executor import (
     CHILD_EXECUTION_ERRORS,
@@ -43,15 +44,13 @@ class _CustomDomainError(Exception):
 class _Task:
     """Debe vivir a nivel de módulo: `spawn` no puede picklear clases locales."""
 
-    payload = {"target": "artifact.json"}
+    payload: ClassVar[dict[str, str]] = {"target": "artifact.json"}
 
 
 def test_attribute_error_is_captured_and_logged(tmp_path: Path) -> None:
     handler = _Handler(tmp_path / "x.db")
     artifact = tmp_path / "task"
-    outcome = GovernedTaskExecutor(
-        tmp_path / "quarantine"
-    ).execute_callable(
+    outcome = GovernedTaskExecutor(tmp_path / "quarantine").execute_callable(
         handler.raises_attribute_error,
         args=(None, "run-ref", str(artifact), None),
         timeout_seconds=60.0,
@@ -73,9 +72,7 @@ def test_attribute_error_is_captured_and_logged(tmp_path: Path) -> None:
 def test_custom_exception_is_captured_and_logged(tmp_path: Path) -> None:
     handler = _Handler(tmp_path / "x.db")
     artifact = tmp_path / "task"
-    outcome = GovernedTaskExecutor(
-        tmp_path / "quarantine"
-    ).execute_callable(
+    outcome = GovernedTaskExecutor(tmp_path / "quarantine").execute_callable(
         handler.raises_custom_error,
         args=(None, "run-ref", str(artifact), None),
         timeout_seconds=60.0,

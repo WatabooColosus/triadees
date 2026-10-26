@@ -76,7 +76,9 @@ def build_file_graph(root: Path) -> tuple[list[GraphNode], list[GraphEdge]]:
             metadata: dict[str, object] = {"protected": protected, "hidden": hidden}
             if path.is_file() and not protected:
                 metadata["size"] = path.stat().st_size
-                if path.name.endswith((".db", ".db-wal", ".db-shm", ".sqlite", ".sqlite3", ".hprof")):
+                if path.name.endswith(
+                    (".db", ".db-wal", ".db-shm", ".sqlite", ".sqlite3", ".hprof")
+                ):
                     # Mutable database sidecars can be locked by SQLite on
                     # Windows. Structural scans must neither read raw SHM nor
                     # present a moving database/heap hash as a source hash.
@@ -85,7 +87,9 @@ def build_file_graph(root: Path) -> tuple[list[GraphNode], list[GraphEdge]]:
                 else:
                     try:
                         with path.open("rb") as stream:
-                            metadata["sha256"] = hashlib.file_digest(stream, "sha256").hexdigest()
+                            metadata["sha256"] = hashlib.file_digest(
+                                stream, "sha256"
+                            ).hexdigest()
                     except OSError as exc:
                         metadata["hash_status"] = "unavailable"
                         metadata["hash_error"] = type(exc).__name__

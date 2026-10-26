@@ -29,11 +29,11 @@ from triade.db import sqlite3
 from triade.memory.auto_identity_store import AutoIdentityStore
 from triade.memory.hypothalamus_store import HypothalamusStateStore, fatigue_decay
 from triade.memory.trust_store import TrustLevelStore
+from triade.observability.cycle_trace import CognitiveCycleTrace
 
 from .error_bus import record_internal_error
 from .runner import TriadeRunner
 from .self_reflection import SelfReflectionEngine
-from triade.observability.cycle_trace import CognitiveCycleTrace
 
 # ── Niveles de autonomía ─────────────────────────────────────────────────────
 # Cada nivel implica los anteriores. El continuous runner opera al nivel
