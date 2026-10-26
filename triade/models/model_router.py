@@ -188,6 +188,8 @@ class ModelRouter:
             return None
         if not self._model_fits(selected):
             return None
+        if role != "embedding" and self._is_embedding_model(selected):
+            return None
         return ModelRouteDecision(
             role=role,
             selected_model=selected,
