@@ -190,7 +190,7 @@ def _apply_router_patch(context):
     work = Path(r5.WORK).resolve()
     target = (root / "triade/models/model_router.py").resolve()
     staged = Path(staged_path).resolve()
-    if not target.is_file() or target.is_symlink() or not staged.is_file() or staged.is_symlink():
+    if (\n        not target.is_file()\n        or target.is_symlink()\n        or not staged.is_file()\n        or staged.is_symlink()\n    ):
         raise RuntimeError("Ruta del router ausente o insegura")
     source = staged.read_bytes()
     ast.parse(source.decode("utf-8"), filename="triade/models/model_router.py")
@@ -240,6 +240,7 @@ def _apply_router_patch(context):
             )
         raise
     return {"status": "patched_and_restarted", "sha256": digest, "restarted": True}
+
 
 def _learning(context):
     if "learning" not in context.get("files", {}):
