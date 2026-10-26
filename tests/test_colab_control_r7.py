@@ -77,6 +77,10 @@ class ControllerTests(unittest.TestCase):
         self.root = Path(self.tmp.name)
         self.r5 = FakeR5(self.root)
         make_db(self.r5.DB, applications=15, activity=6)
+        proof_path = self.r5.WORK / "restore_proof.json"
+        proof = json.loads(proof_path.read_text())
+        proof["counts"] = r7._counts(self.r5.DB)
+        proof_path.write_text(json.dumps(proof))
         self.center = r7.Center(self.r5)
         self.folder = (
             self.r5.BASE / "operacion_colab_r5" / "ramas_en_revision" / ("a" * 16)
@@ -151,7 +155,7 @@ class ControllerTests(unittest.TestCase):
         before = r7._sha(self.r5.DB)
         with (
             patch.object(r7, "_check_api", return_value=False),
-            self.assertRaisesRegex(RuntimeError, "no supera"),
+            self.assertRaisesRegex(RuntimeError, "supera"),
         ):
             self.center._restore_best_before_api()
         self.assertEqual(before, r7._sha(self.r5.DB))
@@ -160,6 +164,71 @@ class ControllerTests(unittest.TestCase):
         with patch.object(r7, "_check_api", return_value=False):
             x = self.center._restore_best_before_api()
         self.assertIn("no se reemplazó", x["result"])
+
+    def test_cold_start_accepts_real_verified_zero_education(self):
+        self.r5.DB.unlink()
+        make_db(self.r5.DB, applications=0, activity=0)
+        proof_path = self.r5.WORK / "restore_proof.json"
+        proof = json.loads(proof_path.read_text())
+        proof["counts"] = r7._counts(self.r5.DB)
+        proof_path.write_text(json.dumps(proof))
+        before = r7._sha(self.r5.DB)
+        with patch.object(r7, "_check_api", return_value=False):
+            result = self.center._restore_best_before_api()
+        self.assertIn("no se reemplazó", result["result"])
+        self.assertEqual(before, r7._sha(self.r5.DB))
+        self.assertIsNone(self.center.status()["known_regression"])
+
+    def test_discovers_verified_snapshot_without_latest_pointer(self):
+        self.checkpoint()
+        (self.folder / "latest_review.json").unlink()
+        with patch.object(r7, "_check_api", return_value=False):
+            result = self.center._restore_best_before_api()
+        self.assertEqual(result["status"], "review_restored_validated")
+        self.assertEqual(r7._counts(self.r5.DB)["neuron_education_applications"], 20)
+
+    def test_does_not_restore_snapshot_that_loses_activated_rows(self):
+        self.checkpoint(activity=0)
+        before = r7._sha(self.r5.DB)
+        with (
+            patch.object(r7, "_check_api", return_value=False),
+            self.assertRaisesRegex(RuntimeError, "supera"),
+        ):
+            self.center._restore_best_before_api()
+        self.assertEqual(before, r7._sha(self.r5.DB))
+
+    def test_packaged_rehydrator_uses_verified_baseline(self):
+        from unittest.mock import Mock
+
+        rehydrate = Mock(
+            return_value={"status": "rehydrated_candidate", "api_http": 200}
+        )
+        center = r7.Center(self.r5, rehydrator=rehydrate)
+        with (
+            patch.object(center, "_origin_verified", return_value=True),
+            patch.object(r7, "_check_api", return_value=True),
+            patch.object(r7, "_git", side_effect=AssertionError("no legacy fetch")),
+        ):
+            self.assertEqual(center.install_release()["api_http"], 200)
+        rehydrate.assert_called_once_with(
+            self.r5, minimum_counts=r7._counts(self.r5.DB)
+        )
+
+    def test_rehydrator_accepts_zero_baseline_and_blocks_real_regression(self):
+        from tools.triade_colab_continuity_r631 import verify_memory_floor
+
+        self.r5.DB.unlink()
+        make_db(self.r5.DB, applications=0, activity=0)
+        proof_path = self.r5.WORK / "restore_proof.json"
+        proof = json.loads(proof_path.read_text())
+        proof["counts"] = r7._counts(self.r5.DB)
+        proof_path.write_text(json.dumps(proof))
+        observed = verify_memory_floor(self.r5, self.r5.DB.resolve())
+        self.assertEqual(observed["neuron_education_applications"], 0)
+        with self.assertRaisesRegex(RuntimeError, "retrocede"):
+            verify_memory_floor(
+                self.r5, self.r5.DB.resolve(), {"neuron_education_applications": 1}
+            )
 
     def test_review_required_if_v2_regressed(self):
         self.r5.DB.unlink()

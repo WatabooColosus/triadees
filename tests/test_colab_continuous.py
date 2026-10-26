@@ -232,6 +232,18 @@ def test_failed_runtime_verification_preserves_last_receipt(runtime):
     assert len(client.r5.events) == count  # do not retry a failed auto-update forever
 
 
+def test_status_remains_available_after_failed_first_install(runtime):
+    client, _, _ = runtime
+    client.r5.verified = False
+    with pytest.raises(RuntimeError, match="No se activó"):
+        client.install()
+    assert client.module is None
+    assert not client.drive_receipt.exists()
+    assert client.action("status") == {"fixture": True}
+    with pytest.raises(RuntimeError, match="Arranque detenido"):
+        client.action("open_frontend")
+
+
 def test_watcher_detects_without_installing_or_creating_memory(runtime):
     client, _, _ = runtime
     client.watch_once()

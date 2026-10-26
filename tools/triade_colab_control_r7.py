@@ -20,11 +20,10 @@ import threading
 import urllib.request
 from pathlib import Path
 
-VERSION = "R7.1-panel-candidate"
+VERSION = "R7.3-drive-candidate"
 PIN = "8fdd397b09d7c7da5da8db30235ce626d6a271ec"
 REHYDRATOR_COMMIT = "ada140cf2fad8926e33843540570a1e02494c7fe"
 REHYDRATOR_PATH = "tools/triade_colab_continuity_r631.py"
-MIN_OBSERVED = {"neuron_activity": 6, "neuron_education_applications": 15}
 GUARD_TABLES = (
     "auth_users",
     "auth_email_identities",
@@ -109,11 +108,11 @@ def _git(root, *args, timeout=150):
 
 
 def _dominates(a, b):
-    return all(a.get(k, 0) >= b.get(k, 0) for k in GUARD_TABLES)
+    return all(a.get(k, 0) >= b.get(k, 0) for k in (*GUARD_TABLES, "neuron_activity"))
 
 
 class Center:
-    def __init__(self, r5):
+    def __init__(self, r5, rehydrator=None):
         self.r5 = r5
         self.root = Path(r5.ROOT)
         self.work = Path(r5.WORK)
@@ -121,6 +120,7 @@ class Center:
         self.db = Path(r5.DB)
         self.lock = threading.RLock()
         self.pin_sha = PIN
+        self.rehydrator = rehydrator
 
     def _sync_paths(self):
         self.root = Path(self.r5.ROOT)
@@ -150,6 +150,9 @@ class Center:
         pointer = _read_json(base / "latest_review.json")
         if not pointer:
             return None
+        return self._validate_checkpoint(base, pointer, proof)
+
+    def _validate_checkpoint(self, base, pointer, proof):
         filename = pointer.get("file")
         if (
             not isinstance(filename, str)
@@ -197,6 +200,43 @@ class Center:
             "record": pointer,
         }
 
+    def _best_checkpoint(self, prior):
+        """Inspect closed, documented snapshots of this exact V2 branch only."""
+        proof = _read_json(self.work / "restore_proof.json")
+        latest = self._checkpoint_index()
+        candidates = [latest] if latest else []
+        base = (
+            self.drive
+            / "operacion_colab_r5"
+            / "ramas_en_revision"
+            / str(proof["source_sha256"])[:16]
+        )
+        if base.is_dir() and not base.is_symlink():
+            for metadata in sorted(base.glob("*.json")):
+                if metadata.name == "latest_review.json" or metadata.is_symlink():
+                    continue
+                record = _read_json(metadata)
+                if not record or record.get("status") != "review_branch_only":
+                    continue
+                try:
+                    candidate = self._validate_checkpoint(base, record, proof)
+                    if metadata != candidate["file"].with_suffix(".json"):
+                        continue
+                    candidates.append(candidate)
+                except (OSError, RuntimeError, sqlite3.Error):
+                    # A corrupt historical image is never a recovery source.
+                    continue
+        if not candidates:
+            return None
+        for candidate in candidates:
+            if _dominates(candidate["counts"], prior) and all(
+                _dominates(candidate["counts"], other["counts"]) for other in candidates
+            ):
+                return candidate
+        raise RuntimeError(
+            "Ningún respaldo supera todas las memorias verificadas; revisión manual sin cambios"
+        )
+
     def _release_verified(self, meta):
         if not meta or meta.get("status") != "rehydrated_candidate":
             return False
@@ -213,7 +253,25 @@ class Center:
         )
 
     def _floor(self):
-        floor = dict(MIN_OBSERVED)
+        # Baseline belongs to the user's verified restoration, never to a
+        # developer's historical run or synthetic test counts.
+        proof = _read_json(self.work / "restore_proof.json") or {}
+        floor = {
+            k: v
+            for k, v in proof.get("counts", {}).items()
+            if k in (*GUARD_TABLES, "neuron_activity") and type(v) is int and v >= 0
+        }
+        source = Path(proof.get("source_path") or self.work / "absent_source")
+        if source.is_file() and not source.is_symlink():
+            if _sha(source) != proof.get("source_sha256"):
+                raise RuntimeError("La memoria origen cambió; no omitir su protección")
+            info = self.r5.db_info(source)
+            if info.get("status") != "ok" or info.get("owner_fingerprint") != proof.get(
+                "owner_fingerprint"
+            ):
+                raise RuntimeError("Identidad del origen no acreditada")
+            for key, value in _counts(source).items():
+                floor[key] = max(floor.get(key, 0), value)
         manifest = _read_json(self.drive / "operacion_colab_r7" / "last_success.json")
         if manifest and manifest.get("lineage") == "90e9a51dd7ffef31":
             for key, value in manifest.get("observed_counts", {}).items():
@@ -300,7 +358,7 @@ class Center:
             raise RuntimeError("R5 aún no acreditó restauración; sin cambios")
         self.r5.check_working_identity()
         prior = _counts(self.db)
-        review = self._checkpoint_index()
+        review = self._best_checkpoint(prior)
         chosen = None
         if review is not None:
             if not _dominates(review["counts"], prior):
@@ -444,6 +502,14 @@ class Center:
                         "La versión registrada y el código no coinciden; no se declara instalada"
                     )
                 return {"state": "already_installed", "status": self.status()}
+            if self.rehydrator is not None:
+                receipt = self.rehydrator(self.r5, minimum_counts=self._floor())
+                if (
+                    receipt.get("status") != "rehydrated_candidate"
+                    or receipt.get("api_http") != 200
+                ):
+                    raise RuntimeError("Versión candidata no acreditada")
+                return receipt
             _git(
                 self.root,
                 "fetch",

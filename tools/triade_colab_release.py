@@ -138,7 +138,15 @@ def _center(context):
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    center = module.Center(context["r5"])
+    rehydrator = None
+    if "rehydrator" in context["files"]:
+        release_spec = importlib.util.spec_from_file_location(
+            "triade_checked_rehydrator", context["files"]["rehydrator"]
+        )
+        release_module = importlib.util.module_from_spec(release_spec)
+        release_spec.loader.exec_module(release_module)
+        rehydrator = release_module.rehydrate
+    center = module.Center(context["r5"], rehydrator=rehydrator)
     context["center"] = center
     return center
 

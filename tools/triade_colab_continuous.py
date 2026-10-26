@@ -182,6 +182,8 @@ class Client:
         self.failed_release = None
         self.module = None
         self.context = None
+        self.diagnostic_module = None
+        self.diagnostic_context = None
 
     @property
     def drive_receipt(self):
@@ -293,6 +295,7 @@ class Client:
             manifest = result["manifest"]
             self.notify("Preparando instalación completa: " + manifest["version"])
             module, context = self._stage(manifest)
+            self.diagnostic_module, self.diagnostic_context = module, context
             try:
                 installed = module.install(context)
                 verified = module.verify(context)
@@ -379,7 +382,14 @@ class Client:
             self.thread.join(timeout=1)
 
     def action(self, name):
+        if name == "status" and self.diagnostic_module:
+            with self.lock:
+                return self.diagnostic_module.status(self.diagnostic_context)
         if not self.module:
+            if self.last_error:
+                raise RuntimeError(
+                    "Arranque detenido; consulta Estado real. Causa: " + self.last_error
+                )
             raise RuntimeError("Pulsa Instalar / encender / actualizar primero")
         callback = getattr(self.module, name, None)
         if not callable(callback):

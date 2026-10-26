@@ -63,6 +63,15 @@ antes de permitir versiones anteriores. Esto guarda la versión, no reemplaza
 los respaldos de Bodega. El índice V2, las identidades y las copias originales
 de Drive siguen protegidos por el instalador correspondiente.
 
+El controlador obtiene sus mínimos de la restauración acreditada del propietario
+y del último punto operativo registrado en Drive. No exige un número fijo de
+actividades o aplicaciones educativas tomado de otra ejecución. Busca también
+las imágenes documentadas de la misma rama V2 aunque falte el puntero de revisión;
+verifica SHA, SQLite, propietario, origen, linaje y recuentos antes de elegirlas.
+Nunca elige una imagen que reduzca las tablas protegidas o actividades activadas.
+Un conflicto real mantiene el arranque detenido y **Estado real** sigue disponible
+después de una instalación incompleta, sin exigir instalar otra vez para verlo.
+
 ## Validación
 
 `tests/test_colab_continuous.py` comprueba VM vacía, instalación de dependencias,
