@@ -1038,4 +1038,3 @@ def test_reports_evolution_declared_manual_entrypoint_is_classified(
     node = next(node for node in nodes if node.node_id == node_id)
     assert node.metadata["activation"] == "manual_diagnostic"
     assert node.metadata["launchers"] == 0
-
