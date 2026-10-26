@@ -1015,3 +1015,26 @@ def test_encolar_no_es_ejecutar(tmp_path: Path) -> None:
     # El handler llego a decidir, aunque decidiera no actuar o fallara.
     assert counts["miro_y_no_actuo"] == 1
     assert counts["fallo"] == 1
+
+
+
+def test_reports_evolution_declared_manual_entrypoint_is_classified(tmp_path: Path) -> None:
+    from triade.observability.code_graph import build_entrypoint_graph
+
+    root = tmp_path / "repo"
+    script = root / "reports" / "evolution" / "manual_diagnostic.py"
+    script.parent.mkdir(parents=True)
+    script.write_text(
+        'TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"\\n'
+        'if __name__ == "__main__":\\n'
+        '    pass\\n',
+        encoding="utf-8",
+    )
+
+    nodes, _edges = build_entrypoint_graph(root)
+
+    node_id = "entrypoint:reports/evolution/manual_diagnostic.py"
+    node = next(node for node in nodes if node.node_id == node_id)
+    assert node.metadata["activation"] == "manual_diagnostic"
+    assert node.metadata["launchers"] == 0
+

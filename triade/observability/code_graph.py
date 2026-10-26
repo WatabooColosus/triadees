@@ -539,7 +539,7 @@ def _declared_entrypoint_kind(tree: ast.Module, relative: str) -> str | None:
     declaración vive en el propio módulo y el vocabulario es cerrado; no se
     infiere por el nombre del fichero.
     """
-    if not relative.startswith("scripts/"):
+    if not relative.startswith(("scripts/", "reports/evolution/")):
         return None
     allowed = {"administrative_on_demand", "manual_diagnostic"}
     for node in tree.body:

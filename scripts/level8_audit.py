@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 DIMENSIONS = {
