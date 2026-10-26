@@ -139,21 +139,23 @@ class ModelRouter:
                 rejected_by_hardware=rejected,
             )
 
-        if self.available_models and normalized_role != "embedding":
-            fallback = self.available_models[0]
-            fallback_reason = (
-                f"Ningún candidato recomendado está disponible; se usó {fallback} "
-                f"como primer modelo instalado."
-            )
-        elif normalized_role == "embedding":
+        if normalized_role == "embedding":
             fallback = "disabled:embedding-on-demand"
-            fallback_reason = "No hay un modelo de embeddings instalado; embeddings quedan bajo demanda."
+            fallback_reason = (
+                "No hay un modelo de embeddings instalado; embeddings quedan bajo demanda."
+            )
         else:
-            # Un hardware low no debe anunciar un 3B que puede forzar swap.
-            # El modelo es sólo una recomendación de proveedor; Tríade sigue
-            # funcionando en fallback determinista si aún no está instalado.
-            fallback = os.getenv("TRIADE_LOW_RESOURCE_MODEL", "qwen2.5:1.5b")
-            fallback_reason = f"No hay modelos instalados en Ollama; se usó fallback ligero {fallback}."
+            fallback = self._first_compatible_fallback(normalized_role)
+            if fallback:
+                fallback_reason = (
+                    f"Ningún candidato recomendado para {normalized_role} está instalado; "
+                    f"se usó {fallback} como fallback generativo compatible."
+                )
+            else:
+                fallback = "unavailable:no-generative-model-installed"
+                fallback_reason = (
+                    "No hay un modelo generativo compatible instalado para este rol."
+                )
         return ModelRouteDecision(
             role=normalized_role,
             selected_model=fallback,
