@@ -2,24 +2,24 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 3,
-  "version": "R7.4-continuo-wal",
+  "sequence": 4,
+  "version": "R7.5-ciclo-unico",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "30c17371d817af7f1efc89bcccd3a867058b5cb1",
+  "commit": "fe64c78b78a3b7231cbd12c0f24e68536301421b",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
-      "sha256": "db76bffd48219c1479d9146af50bbf3d7d285bdddda0ba4fb88d9934819ed4c6"
+      "sha256": "5e5cf418cfdab57160e828e8d313a673b96617f054e7db37f37f685301cec74b"
     },
     "controller": {
       "path": "tools/triade_colab_control_r7.py",
-      "sha256": "52e7246aa33e023999c06b5c36c02a846d9c48a11882a147d38af7a42d3fb5f6"
+      "sha256": "2968af29d8b43acc3856f784fbcb6b9597e13acd3f2b3a3fa28e71d389561719"
     },
     "client": {
       "path": "tools/triade_colab_continuous.py",
-      "sha256": "5f57e4c671ee21d0f4e9ce3fdd7d2ea763dc30e748b18bed00bb44e08cc4f95b"
+      "sha256": "714f4ae31d745e34799da92f33e7e16c8969a1c0100e732f824391ed72fbf406"
     },
     "rehydrator": {
       "path": "tools/triade_colab_continuity_r631.py",
