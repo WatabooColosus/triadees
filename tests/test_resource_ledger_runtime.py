@@ -132,6 +132,31 @@ def test_runtime_budget_is_read_from_declared_config(tmp_path):
     assert load_runtime_budget(tmp_path / "no-existe.yml") == DEFAULT_BUDGET
 
 
+def test_thread_measurements_exclude_process_wide_child_cpu(monkeypatch):
+    from types import SimpleNamespace
+
+    from triade.runtime import resource_ledger
+
+    cpu_readings = iter([(10.0, 2.0, "thread"), (10.5, 2.25, "thread")])
+    child_readings = iter(
+        [
+            SimpleNamespace(ru_utime=20.0, ru_stime=5.0, ru_maxrss=1024),
+            SimpleNamespace(ru_utime=24.0, ru_stime=8.0, ru_maxrss=1024),
+            SimpleNamespace(ru_utime=24.0, ru_stime=8.0, ru_maxrss=1024),
+        ]
+    )
+    monkeypatch.setattr(resource_ledger, "resource", SimpleNamespace(RUSAGE_CHILDREN=1))
+    monkeypatch.setattr(resource_ledger, "_cpu_propio", lambda: next(cpu_readings))
+    monkeypatch.setattr(
+        resource_ledger, "_rusage", lambda which=None: next(child_readings)
+    )
+
+    receipt = resource_ledger.ResourceMeasurementCollector().finish()
+
+    assert receipt.value("cpu_user") == 0.5
+    assert receipt.value("cpu_system") == 0.25
+
+
 def test_la_cpu_se_mide_por_hilo_no_por_proceso():
     """`RUSAGE_SELF` cuenta todo el proceso, y los workers son hilos.
 
