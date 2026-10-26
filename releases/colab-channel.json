@@ -2,12 +2,12 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 2,
-  "version": "R7.3-continuo-drive",
+  "sequence": 3,
+  "version": "R7.4-continuo-wal",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "b3eefb68472680768c7273e8f51d655117876675",
+  "commit": "30c17371d817af7f1efc89bcccd3a867058b5cb1",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
@@ -15,7 +15,7 @@
     },
     "controller": {
       "path": "tools/triade_colab_control_r7.py",
-      "sha256": "8374cf49efb8b1a578a7c407e492022080dd402c4e9043a9d133e91afc8635b2"
+      "sha256": "52e7246aa33e023999c06b5c36c02a846d9c48a11882a147d38af7a42d3fb5f6"
     },
     "client": {
       "path": "tools/triade_colab_continuous.py",
