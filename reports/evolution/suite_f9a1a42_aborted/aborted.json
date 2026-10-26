@@ -1,1 +1,0 @@
-{"timestamp": "2026-10-08T04:07:58.005460+00:00", "source_sha": "f9a1a42b00fe2007399001d1c5ee5e396081949c", "state": "ABORTED_NOT_CERTIFIED", "reason": "Automatic experiment proves worker adaptive gate still discards held-out admission certification; repair must reach scheduler and consumer", "truth": false, "controller_pid": 17260}

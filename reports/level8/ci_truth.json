@@ -1,6 +1,0 @@
-{
-  "local_full_suite": "not_green",
-  "focused_activation_contracts": "pass",
-  "first_failure_repaired": "metacognition inactive declaration and stale rows_absent contracts",
-  "remote_runs": "unavailable: gh not installed"
-}

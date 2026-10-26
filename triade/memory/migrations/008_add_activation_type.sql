@@ -1,3 +1,0 @@
--- Add activation_type column to neuron_activity for NeuronScheduler tracking.
--- Also relax run_id FK constraint (scheduler inserts without a valid run_id).
--- Uses PRAGMA to check column existence before ALTER TABLE.

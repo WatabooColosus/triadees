@@ -1,7 +1,0 @@
--- `neuron_certifications` vivio aqui hasta el 2026-08-08. La retira `035`: era
--- un manifiesto que alguien tenia que firmar a mano y que nunca tuvo escritor.
--- Su CREATE no puede quedarse (ver tests/test_schema_retirement.py).
---
--- `neuron_certification_transitions` conserva las 13 cuarentenas de la fase 12 y
--- su CREATE se mudo a `schemas.sql`, que si se reejecuta en cada arranque: quien
--- replicaba este fichero era `NeuronCertifier`, retirado en el mismo commit.

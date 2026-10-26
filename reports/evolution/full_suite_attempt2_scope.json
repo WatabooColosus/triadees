@@ -1,4 +1,0 @@
-{
-  "release_certification": false,
-  "reason": "Additional schema provenance/serving guards were implemented during this run; final frozen revision needs its own suite."
-}

@@ -1,0 +1,25 @@
+{
+  "schema": "triade.colab.release.v1",
+  "repository": "WatabooColosus/triadees",
+  "protocol": 1,
+  "sequence": 1,
+  "version": "R7.2-continuo",
+  "runtime": "R6.3.1-candidate",
+  "channel": "candidate",
+  "auto_update_safe": false,
+  "commit": "2d7136e46daa4442b1a0e4264ad386f83205514b",
+  "files": {
+    "installer": {
+      "path": "tools/triade_colab_release.py",
+      "sha256": "cabf937ca29abaed07ffee02c1e227963402552024a9a6aa76d9bf913c4fca4f"
+    },
+    "controller": {
+      "path": "tools/triade_colab_control_r7.py",
+      "sha256": "1c45dd299a9add974588ae6254d4b037044342d3fc50bc6391c5073d6831dd10"
+    },
+    "client": {
+      "path": "tools/triade_colab_continuous.py",
+      "sha256": "c78dc50b188ec4e1f80f3765d456bd6ac06b0e5e100a00c27d27e0afef0992c2"
+    }
+  }
+}

@@ -1,6 +1,0 @@
-{
-  "scope": "Diagnostic system-instruction ablation, not productive application",
-  "instruction": " Puedes aplicar los datos, procedimientos y formulas del bloque de conocimiento verificado para resolver la solicitud actual. La prohibicion de describir bloques no prohibe utilizar sus datos o devolver la expresion que solicita el usuario. Si se solicita JSON, devuelve un objeto JSON con los campos pedidos.",
-  "response": "```json\nnull\n```",
-  "objective_pass": false
-}
