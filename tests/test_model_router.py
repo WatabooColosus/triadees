@@ -161,6 +161,17 @@ def test_generation_fallback_respects_hardware_budget() -> None:
     assert decision.fallback_used is True
 
 
+def test_fallback_stays_unavailable_when_no_installed_model_fits_hardware() -> None:
+    decision = ModelRouter(
+        ["nomic-embed-text:latest", "qwen3:4b"],
+        hardware=hw("low", 3.0),
+    ).route("creator")
+
+    assert decision.selected_model == "unavailable:no-hardware-compatible-model"
+    assert "qwen3:4b" in decision.rejected_by_hardware
+    assert decision.fallback_used is True
+
+
 def test_deep_fallback_prefers_strongest_compatible_installed_model() -> None:
     decision = ModelRouter(
         ["nomic-embed-text:latest", "qwen2.5:1.5b", "qwen3:1.7b"]
