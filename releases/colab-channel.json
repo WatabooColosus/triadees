@@ -2,12 +2,12 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 11,
-  "version": "R7.12-router-manifest-path-fix",
+  "sequence": 12,
+  "version": "R7.13-router-bootstrap-compat",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "462cc7c5f8a394ad2b93300fdbcf87c53139cc6e",
+  "commit": "950bbc36a9fdd7859a5292600caf51d65d7e3751",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
@@ -38,7 +38,7 @@
       "sha256": "33bd6dab01da3a2f9202052e06f618ebb8a0e0625a6e340ce688e9e4ac5594b9"
     },
     "router": {
-      "path": "triade/models/model_router.py",
+      "path": "tools/model_router.py",
       "sha256": "2ecd09ca7c6500014d22afc4943f8a84ed50c2454412e443b4595919b413cd1c"
     }
   }
