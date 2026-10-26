@@ -372,9 +372,10 @@ def test_catalogue_rejects_untrusted_component_paths(runtime, path):
 def test_release_adapter_starts_from_empty_without_manual_phase(monkeypatch):
     calls = []
     center = SimpleNamespace(
+        status=dict,
         start=lambda: (
             calls.append("whole-start") or {"state": "running_version_rehydrated"}
-        )
+        ),
     )
     monkeypatch.setattr(
         adapter, "ensure_dependencies", lambda ctx: calls.append("dependencies") or {}
@@ -473,3 +474,101 @@ def test_absent_node_is_extracted_only_after_verified_download(runtime, monkeypa
     assert (
         client.r5.WORK / "dependencies/node-v22.1.0-linux-x64/bin/node"
     ).read_bytes() == b"fixture executable\n"
+
+
+def test_running_panel_update_installs_auditor_without_runtime_operations(
+    tmp_path, monkeypatch
+):
+    calls = []
+    source = tmp_path / "auditor.py"
+    source.write_text("""
+def install(r5):
+    r5.updated = True
+def audit(r5, seconds, *, emit=True):
+    return {'audit_version': 'fixture', 'seconds': seconds, 'emit': emit}
+""")
+    center = SimpleNamespace(
+        status=lambda: {
+            "api_http_200": True,
+            "ollama_http_200": True,
+            "bodega": "SQLite ok / fixture",
+            "known_regression": None,
+            "release": "R6.3.1 candidata / fixture",
+            "counts": {"neurons": 16},
+        },
+        start=lambda: calls.append("forbidden-start"),
+    )
+    monkeypatch.setattr(adapter, "_center", lambda context: center)
+    monkeypatch.setattr(
+        adapter,
+        "ensure_dependencies",
+        lambda context: calls.append("forbidden-dependencies"),
+    )
+    runtime = SimpleNamespace(updated=False)
+    context = {
+        "r5": runtime,
+        "files": {"auditor": str(source)},
+        "progress": lambda text: None,
+    }
+    assert adapter.install(context)["runtime"]["state"] == "already_running_verified"
+    assert runtime.updated is True
+    assert calls == []
+    assert adapter.audit(context) == {
+        "audit_version": "fixture",
+        "seconds": 30,
+        "emit": False,
+    }
+    assert context["verified_counts"] == {"neurons": 16}
+
+
+def test_existing_client_accepts_auditor_component_through_same_update_button(runtime):
+    from pathlib import Path
+
+    client, catalogue, _ = runtime
+    client.install()
+    catalogue.manifest["sequence"] = 2
+    catalogue.manifest["version"] = "fixture-panel-audit"
+    catalogue.manifest["commit"] = "b" * 40
+    catalogue.code = Path(adapter.__file__).read_bytes()
+    components = {
+        "controller": b"""
+class Center:
+    def __init__(self, r5, rehydrator=None):
+        pass
+    def status(self):
+        return {'api_http_200': True, 'ollama_http_200': True,
+                'bodega': 'SQLite ok / fixture', 'release': 'R6.3.1 candidata',
+                'known_regression': None, 'counts': {'neurons': 16}}
+    def start(self):
+        raise AssertionError('runtime must not restart')
+""",
+        "auditor": b"""
+def install(r5):
+    r5.audit_updated = True
+def audit(r5, seconds, *, emit=True):
+    return {'fixture': True, 'window_seconds': seconds}
+""",
+    }
+    catalogue.manifest["files"]["installer"]["sha256"] = hashlib.sha256(
+        catalogue.code
+    ).hexdigest()
+    for name, code in components.items():
+        catalogue.manifest["files"][name] = {
+            "path": f"tools/{name}.py",
+            "sha256": hashlib.sha256(code).hexdigest(),
+        }
+    original = client.downloader
+
+    def download(url, limit=300_000):
+        for name, code in components.items():
+            if url.endswith(f"/tools/{name}.py"):
+                return code
+        return original(url, limit)
+
+    client.downloader = download
+    assert client.check()["update_available"] is True
+    assert client.install()["status"] == "ready"
+    assert client.r5.audit_updated is True
+    assert client.action("audit") == {"fixture": True, "window_seconds": 30}
+    assert client.r5.events == [("install", "release-one")]
+    assert client.installed()["manifest"]["version"] == "fixture-panel-audit"

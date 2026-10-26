@@ -102,3 +102,23 @@ perder el kernel, veto a CI fallida, todos los hashes antes de ejecutar, fallo d
 verificación sin avance del recibo y vigilancia automática con consentimiento.
 Estos son contratos con fixtures temporales; no acreditan actividad ni memoria
 real de Colab. La aceptación con Drive real sigue siendo una comprobación aparte.
+
+## Actualización del auditor desde el panel existente
+
+R7.6-auditor-panel incorpora un quinto componente verificado, `auditor`. El
+cliente R7.5 ya admite ese componente sin cambiar la celda ni el cuaderno.
+Después de publicar el catálogo con CI verde, se usa **Comprobar nuevas
+versiones** y **Instalar / encender / actualizar**. Si API, Ollama, Bodega,
+propietario, continuidad y R6.3.1 están acreditados, el adaptador adjunta el
+auditor al panel existente sin instalar dependencias, restaurar memoria,
+iniciar guardianes ni reiniciar la API. El recibo solo avanza tras verificar.
+
+El auditor usa recuentos de filas sobre conexiones SQLite de solo lectura,
+inspecciona el esquema y evita la conversión de `"id"` a un literal cuando la
+columna real es `cycle_id`. Muestra eventos nuevos, estados de ambas colas,
+configuración efectiva permitida del PID registrado y detalles del panel de
+deuda mediante GET locales. Los endpoints que exigen autenticación se declaran
+no observados, sin desactivar el login. Los GET pueden generar telemetría del
+backend o refresco de sus artefactos; se realizan después de medir los deltas.
+Los contenidos de tareas y payloads no se vuelcan. Ni eventos nuevos ni tareas
+pendientes por sí solos acreditan aprendizaje, ejecución completa o bloqueo.

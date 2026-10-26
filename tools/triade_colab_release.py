@@ -151,7 +151,34 @@ def _center(context):
     return center
 
 
+def _auditor(context):
+    if "auditor" not in context.get("files", {}):
+        return None
+    if "auditor_module" not in context:
+        spec = importlib.util.spec_from_file_location(
+            "triade_checked_release_auditor", context["files"]["auditor"]
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        context["auditor_module"] = module
+    return context["auditor_module"]
+
+
 def install(context):
+    # A diagnostic-only release can attach to a verified running session.
+    # Do not invoke dependency installation, restoration or guardian startup.
+    if verify(context):
+        context["progress"](
+            "Actualizando el auditor del panel; Tríade sigue encendida…"
+        )
+        auditor = _auditor(context)
+        if auditor is not None:
+            auditor.install(context["r5"])
+        return {
+            "status": "ready",
+            "dependencies": {"status": "existing_runtime_verified"},
+            "runtime": {"state": "already_running_verified"},
+        }
     dependencies = ensure_dependencies(context)
     context["progress"]("Instalando código, recuperando memoria e iniciando Tríade…")
     result = _center(context).start()
@@ -160,6 +187,9 @@ def install(context):
         "already_running_verified",
     ):
         raise RuntimeError("El arranque no terminó verificado")
+    auditor = _auditor(context)
+    if auditor is not None:
+        auditor.install(context["r5"])
     return {"status": "ready", "dependencies": dependencies, "runtime": result}
 
 
@@ -206,4 +236,7 @@ def save(context):
 
 
 def audit(context):
+    auditor = _auditor(context)
+    if auditor is not None:
+        return auditor.audit(context["r5"], 30, emit=False)
     return context["r5"].audit_progress(30)

@@ -195,7 +195,7 @@ def endpoint(path):
         return {"status": "not_observed"}
 
 
-def audit(r5, seconds=30):
+def audit(r5, seconds=30, *, emit=True):
     if not 0 <= seconds <= 120:
         raise ValueError("Audit window must be between 0 and 120 seconds")
     before, errors_before = snapshot(r5.DB)
@@ -234,7 +234,8 @@ def audit(r5, seconds=30):
         "full_certified": False,
         "interpretation": "Events alone do not prove task completion or applied learning. Pending count alone does not establish eligibility.",
     }
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    if emit:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
     return result
 
 
