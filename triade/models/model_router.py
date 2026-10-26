@@ -272,13 +272,26 @@ class ModelRouter:
         return "embed" in model.lower()
 
     def _first_compatible_fallback(self, role: str) -> str | None:
-        for model in self.available_models:
-            if self._is_embedding_model(model):
-                continue
-            if role != "coder" and "coder" in model.lower():
-                continue
-            return model
-        return None
+        eligible = [
+            model
+            for model in set(self.available_models)
+            if not self._is_embedding_model(model)
+            and (role == "coder" or "coder" not in model.lower())
+            and self._model_fits(model)
+        ]
+        if role == "coder":
+            eligible.sort(
+                key=lambda model: (
+                    "coder" not in model.lower(),
+                    self._estimate_ram(model),
+                    model,
+                )
+            )
+        elif role == "deep":
+            eligible.sort(key=lambda model: (-self._estimate_ram(model), model))
+        else:
+            eligible.sort(key=lambda model: (self._estimate_ram(model), model))
+        return eligible[0] if eligible else None
 
     @staticmethod
     def _normalize_role(
