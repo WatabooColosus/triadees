@@ -84,7 +84,7 @@ def validate_manifest(value):
             raise TypeError("Ruta de publicación inválida")
         parts = PurePosixPath(path)
         allowed_path = bool(
-            re.fullmatch(r"tools/[A-Za-z0-9_./-]+\\.py", path)
+            re.fullmatch(r"tools/[A-Za-z0-9_./-]+\.py", path)
             or path == "triade/models/model_router.py"
         )
         if (
