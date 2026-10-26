@@ -32,8 +32,10 @@ def runtime(tmp_path, monkeypatch):
         _owner_account_status=lambda path: {"fixture": True},
     )
     monkeypatch.setattr(protection, "_backend_environment", lambda r5: {})
-    monkeypatch.delenv("TRIADE_BACKUP_KEY", raising=False)
-    monkeypatch.delenv("TRIADE_BACKUP_KEY_FILE", raising=False)
+    # repair intentionally updates the notebook environment. Register an
+    # undo even when the variable did not exist before this fixture.
+    monkeypatch.setenv("TRIADE_BACKUP_KEY", "")
+    monkeypatch.setenv("TRIADE_BACKUP_KEY_FILE", "")
     return r5
 
 
@@ -172,4 +174,19 @@ def test_missing_legacy_key_never_rekeys_existing_encrypted_corpus(runtime):
         protection.repair(runtime)
     assert legacy.read_bytes() == b"legacy fixture ciphertext preserved"
     assert (runtime.ROOT / "config/backup_key_location.json").read_bytes() == original
+    assert not (protection._paths(runtime) / "backup.key").exists()
+
+
+def test_recovered_key_must_open_existing_latest_cipher_before_activation(runtime):
+    original = (runtime.ROOT / "config/backup_key_location.json").read_bytes()
+    old_key = Fernet.generate_key()
+    (runtime.BASE / "backup.key").write_bytes(Fernet.generate_key())
+    legacy = runtime.ROOT / "artifacts/backups/triade-legacy.db.gz.fernet"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_bytes(Fernet(old_key).encrypt(b"legacy fixture"))
+    before = legacy.read_bytes()
+    with pytest.raises(RuntimeError, match="key_mismatch_preserved"):
+        protection.repair(runtime)
+    assert (runtime.ROOT / "config/backup_key_location.json").read_bytes() == original
+    assert legacy.read_bytes() == before
     assert not (protection._paths(runtime) / "backup.key").exists()

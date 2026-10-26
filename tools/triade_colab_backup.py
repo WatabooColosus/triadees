@@ -16,7 +16,7 @@ import urllib.request
 import uuid
 from pathlib import Path
 
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 
 
 def _read(path):
@@ -135,6 +135,22 @@ def provision(r5, persistent):
     raw = next(iter(candidates.values())) if existed else Fernet.generate_key()
     if prior_fp and prior_fp != _fingerprint(raw):
         raise RuntimeError("persistent_backup_key_identity_conflict")
+    local_copies = sorted(
+        (Path(r5.ROOT) / "artifacts" / "backups").glob("*.fernet"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    if local_copies:
+        if not _plain_file(local_copies[0]):
+            raise RuntimeError("backup_path_symlink_blocked")
+        try:
+            # Verify the existing corpus's latest authentication tag BEFORE
+            # activating a recovered key; never silently change its domain.
+            Fernet(raw).extract_timestamp(local_copies[0].read_bytes())
+        except (InvalidToken, ValueError) as exc:
+            raise RuntimeError(
+                "existing_encrypted_backup_key_mismatch_preserved"
+            ) from exc
     # Existing persistent key files are never overwritten, including invalid ones.
     _private_new(persistent / "backup.key", raw)
     if _key(persistent / "backup.key") != raw:
