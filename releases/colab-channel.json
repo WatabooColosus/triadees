@@ -2,16 +2,16 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 9,
-  "version": "R7.10-router-cpu-accounting",
+  "sequence": 10,
+  "version": "R7.11-router-live-patch",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "d45677d61a56a9c9031afeb52408e619ec7b3c33",
+  "commit": "eabd1b42bf81b014d8ae14960824a3eb6ee19cdb",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
-      "sha256": "3b3356ce1562f55ceca7f7362658416e5f6956cf0c3799c2949d1167baa103d5"
+      "sha256": "d970fd802bc9ffefac65b1cc35bf837fc0ced7232dfe339c0dedb8b5344d6c9b"
     },
     "controller": {
       "path": "tools/triade_colab_control_r7.py",
@@ -36,6 +36,10 @@
     "learning": {
       "path": "tools/triade_colab_learning.py",
       "sha256": "33bd6dab01da3a2f9202052e06f618ebb8a0e0625a6e340ce688e9e4ac5594b9"
+    },
+    "router": {
+      "path": "triade/models/model_router.py",
+      "sha256": "2ecd09ca7c6500014d22afc4943f8a84ed50c2454412e443b4595919b413cd1c"
     }
   }
 }
