@@ -214,6 +214,7 @@ def _apply_router_patch(context):
     )
     sys.path.insert(0, str(root))
     from tools.colab_service_lifecycle import stop_owned
+
     ownership = work / "api_ownership.json"
     stop_owned(root, ownership, port=8010)
     temporary = target.with_name(".model_router.py.r710tmp")
