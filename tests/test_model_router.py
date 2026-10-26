@@ -167,9 +167,7 @@ def test_measured_embedding_route_is_rejected_for_generation(
         encoding="utf-8",
     )
     monkeypatch.setenv("TRIADE_MEASURED_ROUTING_PATH", str(manifest))
-    decision = ModelRouter(
-        ["nomic-embed-text:latest", "qwen2.5:1.5b"]
-    ).route("creator")
+    decision = ModelRouter(["nomic-embed-text:latest", "qwen2.5:1.5b"]).route("creator")
 
     assert decision.selected_model == "qwen2.5:1.5b"
     assert decision.reason != "measured_ab_route:abc"
