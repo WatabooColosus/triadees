@@ -11,6 +11,7 @@ import hashlib
 import io
 import json
 import tarfile
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -111,6 +112,83 @@ def test_one_action_installs_on_an_empty_vm(runtime):
     assert client.r5.events == [("install", "release-one")]
     assert client.drive_receipt.is_file()
     assert client.action("status") == {"fixture": True}
+
+
+def test_same_cell_continues_after_drive_authorization_and_checks_once(runtime):
+    client, catalogue, mounted = runtime
+    original = client.downloader
+    messages = []
+    client.notify = messages.append
+
+    def download(url, limit=300_000):
+        assert mounted["ready"], "network check before Drive authorization"
+        return original(url, limit)
+
+    client.downloader = download
+    try:
+        assert client.run_cycle()["status"] == "ready"
+        assert catalogue.calls.count(updates.CHANNEL) == 1
+        assert sum("/actions/runs?" in url for url in catalogue.calls) == 1
+        assert client.r5.events == [("install", "release-one")]
+        assert any(text.startswith("1/5") for text in messages)
+        assert any(text.startswith("5/5") for text in messages)
+        assert messages[-1].startswith("Instalación / actualización verificada")
+    finally:
+        client.stop_watch()
+    assert not any(t.name == "triade-install-progress" for t in threading.enumerate())
+
+
+def test_reexecuting_healthy_cycle_reuses_runtime_without_network(runtime):
+    client, catalogue, _ = runtime
+    try:
+        client.run_cycle()
+        calls = list(catalogue.calls)
+        events = list(client.r5.events)
+        assert client.run_cycle() == {"status": "ready", "reused": True}
+        assert catalogue.calls == calls
+        assert client.r5.events == events
+    finally:
+        client.stop_watch()
+
+
+def test_retry_after_failure_reuses_hash_checked_components(runtime):
+    client, catalogue, _ = runtime
+    client.r5.verified = False
+    try:
+        with pytest.raises(RuntimeError, match="No se activó"):
+            client.run_cycle()
+        assert client.last_error and not client.drive_receipt.exists()
+        client.r5.verified = True
+        assert client.run_cycle()["status"] == "ready"
+        assert catalogue.calls.count(updates.CHANNEL) == 2
+        assert (
+            sum(url.endswith("/tools/release_one.py") for url in catalogue.calls) == 1
+        )
+    finally:
+        client.stop_watch()
+
+
+def test_cached_component_tampering_blocks_retry(runtime):
+    client, catalogue, _ = runtime
+    client.install()
+    cached = next((client.work / "packages").rglob("installer.py"))
+    cached.write_text("# altered cache\n")
+    with pytest.raises(RuntimeError, match="SHA"):
+        client.install()
+    assert sum(url.endswith("/tools/release_one.py") for url in catalogue.calls) == 1
+
+
+def test_watcher_does_not_check_on_start_or_hold_initial_install(runtime):
+    client, catalogue, _ = runtime
+    try:
+        client.start_watch(seconds=600)
+        assert client.lock.acquire(timeout=1)
+        client.lock.release()
+        assert catalogue.calls == []
+        assert client.install()["status"] == "ready"
+        assert catalogue.calls.count(updates.CHANNEL) == 1
+    finally:
+        client.stop_watch()
 
 
 def test_next_release_uses_same_client_and_no_named_phase(runtime):

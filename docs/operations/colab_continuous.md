@@ -5,6 +5,16 @@ una sesión existente. Instala las dependencias ausentes, recupera únicamente l
 continuidad de Drive acreditada e inicia el runtime. El cuaderno no ofrece un
 botón por versión histórica ni exige instalar R5 manualmente antes de actualizar.
 
+El cuaderno de ciclo único llama al instalador desde la ejecución principal de
+la celda. La autorización de Drive continúa directamente hacia la instalación,
+sin requerir ejecutar de nuevo la celda ni pulsar otro botón. El panel aparece
+antes de consultar la red; muestra cinco etapas reales y tiempo transcurrido.
+La comprobación de catálogo/CI se hace una vez por instalación, después de montar
+Drive. El vigilante espera su primer intervalo y no compite con el arranque.
+Los componentes locales se reutilizan solo si su SHA coincide. Una reejecución
+con servicios ya verificados reutiliza la sesión sin consultas de GitHub; el
+botón de actualización y el vigilante mantienen la búsqueda de futuras versiones.
+
 La primera publicación usa internamente los instaladores de compatibilidad ya
 auditados de R5/R6.3.1. Esto no convierte esa candidata en estable ni prueba un
 reinicio en el Drive del propietario. Los próximos paquetes pueden sustituir el

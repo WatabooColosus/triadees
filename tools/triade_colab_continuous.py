@@ -18,6 +18,7 @@ import re
 import sys
 import tempfile
 import threading
+import time
 import urllib.request
 from pathlib import Path, PurePosixPath
 
@@ -170,7 +171,10 @@ class Client:
         self.r5 = r5
         self.mount_drive = mount_drive
         self.drive_ready = drive_ready
-        self.work = Path(work or "/content/triade_actualizador")
+        self.work = Path(
+            work
+            or os.environ.get("TRIADE_UPDATER_WORK", "/content/triade_actualizador")
+        )
         self.downloader = downloader
         self.notify = notify or (lambda message: None)
         self.lock = threading.RLock()
@@ -184,6 +188,12 @@ class Client:
         self.context = None
         self.diagnostic_module = None
         self.diagnostic_context = None
+        self.stage_message = "Preparando instalación"
+        self.set_busy = lambda value: None
+
+    def progress(self, message):
+        self.stage_message = message
+        self.notify(message)
 
     @property
     def drive_receipt(self):
@@ -249,13 +259,19 @@ class Client:
         files = {}
         # Check every component before importing or executing any of them.
         for name, record in manifest["files"].items():
-            data = self.downloader(
-                f"https://raw.githubusercontent.com/{REPO}/{manifest['commit']}/{record['path']}"
+            path = destination / (name + ".py")
+            if path.is_symlink():
+                raise RuntimeError("Conflicto de código local: " + name)
+            data = (
+                path.read_bytes()
+                if path.exists()
+                else self.downloader(
+                    f"https://raw.githubusercontent.com/{REPO}/{manifest['commit']}/{record['path']}"
+                )
             )
             if hashlib.sha256(data).hexdigest() != record["sha256"]:
                 raise RuntimeError("SHA de componente no coincide: " + name)
             ast.parse(data.decode("utf-8"), filename=record["path"])
-            path = destination / (name + ".py")
             if path.is_symlink() or (path.exists() and path.read_bytes() != data):
                 raise RuntimeError("Conflicto de código local: " + name)
             if not path.exists():
@@ -280,62 +296,109 @@ class Client:
             "r5": self.r5,
             "files": files,
             "manifest": manifest,
-            "progress": self.notify,
+            "progress": self.progress,
         }
         return module, context
 
     def install(self):
         with self.lock:
-            # Mount and read the persistent receipt BEFORE resolving a release:
-            # an empty Colab must not silently downgrade the last Drive version.
-            self.mount_drive()
-            if not self.drive_ready():
-                raise RuntimeError("Drive no quedó montado; instalación detenida")
-            result = self.check()
-            manifest = result["manifest"]
-            self.notify("Preparando instalación completa: " + manifest["version"])
-            module, context = self._stage(manifest)
-            self.diagnostic_module, self.diagnostic_context = module, context
-            try:
-                installed = module.install(context)
-                verified = module.verify(context)
-                if (
-                    not isinstance(installed, dict)
-                    or installed.get("status") != "ready"
-                    or verified is not True
-                ):
-                    raise RuntimeError("La versión no acreditó su arranque real")
-            except Exception as exc:
-                self.failed_release = release_identity(manifest)
-                self.last_error = type(exc).__name__ + ": " + str(exc)[:300]
-                recovery = module.recover(context, self.last_error)
-                self.notify(
-                    "Instalación incompleta; se conservaron los registros y la memoria"
-                )
-                raise RuntimeError(
-                    f"No se activó la publicación: {self.last_error}; recuperación: {recovery}"
-                ) from exc
-            record = {
-                "installed_at": dt.datetime.now(dt.UTC).isoformat(),
-                "manifest": manifest,
-                "identity": release_identity(manifest),
-                "ci": result["ci"],
-                "installation": installed,
-            }
-            # Drive first: local success alone must not promise persistence.
-            write_record(self.drive_receipt, record)
-            write_record(self.work / "installed.json", record)
-            self.module, self.context = module, context
-            self.last_error = None
-            self.failed_release = None
-            self.notify(
-                "Instalación / actualización verificada: " + manifest["version"]
+            self.set_busy(True)
+            done = threading.Event()
+            started = time.monotonic()
+
+            def heartbeat():
+                while not done.wait(2):
+                    self.notify(
+                        f"{self.stage_message} · {int(time.monotonic() - started)} s transcurridos"
+                    )
+
+            thread = threading.Thread(
+                target=heartbeat, name="triade-install-progress", daemon=True
             )
-            return {
-                "status": "ready",
-                "version": manifest["version"],
-                "result": installed,
-            }
+            thread.start()
+            try:
+                return self._install()
+            except Exception as exc:
+                self.last_error = type(exc).__name__ + ": " + str(exc)[:300]
+                self.progress("Operación detenida: " + self.last_error)
+                raise
+            finally:
+                done.set()
+                thread.join(timeout=1)
+                self.set_busy(False)
+
+    def _install(self):
+        # Mount and read the persistent receipt BEFORE resolving a release:
+        # an empty Colab must not silently downgrade the last Drive version.
+        self.progress("1/5 · Autoriza Drive; después continuaré automáticamente")
+        if not self.drive_ready():
+            self.mount_drive()
+        if not self.drive_ready():
+            raise RuntimeError("Drive no quedó montado; instalación detenida")
+        self.progress("2/5 · Drive conectado. Comprobando publicación y CI")
+        result = self.check()
+        manifest = result["manifest"]
+        self.progress("3/5 · Preparando paquete verificado: " + manifest["version"])
+        module, context = self._stage(manifest)
+        self.diagnostic_module, self.diagnostic_context = module, context
+        try:
+            self.progress("4/5 · Instalando dependencias, memoria y servicios")
+            installed = module.install(context)
+            self.progress("5/5 · Verificando arranque y guardando recibo en Drive")
+            verified = module.verify(context)
+            if (
+                not isinstance(installed, dict)
+                or installed.get("status") != "ready"
+                or verified is not True
+            ):
+                raise RuntimeError("La versión no acreditó su arranque real")
+        except Exception as exc:
+            self.failed_release = release_identity(manifest)
+            self.last_error = type(exc).__name__ + ": " + str(exc)[:300]
+            recovery = module.recover(context, self.last_error)
+            self.notify(
+                "Instalación incompleta; se conservaron los registros y la memoria"
+            )
+            raise RuntimeError(
+                f"No se activó la publicación: {self.last_error}; recuperación: {recovery}"
+            ) from exc
+        record = {
+            "installed_at": dt.datetime.now(dt.UTC).isoformat(),
+            "manifest": manifest,
+            "identity": release_identity(manifest),
+            "ci": result["ci"],
+            "installation": installed,
+        }
+        # Drive first: local success alone must not promise persistence.
+        write_record(self.drive_receipt, record)
+        write_record(self.work / "installed.json", record)
+        self.module, self.context = module, context
+        self.last_error = None
+        self.failed_release = None
+        self.progress("Instalación / actualización verificada: " + manifest["version"])
+        return {
+            "status": "ready",
+            "version": manifest["version"],
+            "result": installed,
+        }
+
+    def run_cycle(self):
+        """Main notebook cell: authorization continues into the same install call."""
+        self.stop_watch()
+        try:
+            with self.lock:
+                if (
+                    self.drive_ready()
+                    and self.module
+                    and self.module.verify(self.context) is True
+                ):
+                    self.progress(
+                        "Tríade ya está encendida y verificada; sesión reutilizada"
+                    )
+                    return {"status": "ready", "reused": True}
+                return self.install()
+        finally:
+            self.start_watch()
 
     def watch_once(self):
         if not self.lock.acquire(blocking=False):
@@ -366,9 +429,8 @@ class Client:
         self.stop_event.clear()
 
         def watch():
-            while not self.stop_event.is_set():
+            while not self.stop_event.wait(seconds):
                 self.watch_once()
-                self.stop_event.wait(seconds)
 
         self.thread = threading.Thread(
             target=watch, name="triade-release-watch", daemon=True
@@ -398,7 +460,7 @@ class Client:
             return callback(self.context)
 
 
-def render(r5):
+def render(r5, *, watch=True):
     global _active_client
     from html import escape
 
@@ -408,7 +470,8 @@ def render(r5):
 
     if _active_client is not None and _active_client.r5 is r5:
         display(*_active_client.view)
-        _active_client.start_watch()
+        if watch:
+            _active_client.start_watch()
         return _active_client
     if _active_client is not None:
         _active_client.stop_watch()
@@ -421,7 +484,10 @@ def render(r5):
         "<h2>TRÍADE Ω · Centro continuo de Colab</h2>"
         "<p>Una acción instala, enciende o actualiza. Drive conserva tu memoria.</p>"
     )
-    status = widgets.HTML("Consultando el canal de versiones…")
+    status = widgets.HTML(
+        "Panel listo; el ciclo comprobará la versión después de conectar Drive"
+    )
+    progress = widgets.IntProgress(value=0, min=0, max=5, description="Etapa")
     output = widgets.Output(layout=widgets.Layout(max_height="480px", overflow="auto"))
 
     def mounted():
@@ -431,11 +497,25 @@ def render(r5):
         if not mounted():
             drive.mount("/content/drive")
 
+    def report(text):
+        status.value = escape(text)
+        step = re.match(r"([1-5])/5", text)
+        if step:
+            progress.value = int(step.group(1))
+            progress.bar_style = "info"
+        elif text.startswith(
+            ("Instalación / actualización verificada", "Tríade ya está")
+        ):
+            progress.value = 5
+            progress.bar_style = "success"
+        elif text.startswith("Operación detenida"):
+            progress.bar_style = "danger"
+
     client = Client(
         r5,
         mount_drive=mount,
         drive_ready=mounted,
-        notify=lambda text: setattr(status, "value", escape(text)),
+        notify=report,
     )
     _active_client = client
     busy = threading.Lock()
@@ -483,6 +563,9 @@ def render(r5):
         button("Guardar memoria", lambda: client.action("save")),
         button("Auditar actividad (30 s)", lambda: client.action("audit")),
     ]
+    client.set_busy = lambda value: [
+        setattr(control, "disabled", value) for control in buttons
+    ]
     automatic = widgets.Checkbox(
         value=False,
         indent=False,
@@ -494,6 +577,7 @@ def render(r5):
     client.view = (
         banner,
         status,
+        progress,
         widgets.Box(
             actions, layout=widgets.Layout(display="flex", flex_flow="row wrap")
         ),
@@ -505,5 +589,6 @@ def render(r5):
         output,
     )
     display(*client.view)
-    client.start_watch()
+    if watch:
+        client.start_watch()
     return client
