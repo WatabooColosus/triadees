@@ -269,6 +269,19 @@ class ModelRouter:
         return None
 
     @staticmethod
+    def _is_embedding_model(model: str) -> bool:
+        return "embed" in model.lower()
+
+    def _first_compatible_fallback(self, role: str) -> str | None:
+        for model in self.available_models:
+            if self._is_embedding_model(model):
+                continue
+            if role != "coder" and "coder" in model.lower():
+                continue
+            return model
+        return None
+
+    @staticmethod
     def _normalize_role(
         role: str, intent: str, prefer_speed: bool, prefer_depth: bool
     ) -> str:
