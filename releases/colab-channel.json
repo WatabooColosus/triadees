@@ -2,16 +2,16 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 5,
-  "version": "R7.6-auditor-panel",
+  "sequence": 6,
+  "version": "R7.7-proteccion-colab",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "1c52a5fadb21880e04e771f31c60fa971ae55122",
+  "commit": "42f979955b5a55e79ea1aa1764b4584778cb1365",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
-      "sha256": "7f8ce145cead14d2e863a30ed4931aac3c90a378ce3c7910eff79f7453fb2d0c"
+      "sha256": "97911e5244c4cff94a88fd32003439580a11b1bfc3ac6e94474679caf4f710af"
     },
     "controller": {
       "path": "tools/triade_colab_control_r7.py",
@@ -27,7 +27,11 @@
     },
     "auditor": {
       "path": "tools/triade_colab_audit.py",
-      "sha256": "c6b05dc176b6ae0e0403d3738da4a27933391fb59c25f17b4960e5e6fff7ddbd"
+      "sha256": "d8b0575fd6a7d8a66aef5fb635eb1764ff73397a02359539dba0d5b6d91df3ab"
+    },
+    "protection": {
+      "path": "tools/triade_colab_backup.py",
+      "sha256": "ed5c4d3efa6283220529fe1df2a1850ed5b57487a02eef91df7ad7a25a3970aa"
     }
   }
 }
