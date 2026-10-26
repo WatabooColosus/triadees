@@ -164,9 +164,7 @@ class ModelRouter:
                     )
                 else:
                     fallback = "unavailable:no-generative-model-installed"
-                    fallback_reason = (
-                        "No hay un modelo generativo compatible instalado para este rol."
-                    )
+                    fallback_reason = "No hay un modelo generativo compatible instalado para este rol."
         return ModelRouteDecision(
             role=normalized_role,
             selected_model=fallback,
