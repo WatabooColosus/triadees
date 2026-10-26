@@ -151,6 +151,25 @@ def test_generation_fallback_skips_embedding_models() -> None:
     assert "fallback generativo compatible" in decision.reason
 
 
+def test_generation_fallback_respects_hardware_budget() -> None:
+    decision = ModelRouter(
+        ["nomic-embed-text:latest", "qwen3:4b", "qwen2.5:1.5b"],
+        hardware=hw("low", 3.0),
+    ).route("creator")
+
+    assert decision.selected_model == "qwen2.5:1.5b"
+    assert decision.fallback_used is True
+
+
+def test_deep_fallback_prefers_strongest_compatible_installed_model() -> None:
+    decision = ModelRouter(
+        ["nomic-embed-text:latest", "qwen2.5:1.5b", "qwen3:1.7b"]
+    ).route("deep")
+
+    assert decision.selected_model == "qwen3:1.7b"
+    assert decision.fallback_used is True
+
+
 def test_measured_embedding_route_is_rejected_for_generation(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
