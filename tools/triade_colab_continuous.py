@@ -460,6 +460,7 @@ class Client:
         if not callable(callback):
             raise TypeError("Esta versión no ofrece la acción: " + name)
         with self.lock:
+            self.context["progress"] = self.progress
             return callback(self.context)
 
 
@@ -471,18 +472,16 @@ def render(r5, *, watch=True):
     from google.colab import drive
     from IPython.display import clear_output, display
 
-    if _active_client is not None and _active_client.r5 is r5:
-        display(*_active_client.view)
-        if watch:
-            _active_client.start_watch()
-        return _active_client
-    if _active_client is not None:
-        _active_client.stop_watch()
-        if not _active_client.lock.acquire(blocking=False):
+    previous = _active_client
+    if previous is not None:
+        if not previous.lock.acquire(blocking=False):
             raise RuntimeError(
                 "Una operación anterior sigue terminando; conserva ese panel hasta que concluya"
             )
-        _active_client.lock.release()
+        try:
+            previous.stop_watch()
+        finally:
+            previous.lock.release()
     banner = widgets.HTML(
         "<h2>TRÍADE Ω · Centro continuo de Colab</h2>"
         "<p>Una acción instala, enciende o actualiza. Drive conserva tu memoria.</p>"
@@ -565,6 +564,10 @@ def render(r5, *, watch=True):
         button("Estado real", lambda: client.action("status")),
         button("Guardar memoria", lambda: client.action("save")),
         button("Auditar actividad (30 s)", lambda: client.action("audit")),
+        button("Ver circuito de aprendizaje", lambda: client.action("learning_status")),
+        button(
+            "Iniciar aprendizaje verificado", lambda: client.action("learning_start")
+        ),
     ]
     client.set_busy = lambda value: [
         setattr(control, "disabled", value) for control in buttons
@@ -591,6 +594,26 @@ def render(r5, *, watch=True):
         automatic,
         output,
     )
+    # Widget comms belong to their frontend. Reusing old views after opening
+    # another browser produced HTML(value=...) text instead of live controls.
+    # Rebuild views while keeping the verified runtime/release context.
+    if previous is not None and previous.r5 is r5:
+        for field in (
+            "module",
+            "context",
+            "diagnostic_module",
+            "diagnostic_context",
+            "last_check",
+            "last_error",
+            "failed_release",
+            "auto_apply",
+        ):
+            setattr(client, field, getattr(previous, field))
+        for context in (client.context, client.diagnostic_context):
+            if context is not None:
+                context["progress"] = client.progress
+        automatic.value = previous.auto_apply
+        client.progress(previous.stage_message)
     display(*client.view)
     if watch:
         client.start_watch()

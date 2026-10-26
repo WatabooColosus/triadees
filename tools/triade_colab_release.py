@@ -177,6 +177,19 @@ def _protection(context):
     return context["protection_module"]
 
 
+def _learning(context):
+    if "learning" not in context.get("files", {}):
+        return None
+    if "learning_module" not in context:
+        spec = importlib.util.spec_from_file_location(
+            "triade_checked_prospective_learning", context["files"]["learning"]
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        context["learning_module"] = module
+    return context["learning_module"]
+
+
 def _attach_panel_components(context):
     auditor = _auditor(context)
     if auditor is not None:
@@ -189,6 +202,9 @@ def _attach_panel_components(context):
     )
     result = protection.repair(context["r5"])
     protection.start_watch(context["r5"])
+    learning = _learning(context)
+    if learning is not None:
+        context["learning_controls"] = learning.attach(context)
     return result
 
 
@@ -262,6 +278,9 @@ def status(context):
     protection = _protection(context)
     if protection is not None:
         result["backup_protection"] = protection.status(context["r5"])
+    learning = _learning(context)
+    if learning is not None:
+        result["learning_circuit"] = learning.inspect(context["r5"])
     return result
 
 
@@ -276,5 +295,32 @@ def audit(context):
         protection = _protection(context)
         if protection is not None:
             result["backup_protection"] = protection.status(context["r5"])
+        learning = _learning(context)
+        if learning is not None:
+            result["learning_circuit"] = learning.inspect(context["r5"])
         return result
     return context["r5"].audit_progress(30)
+
+
+def learning_status(context):
+    learning = _learning(context)
+    if learning is None:
+        raise RuntimeError("Esta publicación no incluye aprendizaje prospectivo")
+    return learning.inspect(context["r5"])
+
+
+def learning_start(context):
+    learning = _learning(context)
+    if learning is None:
+        raise RuntimeError("Esta publicación no incluye aprendizaje prospectivo")
+    r5 = context["r5"]
+    r5._owner_account_status(r5.DB)
+    _protection(context)._backend_environment(r5)
+    previous = getattr(r5, "_prospective_learning_monitor", None)
+    if previous and previous["thread"].is_alive():
+        return {"status": "study_already_running"}
+    try:
+        models = learning.prepare_models(context)
+    except learning.NotReady as exc:
+        return {"status": "blocked", "reason": str(exc), "learned": False}
+    return {"models": models, **learning.start(context)}
