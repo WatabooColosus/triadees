@@ -2,12 +2,12 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 8,
-  "version": "R7.9-panel-salida-estable",
+  "sequence": 9,
+  "version": "R7.10-router-cpu-accounting",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "ac256562546a8712f54497ad5ef90002505e86db",
+  "commit": "d45677d61a56a9c9031afeb52408e619ec7b3c33",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
