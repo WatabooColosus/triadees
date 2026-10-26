@@ -51,3 +51,33 @@ def test_window_records_events_without_claiming_learning_or_writing(
     original = db.read_bytes()
     runtime.audit_progress(0)
     assert db.read_bytes() == original
+
+
+def test_event_cursor_advance_despite_retained_row_count_and_bounded_details(
+    tmp_path, monkeypatch
+):
+    db = tmp_path / "fixture.db"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE TABLE worker_events(id INTEGER PRIMARY KEY, event_type TEXT)"
+        )
+        conn.execute("INSERT INTO worker_events VALUES (1, 'old fixture')")
+
+    def advance(seconds):
+        with sqlite3.connect(db) as conn:
+            conn.execute("DELETE FROM worker_events WHERE id = 1")
+            conn.execute("INSERT INTO worker_events VALUES (2, 'new fixture')")
+
+    monkeypatch.setattr(audit.time, "sleep", advance)
+    monkeypatch.setattr(audit, "endpoint", lambda path: {"status": "not_observed"})
+    result = audit.audit(SimpleNamespace(DB=db, WORK=tmp_path), 30, emit=False)
+    assert result["deltas"]["worker_events"] == 0
+    assert result["event_cursor_advance"] == 1
+    assert result["details"]["worker_events"] == [
+        {"id": 2, "event_type": "new fixture"}
+    ]
+    with sqlite3.connect(db) as conn:
+        conn.execute("INSERT INTO worker_events VALUES (3, 'after window fixture')")
+    assert audit.details(db, 1, 2)["worker_events"] == [
+        {"id": 2, "event_type": "new fixture"}
+    ]

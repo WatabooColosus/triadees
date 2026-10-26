@@ -68,7 +68,7 @@ def snapshot(db):
     return out, errors
 
 
-def details(db, cursor):
+def details(db, cursor, upper_cursor=None):
     """Only structural fields, never task contents, tokens, messages or payloads."""
     result = {}
     with contextlib.closing(
@@ -95,8 +95,16 @@ def details(db, cursor):
             ),
             "autonomous_tasks": (
                 "id",
+                "task_id",
                 "task_type",
+                "worker_id",
                 "status",
+                "priority",
+                "attempt",
+                "max_attempts",
+                "retry_after",
+                "lease_expires_at",
+                "heartbeat_at",
                 "created_at",
                 "started_at",
                 "finished_at",
@@ -111,6 +119,9 @@ def details(db, cursor):
             where, params = "", ()
             if table == "worker_events" and type(cursor) is int and "id" in columns:
                 where, params = " WHERE id > ?", (cursor,)
+                if type(upper_cursor) is int:
+                    where += " AND id <= ?"
+                    params += (upper_cursor,)
             elif "status" in columns and table != "worker_events":
                 where = " WHERE status IN ('pending','running','blocked','failed','retry','queued')"
             order = ' ORDER BY "id" DESC' if "id" in columns else ""
@@ -122,6 +133,30 @@ def details(db, cursor):
                 )
             ]
     return result
+
+
+def local_debt(r5):
+    if not hasattr(r5, "ROOT"):
+        return {"status": "not_observed"}
+    try:
+        from triade.observability.introspection import (
+            _backup_protection_gaps,
+            _declared_services_not_running,
+            _vital_chain_gaps,
+        )
+
+        root = Path(r5.ROOT)
+        return {
+            "status": "observed",
+            "source": "official_local_inspectors; notebook environment, process table and read-only SQLite; not authenticated API",
+            "backup_protection_gaps": _backup_protection_gaps(root),
+            "declared_services_not_running": _declared_services_not_running(
+                root, Path(r5.DB)
+            ),
+            "vital_chain_gaps": _vital_chain_gaps(Path(r5.DB)),
+        }
+    except (OSError, ValueError, RuntimeError, sqlite3.Error):
+        return {"status": "not_observed"}
 
 
 def effective_config(work):
@@ -212,7 +247,7 @@ def audit(r5, seconds=30, *, emit=True):
         for key in COUNTERS
     }
     result = {
-        "audit_version": "schema-aware-1",
+        "audit_version": "schema-aware-2",
         "at": dt.datetime.now(dt.UTC).isoformat(),
         "window_seconds": seconds,
         "metric": "row_count",
@@ -220,8 +255,15 @@ def audit(r5, seconds=30, *, emit=True):
         "after": after,
         "deltas": deltas,
         "schema_notes": {"before": errors_before, "after": errors_after},
-        "details": details(r5.DB, before.get("event_cursor")),
+        "event_cursor_advance": after["event_cursor"] - before["event_cursor"]
+        if type(after.get("event_cursor")) is int
+        and type(before.get("event_cursor")) is int
+        else None,
+        "details": details(
+            r5.DB, before.get("event_cursor"), after.get("event_cursor")
+        ),
         "effective_config": effective_config(r5.WORK),
+        "local_debt": local_debt(r5),
         "endpoints": {
             path: endpoint(path)
             for path in (

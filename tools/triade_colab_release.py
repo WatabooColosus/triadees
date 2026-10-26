@@ -164,6 +164,34 @@ def _auditor(context):
     return context["auditor_module"]
 
 
+def _protection(context):
+    if "protection" not in context.get("files", {}):
+        return None
+    if "protection_module" not in context:
+        spec = importlib.util.spec_from_file_location(
+            "triade_checked_backup_protection", context["files"]["protection"]
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        context["protection_module"] = module
+    return context["protection_module"]
+
+
+def _attach_panel_components(context):
+    auditor = _auditor(context)
+    if auditor is not None:
+        auditor.install(context["r5"])
+    protection = _protection(context)
+    if protection is None:
+        return None
+    context["progress"](
+        "Reparando referencia de clave y verificando copia cifrada en Drive…"
+    )
+    result = protection.repair(context["r5"])
+    protection.start_watch(context["r5"])
+    return result
+
+
 def install(context):
     # A diagnostic-only release can attach to a verified running session.
     # Do not invoke dependency installation, restoration or guardian startup.
@@ -171,13 +199,12 @@ def install(context):
         context["progress"](
             "Actualizando el auditor del panel; Tríade sigue encendida…"
         )
-        auditor = _auditor(context)
-        if auditor is not None:
-            auditor.install(context["r5"])
+        protection = _attach_panel_components(context)
         return {
             "status": "ready",
             "dependencies": {"status": "existing_runtime_verified"},
             "runtime": {"state": "already_running_verified"},
+            "backup_protection": protection,
         }
     dependencies = ensure_dependencies(context)
     context["progress"]("Instalando código, recuperando memoria e iniciando Tríade…")
@@ -187,10 +214,13 @@ def install(context):
         "already_running_verified",
     ):
         raise RuntimeError("El arranque no terminó verificado")
-    auditor = _auditor(context)
-    if auditor is not None:
-        auditor.install(context["r5"])
-    return {"status": "ready", "dependencies": dependencies, "runtime": result}
+    protection = _attach_panel_components(context)
+    return {
+        "status": "ready",
+        "dependencies": dependencies,
+        "runtime": result,
+        "backup_protection": protection,
+    }
 
 
 def verify(context):
@@ -228,7 +258,11 @@ def open_frontend(context):
 
 
 def status(context):
-    return _center(context).status()
+    result = _center(context).status()
+    protection = _protection(context)
+    if protection is not None:
+        result["backup_protection"] = protection.status(context["r5"])
+    return result
 
 
 def save(context):
@@ -238,5 +272,9 @@ def save(context):
 def audit(context):
     auditor = _auditor(context)
     if auditor is not None:
-        return auditor.audit(context["r5"], 30, emit=False)
+        result = auditor.audit(context["r5"], 30, emit=False)
+        protection = _protection(context)
+        if protection is not None:
+            result["backup_protection"] = protection.status(context["r5"])
+        return result
     return context["r5"].audit_progress(30)

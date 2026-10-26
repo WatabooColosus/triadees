@@ -531,6 +531,15 @@ def test_existing_client_accepts_auditor_component_through_same_update_button(ru
     catalogue.manifest["commit"] = "b" * 40
     catalogue.code = Path(adapter.__file__).read_bytes()
     components = {
+        "protection": b"""
+def repair(r5):
+    r5.protection_repaired_fixture = True
+    return {'status': 'encrypted_copy_verified_fixture'}
+def start_watch(r5):
+    r5.protection_watch_fixture = True
+def status(r5):
+    return {'status': 'fixture'}
+""",
         "controller": b"""
 class Center:
     def __init__(self, r5, rehydrator=None):
@@ -569,6 +578,12 @@ def audit(r5, seconds, *, emit=True):
     assert client.check()["update_available"] is True
     assert client.install()["status"] == "ready"
     assert client.r5.audit_updated is True
-    assert client.action("audit") == {"fixture": True, "window_seconds": 30}
+    assert client.r5.protection_repaired_fixture is True
+    assert client.r5.protection_watch_fixture is True
+    assert client.action("audit") == {
+        "fixture": True,
+        "window_seconds": 30,
+        "backup_protection": {"status": "fixture"},
+    }
     assert client.r5.events == [("install", "release-one")]
     assert client.installed()["manifest"]["version"] == "fixture-panel-audit"

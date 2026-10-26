@@ -122,3 +122,50 @@ no observados, sin desactivar el login. Los GET pueden generar telemetría del
 backend o refresco de sus artefactos; se realizan después de medir los deltas.
 Los contenidos de tareas y payloads no se vuelcan. Ni eventos nuevos ni tareas
 pendientes por sí solos acreditan aprendizaje, ejecución completa o bloqueo.
+
+## Protección cifrada en Colab (R7.7)
+
+El repositorio conserva una referencia histórica a una clave de Windows en
+`config/backup_key_location.json`. Una VM de Colab no tiene ese volumen. El
+componente `protection`, entregado por el mismo canal, valida primero propietario
+y proceso API registrado, recupera una clave única de las ubicaciones declaradas
+o del ámbito persistente de esa fuente V2 y la copia a un fichero local 0600.
+Con claves distintas, archivos inválidos o identidad persistente en conflicto se
+detiene y preserva las referencias; no elige una arbitrariamente.
+
+Si no existe clave utilizable y tampoco hay copias cifradas previas en el ámbito
+Colab ni en el directorio local de respaldos, crea protección **nueva** en
+`MyDrive/Triade/operacion_colab_continua/proteccion_cifrada/<fuente-V2>/`.
+La clave anterior no se reemplaza ni se presenta como recuperada. Una clave
+perdida con copias cifradas locales o persistentes exige recuperar la original;
+no se genera otra sobre ese corpus. La referencia anterior se archiva de forma
+privada antes de actualizar el puntero canónico, que MissionPlanner relee en cada
+ciclo. No se reinicia la API ni se modifica la autonomía.
+
+La clave persistente queda en la cuenta privada de Drive, junto al ámbito de
+copias: el cifrado protege los archivos separados de la clave; no sustituye el
+control de acceso de esa cuenta. La clave no se imprime, no aparece en argumentos
+de comandos y no se publica en Git. Cada nueva sesión recupera la misma clave.
+
+Se crea una copia genuina mediante SQLite online backup, se comprueba su
+integridad, se cifra y se verifica descifrándola en un directorio temporal. Se
+verifican también los bytes persistidos en Drive. No se restaura la Bodega ni se
+insertan filas para certificar actividad. Se usan las operaciones de copia y
+verificación de EncryptedBackup sin ejecutar sus migraciones de inicialización.
+Una vigilancia del kernel, única y serializada, copia después respaldos cifrados
+reales del backend cada 600 s (máximo dos copias automáticas nuevas al día), sin
+borrar las anteriores. Un fallo de cuota o de verificación conserva los archivos
+y no certifica el avance. La vigilancia termina con la sesión de Colab.
+
+**Estado real** y **Auditar actividad** muestran `backup_protection`, con la
+verificación de descifrado/Drive y el estado de resolución que declara el backend
+en su `/api/health` público. La escritura del puntero no acredita por sí sola que
+el planificador ya lo haya adoptado; se declara pendiente del siguiente ciclo.
+La recuperación de cifrados antiguos permanece `not_certified`.
+
+El auditor `schema-aware-2` conserva deltas de filas y añade avance de cursor de
+eventos (el log retiene 5000 filas), detalles limitados a la ventana y metadatos
+de lease/reintento de tareas. Lee además las brechas de respaldo, servicios y
+cadena vital con inspectores oficiales locales: su origen se distingue de la
+API autenticada. Los 403 siguen visibles; no se desactiva el login ni se fabrican
+sesiones. El modo `observe_only` y las restricciones de aprendizaje permanecen.
