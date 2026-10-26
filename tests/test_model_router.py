@@ -133,3 +133,45 @@ def test_measured_route_requires_active_status_and_evidence(
     )
     fallback = ModelRouter(AVAILABLE).route("summarizer")
     assert fallback.reason != "measured_ab_route:abc"
+
+
+def test_embedding_model_is_never_used_for_generation() -> None:
+    decision = ModelRouter(["nomic-embed-text:latest"]).route("creator")
+
+    assert decision.fallback_used is True
+    assert decision.selected_model == "unavailable:no-generative-model-installed"
+    assert "generativo compatible" in decision.reason
+
+
+def test_generation_fallback_skips_embedding_models() -> None:
+    decision = ModelRouter(
+        ["nomic-embed-text:latest", "qwen2.5:1.5b"]
+    ).route("creator")
+
+    assert decision.selected_model == "qwen2.5:1.5b"
+    assert decision.fallback_used is True
+    assert "fallback generativo compatible" in decision.reason
+
+
+def test_measured_embedding_route_is_rejected_for_generation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    manifest = tmp_path / "routing.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "status": "active",
+                "routes": {"creator": "nomic-embed-text:latest"},
+                "benchmark_sha256": "abc",
+                "evidence_ref": "evidence.json",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TRIADE_MEASURED_ROUTING_PATH", str(manifest))
+    decision = ModelRouter(
+        ["nomic-embed-text:latest", "qwen2.5:1.5b"]
+    ).route("creator")
+
+    assert decision.selected_model == "qwen2.5:1.5b"
+    assert decision.reason != "measured_ab_route:abc"
