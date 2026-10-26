@@ -14,6 +14,9 @@ Drive. El vigilante espera su primer intervalo y no compite con el arranque.
 Los componentes locales se reutilizan solo si su SHA coincide. Una reejecución
 con servicios ya verificados reutiliza la sesión sin consultas de GitHub; el
 botón de actualización y el vigilante mantienen la búsqueda de futuras versiones.
+La reanudación comprueba API, Ollama, código, propietario y recuentos locales
+frente a la verificación previa; no vuelve a calcular hashes de imágenes grandes
+de Drive. La instalación y la recuperación mantienen la validación completa.
 
 La primera publicación usa internamente los instaladores de compatibilidad ya
 auditados de R5/R6.3.1. Esto no convierte esa candidata en estable ni prueba un

@@ -240,6 +240,29 @@ class ControllerTests(unittest.TestCase):
             x = self.center._restore_best_before_api()
         self.assertIn("no se reemplazó", x["result"])
 
+    def test_warm_resume_checks_local_memory_without_reading_drive(self):
+        baseline = r7._counts(self.r5.DB)
+        with (
+            patch.object(r7, "_check_api", return_value=True),
+            patch.object(self.center, "_origin_verified", return_value=True),
+            patch.object(self.center, "_release_verified", return_value=True),
+            patch.object(
+                self.center, "_floor", side_effect=AssertionError("Drive rehash")
+            ),
+            patch.object(
+                self.center,
+                "_checkpoint_index",
+                side_effect=AssertionError("Drive scan"),
+            ),
+        ):
+            self.assertTrue(self.center.resume_verified(baseline))
+            with sqlite3.connect(self.r5.DB) as conn:
+                conn.execute("DELETE FROM neuron_education_applications WHERE id=15")
+            self.assertFalse(self.center.resume_verified(baseline))
+
+    def test_warm_resume_requires_previously_verified_baseline(self):
+        self.assertFalse(self.center.resume_verified(None))
+
     def test_cold_start_accepts_real_verified_zero_education(self):
         self.r5.DB.unlink()
         make_db(self.r5.DB, applications=0, activity=0)

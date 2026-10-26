@@ -165,13 +165,20 @@ def install(context):
 
 def verify(context):
     observed = _center(context).status()
-    return bool(
+    ready = bool(
         observed.get("api_http_200") is True
         and observed.get("ollama_http_200") is True
         and observed.get("bodega", "").startswith("SQLite ok")
         and observed.get("known_regression") is None
         and observed.get("release", "").startswith("R6.3.1 candidata")
     )
+    if ready:
+        context["verified_counts"] = dict(observed["counts"])
+    return ready
+
+
+def resume(context):
+    return _center(context).resume_verified(context.get("verified_counts"))
 
 
 def recover(context, error):

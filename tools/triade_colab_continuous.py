@@ -387,10 +387,13 @@ class Client:
         self.stop_watch()
         try:
             with self.lock:
+                probe = getattr(self.module, "resume", None) or getattr(
+                    self.module, "verify", None
+                )
                 if (
                     self.drive_ready()
-                    and self.module
-                    and self.module.verify(self.context) is True
+                    and callable(probe)
+                    and probe(self.context) is True
                 ):
                     self.progress(
                         "Tríade ya está encendida y verificada; sesión reutilizada"

@@ -384,6 +384,24 @@ class Center:
                 result["drive_last_guarded_backup"] = "error: " + str(ex)[:160]
         return result
 
+    def resume_verified(self, baseline):
+        """Warm cell reload checks local runtime; does not rehash Drive images."""
+        self._sync_paths()
+        if not isinstance(baseline, dict) or not all(
+            k in baseline for k in GUARD_TABLES
+        ):
+            return False
+        if not _check_api("http://127.0.0.1:8010/health/live") or not _check_api(
+            "http://127.0.0.1:11434/api/tags"
+        ):
+            return False
+        if not self._origin_verified() or not self._release_verified(
+            _read_json(self.work / "actualizaciones" / "continuidad_git_r631.json")
+        ):
+            return False
+        self.r5._owner_account_status(self.db)
+        return _dominates(_counts(self.db), baseline)
+
     def _restore_best_before_api(self):
         """Replace only the just-restored V2 local copy, with a strictly verifiable later image."""
         self._sync_paths()
