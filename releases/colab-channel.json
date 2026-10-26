@@ -2,12 +2,12 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 10,
-  "version": "R7.11-router-live-patch",
+  "sequence": 11,
+  "version": "R7.12-router-manifest-path-fix",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "eabd1b42bf81b014d8ae14960824a3eb6ee19cdb",
+  "commit": "462cc7c5f8a394ad2b93300fdbcf87c53139cc6e",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
@@ -19,7 +19,7 @@
     },
     "client": {
       "path": "tools/triade_colab_continuous.py",
-      "sha256": "557742ee15984aaf3d9d235400ef2f933651784f1351b1b296692082aa20e06e"
+      "sha256": "6d615a072de1b8442454a349eed5571b7e226564ae3819c3bf519cc2f24976eb"
     },
     "rehydrator": {
       "path": "tools/triade_colab_continuity_r631.py",
