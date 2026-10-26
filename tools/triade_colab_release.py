@@ -8,6 +8,7 @@ without changing the notebook or offering a button for each historical patch.
 from __future__ import annotations
 
 import ast
+import datetime as dt
 import hashlib
 import importlib.util
 import json
@@ -232,8 +233,11 @@ def _apply_router_patch(context):
         shutil.copy2(backup / "model_router.py", target)
         try:
             r5.start_real_backend()
-        except Exception:
-            pass
+        except (OSError, RuntimeError, ValueError, TypeError) as rollback_error:
+            context["progress"](
+                "No se pudo reactivar la API tras el rollback: "
+                + type(rollback_error).__name__
+            )
         raise
     return {"status": "patched_and_restarted", "sha256": digest, "restarted": True}
 
