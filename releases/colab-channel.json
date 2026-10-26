@@ -2,12 +2,12 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 7,
-  "version": "R7.8-aprendizaje-prospectivo",
+  "sequence": 8,
+  "version": "R7.9-panel-salida-estable",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "c3572851bdead98a8b1a4f6ebd91d1675a2ca497",
+  "commit": "ac256562546a8712f54497ad5ef90002505e86db",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
@@ -19,7 +19,7 @@
     },
     "client": {
       "path": "tools/triade_colab_continuous.py",
-      "sha256": "6aa8bf089d6449b2ea7f06d5080051a3d1f813e3e5c4d61d59ed9f31d6569d37"
+      "sha256": "557742ee15984aaf3d9d235400ef2f933651784f1351b1b296692082aa20e06e"
     },
     "rehydrator": {
       "path": "tools/triade_colab_continuity_r631.py",
@@ -35,7 +35,7 @@
     },
     "learning": {
       "path": "tools/triade_colab_learning.py",
-      "sha256": "2b305213519d14e0654464c7932a4098bb87cabc59ce01929086097627e4e8ea"
+      "sha256": "33bd6dab01da3a2f9202052e06f618ebb8a0e0625a6e340ce688e9e4ac5594b9"
     }
   }
 }
