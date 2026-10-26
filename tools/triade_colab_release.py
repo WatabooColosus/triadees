@@ -229,7 +229,9 @@ def _apply_router_patch(context):
         if hashlib.sha256(target.read_bytes()).hexdigest() != digest:
             raise RuntimeError("SHA del router instalado no coincide")
         r5.start_real_backend()
-        with urllib.request.urlopen(\n            "http://127.0.0.1:8010/health/live", timeout=15\n        ) as response:
+        with urllib.request.urlopen(
+            "http://127.0.0.1:8010/health/live", timeout=15
+        ) as response:
             if response.status != 200:
                 raise RuntimeError("API sin HTTP 200 después del parche del router")
     except Exception:
