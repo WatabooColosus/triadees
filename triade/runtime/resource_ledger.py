@@ -201,9 +201,21 @@ class ResourceMeasurementCollector:
         finished_at = datetime.now(UTC).isoformat()
         self_utime_after, self_stime_after, _ = _cpu_propio()
         children_after = _rusage(resource.RUSAGE_CHILDREN) if resource else _Usage()
-        # `ru_maxrss` es el pico de residente **del proceso** por definición: no
-        # existe una versión por hilo, porque la memoria no se reparte por hilo.
-        # Se lee aparte para que el cambio de ámbito de la CPU no lo arrastre.
+        # `RUSAGE_CHILDREN` is process-wide. Include its CPU only when the
+        # caller itself had to fall back to process scope; adding that shared
+        # delta to thread-scoped receipts attributes other workers' children
+        # to this task and can count the same child more than once.
+        if self.cpu_scope == "process":
+            children_user_delta = (
+                children_after.ru_utime - self.children_before.ru_utime
+            )
+            children_system_delta = (
+                children_after.ru_stime - self.children_before.ru_stime
+            )
+        else:
+            children_user_delta = 0.0
+            children_system_delta = 0.0
+        # `ru_maxrss` is process-wide, not thread-scoped.
         self_after = _rusage()
         measured = {
             "wall_time": (
@@ -214,8 +226,7 @@ class ResourceMeasurementCollector:
             "cpu_user": (
                 self_utime_after
                 - self.self_utime_before
-                + children_after.ru_utime
-                - self.children_before.ru_utime,
+                + children_user_delta,
                 "seconds",
                 "time.thread_time (children excluded)"
                 if not resource
@@ -224,8 +235,7 @@ class ResourceMeasurementCollector:
             "cpu_system": (
                 self_stime_after
                 - self.self_stime_before
-                + children_after.ru_stime
-                - self.children_before.ru_stime,
+                + children_system_delta,
                 "seconds",
                 "included in cpu_user (thread clock)"
                 if not resource
