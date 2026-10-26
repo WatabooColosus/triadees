@@ -369,8 +369,20 @@ def status(r5):
             name: key.get(name)
             for name in ("configured", "source", "path_exists", "path_readable")
         }
+        result["backend_key_activation"] = (
+            "configured_observed"
+            if key.get("configured") is True
+            else "not_configured_observed"
+            if key.get("configured") is False
+            else "not_observed"
+        )
     except (OSError, ValueError, TypeError, AttributeError):
         result["backend_key"] = {"status": "not_observed"}
+        result["backend_key_activation"] = "not_observed"
+    watcher = getattr(r5, "_encrypted_backup_watch", None)
+    result["copy_watcher_alive"] = bool(
+        watcher and watcher["thread"].is_alive() and not watcher["stop"].is_set()
+    )
     result["last_copy_error"] = (
         _read(Path(r5.WORK) / "encrypted_backup_copy_error.json") or None
     )

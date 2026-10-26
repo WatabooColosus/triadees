@@ -190,3 +190,41 @@ def test_recovered_key_must_open_existing_latest_cipher_before_activation(runtim
     assert (runtime.ROOT / "config/backup_key_location.json").read_bytes() == original
     assert legacy.read_bytes() == before
     assert not (protection._paths(runtime) / "backup.key").exists()
+
+
+def test_status_distinguishes_actual_backend_key_from_initial_receipt(
+    runtime, monkeypatch
+):
+    import io
+
+    protection._json(
+        runtime.WORK / "encrypted_backup_status.json",
+        {
+            "status": "encrypted_copy_verified",
+            "backend_key_activation": "await_next_planner_cycle",
+        },
+    )
+
+    def health(url, timeout):
+        assert url == "http://127.0.0.1:8010/api/health"
+        return io.BytesIO(
+            json.dumps(
+                {
+                    "security": {
+                        "backup_key": {
+                            "configured": True,
+                            "source": "file",
+                            "path_exists": True,
+                            "path_readable": True,
+                            "path": "private fixture path not returned",
+                        }
+                    }
+                }
+            ).encode()
+        )
+
+    monkeypatch.setattr(protection.urllib.request, "urlopen", health)
+    observed = protection.status(runtime)
+    assert observed["backend_key_activation"] == "configured_observed"
+    assert observed["copy_watcher_alive"] is False
+    assert "private fixture path" not in str(observed)
