@@ -144,9 +144,7 @@ def test_embedding_model_is_never_used_for_generation() -> None:
 
 
 def test_generation_fallback_skips_embedding_models() -> None:
-    decision = ModelRouter(
-        ["nomic-embed-text:latest", "qwen2.5:1.5b"]
-    ).route("creator")
+    decision = ModelRouter(["nomic-embed-text:latest", "qwen2.5:1.5b"]).route("creator")
 
     assert decision.selected_model == "qwen2.5:1.5b"
     assert decision.fallback_used is True
