@@ -143,8 +143,9 @@ class ModelRouter:
             fallback = "disabled:embedding-on-demand"
             fallback_reason = "No hay un modelo de embeddings instalado; embeddings quedan bajo demanda."
         else:
-            fallback = self._first_compatible_fallback(normalized_role)
-            if fallback:
+            compatible_fallback = self._first_compatible_fallback(normalized_role)
+            if compatible_fallback is not None:
+                fallback = compatible_fallback
                 fallback_reason = (
                     f"Ningún candidato recomendado para {normalized_role} está instalado; "
                     f"se usó {fallback} como fallback generativo compatible."
