@@ -1017,7 +1017,6 @@ def test_encolar_no_es_ejecutar(tmp_path: Path) -> None:
     assert counts["fallo"] == 1
 
 
-
 def test_reports_evolution_declared_manual_entrypoint_is_classified(
     tmp_path: Path,
 ) -> None:
