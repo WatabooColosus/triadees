@@ -9,6 +9,8 @@ import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
 
+TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"
+
 
 def _http(url: str) -> dict:
     try:

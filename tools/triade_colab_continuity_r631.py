@@ -53,7 +53,47 @@ def _loader(name: str, commit: str, path: str):
     return module
 
 
-def rehydrate(r5):
+def verify_memory_floor(r5, db, minimum_counts=None):
+    """Compare the restored user's baseline; do not require historical trial rows."""
+    import sqlite3
+
+    proof = json.loads((Path(r5.WORK) / "restore_proof.json").read_text())
+    floor = dict(proof.get("counts", {}))
+    for key, value in (minimum_counts or {}).items():
+        if type(value) is int and value >= 0:
+            floor[key] = max(floor.get(key, 0), value)
+    allowed = (
+        "auth_users",
+        "auth_email_identities",
+        "neurons",
+        "autonomous_tasks",
+        "neuron_education_sessions",
+        "neuron_education_applications",
+        "metabolic_cycle",
+        "worker_runs",
+        "governed_research_runs",
+        "neuron_activity",
+    )
+    with sqlite3.connect(db.as_uri() + "?mode=ro", uri=True, timeout=20) as c:
+        recovered = {
+            key: c.execute(
+                'SELECT COUNT(*) FROM "'
+                + key
+                + '"'
+                + (" WHERE activated=1" if key == "neuron_activity" else "")
+            ).fetchone()[0]
+            for key in allowed
+            if key in floor
+        }
+    missing = {k: floor[k] for k, value in recovered.items() if value < floor[k]}
+    if missing:
+        raise RuntimeError(
+            "La Bodega retrocede frente a su memoria acreditada: " + str(missing)
+        )
+    return recovered
+
+
+def rehydrate(r5, minimum_counts=None):
     """Run from the same Colab kernel after the original R5 cell finishes."""
     import sqlite3
 
@@ -87,28 +127,7 @@ def rehydrate(r5):
     ):
         raise RuntimeError("No hay prueba de continuidad de R5; no actualizar")
 
-    # Latest *user-observed* R6.3 measurements before Colab disconnected.
-    # If R5 restored an earlier Drive snapshot, do not silently report continuity.
-    with sqlite3.connect(db.as_uri() + "?mode=ro", uri=True, timeout=20) as c:
-        certified = {
-            "neuron_activity": 6,
-            "neuron_education_applications": 15,
-        }
-        recovered = {
-            "neuron_activity": c.execute(
-                "SELECT COUNT(*) FROM neuron_activity WHERE activated=1"
-            ).fetchone()[0],
-            "neuron_education_applications": c.execute(
-                "SELECT COUNT(*) FROM neuron_education_applications"
-            ).fetchone()[0],
-        }
-    if any(recovered[k] < certified[k] for k in certified):
-        raise RuntimeError(
-            "La Bodega restaurada es anterior a la última medición conocida "
-            "(activaciones>=6, aplicaciones>=15): "
-            + str(recovered)
-            + ". No se aplicó código. Verifica cuál snapshot de Drive restauró R5."
-        )
+    verify_memory_floor(r5, db, minimum_counts)
 
     r62 = _loader(
         "triade_r62_stable_loader", R62_LOADER, "tools/triade_colab_r62_updater.py"

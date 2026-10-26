@@ -9,9 +9,10 @@ No inserta aplicaciones educativas ni cambia memoria estable.
 from __future__ import annotations
 
 import json
-import sqlite3
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 _SOURCE_ALLOWLIST = frozenset({"react-ui"})
 _SOURCE_EVIDENCE = "user_run_locally_verified"

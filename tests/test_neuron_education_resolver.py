@@ -15,8 +15,8 @@ Contrato que se fija aquí:
   respuesta legítima y explícita; `improved` por defecto sería exactamente el
   autorreporte que el encargo prohíbe.
 * **`degraded` revierte solo**, y deja constancia de por qué.
-* **`improved` promueve pero conserva la versión anterior**, o no habría
-  rollback posible.
+* Una mejora funcional sin control causal conserva la hipótesis pendiente;
+  la telemetría histórica por sí sola no acredita aprendizaje.
 * **Idempotente**: resolver dos veces no duplica decisiones ni promociones.
 """
 
@@ -31,6 +31,7 @@ from triade.neurons.education_resolver import (
     MIN_APPLIED_RUNS,
     NeuronEducationResolver,
 )
+from triade.neurons.functional_evidence import VERSION, ensure_schema
 
 ESQUEMA = """
 -- Copiado del esquema REAL de produccion, incluidos los NOT NULL: un
@@ -108,6 +109,45 @@ def _db(
     return ruta
 
 
+def _functional(
+    db: Path,
+    *,
+    before: int,
+    after: int,
+    session_id: str = SESSION,
+    neuron_id: int = NEURON,
+) -> None:
+    """Observaciones binarias de prueba en SQLite temporal, nunca memoria real.
+
+    Ejercita el comparador real: tres casos pre y seis runs post emparejados,
+    rubricados, con fechas a ambos lados de la lección. No simula causalidad.
+    """
+    with sqlite3.connect(db) as conn:
+        ensure_schema(conn)
+        for phase, count, score, when in (
+            ("pre", 3, before, "2026-08-01T00:00:00+00:00"),
+            ("post", 6, after, "2026-08-03T00:00:00+00:00"),
+        ):
+            for i in range(count):
+                conn.execute(
+                    "INSERT INTO neuron_functional_assessments "
+                    "(run_id,neuron_id,case_id,domain,phase,session_id,score,"
+                    "rubric_version,answer_digest,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (
+                        f"{session_id}-{phase}-{i}",
+                        neuron_id,
+                        f"py{i % 3 + 1}",
+                        "python_text",
+                        phase,
+                        None if phase == "pre" else session_id,
+                        score,
+                        VERSION,
+                        f"fixture-{phase}-{i}",
+                        when,
+                    ),
+                )
+
+
 def _sesion(db: Path) -> sqlite3.Row:
     with sqlite3.connect(db) as conn:
         conn.row_factory = sqlite3.Row
@@ -143,22 +183,29 @@ class TestSinEvidenciaNoSeDecide:
 
 
 class TestDecisionPorMedicion:
-    def test_mejora_clara_es_improved(self, tmp_path: Path) -> None:
-        db = _db(tmp_path, baseline=0.4, aplicaciones=[0.9] * MIN_APPLIED_RUNS)
+    def test_mejora_funcional_sin_control_no_es_causal(self, tmp_path: Path) -> None:
+        db = _db(tmp_path, baseline=0.0, aplicaciones=[0.9] * MIN_APPLIED_RUNS)
+        _functional(db, before=0, after=1)
 
         resultado = NeuronEducationResolver(db).resolve_once()
 
-        assert resultado["decision"] == "improved"
+        assert resultado["decision"] == "insufficient_evidence"
+        assert resultado["functional_assessment"]["ready"] is True
+        assert resultado["functional_assessment"]["causal_attribution"] is False
+        assert "control causal" in resultado["reason"]
+        assert resultado["state"] == "lesson_prepared"
         fila = _sesion(db)
-        assert fila["post_score"] == pytest.approx(0.9)
-        assert fila["baseline_score"] == pytest.approx(0.4)
+        assert fila["post_score"] == pytest.approx(1.0)
+        assert fila["baseline_score"] == pytest.approx(0.0)
 
     def test_sin_cambio_es_neutral(self, tmp_path: Path) -> None:
-        db = _db(tmp_path, baseline=0.6, aplicaciones=[0.6] * MIN_APPLIED_RUNS)
+        db = _db(tmp_path, baseline=1.0, aplicaciones=[0.6] * MIN_APPLIED_RUNS)
+        _functional(db, before=1, after=1)
         assert NeuronEducationResolver(db).resolve_once()["decision"] == "neutral"
 
     def test_empeora_es_degraded(self, tmp_path: Path) -> None:
-        db = _db(tmp_path, baseline=0.9, aplicaciones=[0.2] * MIN_APPLIED_RUNS)
+        db = _db(tmp_path, baseline=1.0, aplicaciones=[0.2] * MIN_APPLIED_RUNS)
+        _functional(db, before=1, after=0)
         assert NeuronEducationResolver(db).resolve_once()["decision"] == "degraded"
 
     def test_sin_baseline_no_hay_comparacion(self, tmp_path: Path) -> None:
@@ -168,12 +215,16 @@ class TestDecisionPorMedicion:
         resultado = NeuronEducationResolver(db).resolve_once()
 
         assert resultado["decision"] == "insufficient_evidence"
-        assert "baseline" in resultado["reason"]
+        assert resultado["functional_assessment"] == {
+            "ready": False,
+            "reason": "no_functional_assessments",
+        }
 
 
 class TestRollbackYPromocion:
     def test_degraded_revierte_solo(self, tmp_path: Path) -> None:
-        db = _db(tmp_path, baseline=0.9, aplicaciones=[0.2] * MIN_APPLIED_RUNS)
+        db = _db(tmp_path, baseline=1.0, aplicaciones=[0.2] * MIN_APPLIED_RUNS)
+        _functional(db, before=1, after=0)
 
         resultado = NeuronEducationResolver(db).resolve_once()
 
@@ -184,7 +235,7 @@ class TestRollbackYPromocion:
         )
         assert fila["state"] == "rolled_back"
 
-    def test_improved_conserva_la_version_anterior(self, tmp_path: Path) -> None:
+    def test_revision_conserva_la_version_anterior(self, tmp_path: Path) -> None:
         """Sin la versión previa guardada no hay rollback posible después."""
         db = _db(tmp_path, baseline=0.4, aplicaciones=[0.9] * MIN_APPLIED_RUNS)
 
@@ -193,7 +244,8 @@ class TestRollbackYPromocion:
         assert _sesion(db)["rollback_ref"], "no se conservó a qué versión volver"
 
     def test_cada_decision_deja_evento(self, tmp_path: Path) -> None:
-        db = _db(tmp_path, baseline=0.4, aplicaciones=[0.9] * MIN_APPLIED_RUNS)
+        db = _db(tmp_path, baseline=1.0, aplicaciones=[0.9] * MIN_APPLIED_RUNS)
+        _functional(db, before=1, after=1)
         NeuronEducationResolver(db).resolve_once()
 
         with sqlite3.connect(db) as conn:
@@ -204,18 +256,19 @@ class TestRollbackYPromocion:
                     (SESSION,),
                 )
             ]
-        assert any("improved" in t for t in tipos), tipos
+        assert any("neutral" in t for t in tipos), tipos
 
 
 class TestIdempotencia:
     def test_resolver_dos_veces_no_duplica(self, tmp_path: Path) -> None:
-        db = _db(tmp_path, baseline=0.4, aplicaciones=[0.9] * MIN_APPLIED_RUNS)
+        db = _db(tmp_path, baseline=1.0, aplicaciones=[0.9] * MIN_APPLIED_RUNS)
+        _functional(db, before=1, after=1)
         r = NeuronEducationResolver(db)
 
         primera = r.resolve_once()
         segunda = r.resolve_once()
 
-        assert primera["decision"] == "improved"
+        assert primera["decision"] == "neutral"
         assert segunda["decision"] == "no_target", (
             "una sesión ya resuelta se volvió a resolver: se duplicaría la "
             "promoción y la evidencia"
@@ -223,7 +276,8 @@ class TestIdempotencia:
 
     def test_resuelve_la_evidencia_pendiente(self, tmp_path: Path) -> None:
         """Las hipótesis en `pending` eran las que nadie cerraba nunca."""
-        db = _db(tmp_path, baseline=0.4, aplicaciones=[0.9] * MIN_APPLIED_RUNS)
+        db = _db(tmp_path, baseline=1.0, aplicaciones=[0.9] * MIN_APPLIED_RUNS)
+        _functional(db, before=1, after=1)
         NeuronEducationResolver(db).resolve_once()
 
         with sqlite3.connect(db) as conn:
@@ -231,7 +285,7 @@ class TestIdempotencia:
                 "SELECT decision FROM learning_evidence WHERE candidate_id=?",
                 (f"neuron-education:{SESSION}",),
             ).fetchone()[0]
-        assert decision == "improved"
+        assert decision == "neutral"
 
 
 class TestNoGiraEnVacio:
@@ -280,7 +334,7 @@ class TestRotaEntreSesiones:
                 "INSERT INTO neuron_education_sessions (session_id,curriculum_id,"
                 "neuron_id,competency_id,state,baseline_score,result,created_at,"
                 "finished_at) VALUES ('ready','cur-2',8,'comp-2','lesson_prepared',"
-                "0.4,'uncertain','2026-08-02T00:00:01+00:00',"
+                "1.0,'uncertain','2026-08-02T00:00:01+00:00',"
                 "'2026-08-02T00:00:01+00:00')"
             )
             conn.executemany(
@@ -290,7 +344,8 @@ class TestRotaEntreSesiones:
                 [(f"run-ready-{index}", 0.9) for index in range(MIN_APPLIED_RUNS)],
             )
 
+        _functional(db, before=1, after=1, session_id="ready", neuron_id=8)
         result = NeuronEducationResolver(db).resolve_once()
 
         assert result["session_id"] == "ready"
-        assert result["decision"] == "improved"
+        assert result["decision"] == "neutral"

@@ -220,8 +220,8 @@ def test_sin_segunda_fuente_el_ciclo_no_produce_leccion(tmp_path: Path) -> None:
     assert resultado["independent_sources"] < 2
 
 
-def test_ciclo_completo_mejora_se_consolida(tmp_path: Path) -> None:
-    """GAP → LECCIÓN → EVIDENCIA → APLICACIÓN MEDIDA → DECISIÓN → CONSOLIDACIÓN."""
+def test_ciclo_con_telemetria_mejor_no_certifica_aprendizaje(tmp_path: Path) -> None:
+    """La cadena registra uso, pero no certifica mejora con telemetría."""
     db_path = _base(tmp_path)
     neuron_id = _sembrar_neurona(db_path)
     _sembrar_material(db_path, MATERIAL_VIEJO + MATERIAL_NUEVO)
@@ -253,19 +253,20 @@ def test_ciclo_completo_mejora_se_consolida(tmp_path: Path) -> None:
 
     veredicto = NeuronEducationResolver(db_path).resolve_once()
 
-    assert veredicto["decision"] == "improved"
+    assert veredicto["decision"] == "insufficient_evidence"
+    assert veredicto["functional_assessment"]["reason"] == "no_functional_assessments"
     assert veredicto["applied_runs"] >= MIN_APPLIED_RUNS
-    assert veredicto["post_score"] == 0.90
+    assert veredicto["post_score"] is None
     # La versión previa se conserva: sin ella no habría rollback después.
     assert veredicto["rollback_ref"]
     sesion = _sesion(db_path, session_id)
-    assert sesion["state"] == "applied_improved"
-    # La hipótesis deja de estar en `pending`: ése era el eslabón muerto.
-    assert _evidencia(db_path, session_id) == "improved"
+    assert sesion["state"] == "lesson_prepared"
+    # Sin examen funcional, la hipótesis permanece pendiente.
+    assert _evidencia(db_path, session_id) == "pending"
 
 
-def test_ciclo_completo_regresion_se_revierte(tmp_path: Path) -> None:
-    """El ciclo no está cerrado si sólo funciona cuando mejora."""
+def test_ciclo_con_telemetria_inferior_no_acredita_regresion(tmp_path: Path) -> None:
+    """Una puntuación interna peor tampoco prueba regresión funcional."""
     db_path = _base(tmp_path)
     neuron_id = _sembrar_neurona(db_path)
     _sembrar_material(db_path, MATERIAL_VIEJO + MATERIAL_NUEVO)
@@ -290,11 +291,12 @@ def test_ciclo_completo_regresion_se_revierte(tmp_path: Path) -> None:
 
     veredicto = NeuronEducationResolver(db_path).resolve_once()
 
-    assert veredicto["decision"] == "degraded"
-    assert veredicto["rolled_back"] is True
+    assert veredicto["decision"] == "insufficient_evidence"
+    assert veredicto["functional_assessment"]["reason"] == "no_functional_assessments"
+    assert veredicto["rolled_back"] is False
     assert veredicto["rollback_ref"]
-    assert _sesion(db_path, session_id)["state"] == "rolled_back"
-    assert _evidencia(db_path, session_id) == "degraded"
+    assert _sesion(db_path, session_id)["state"] == "lesson_prepared"
+    assert _evidencia(db_path, session_id) == "pending"
 
 
 def test_sin_runs_medidos_no_se_promueve_por_autorreporte(tmp_path: Path) -> None:
@@ -365,7 +367,7 @@ def _investigar(db_path: Path, pregunta: str) -> dict[str, object]:
     )
 
 
-def test_de_la_investigacion_a_la_consolidacion(tmp_path: Path) -> None:
+def test_de_la_investigacion_a_la_hipotesis_pendiente(tmp_path: Path) -> None:
     """GAP → INVESTIGACIÓN → MATERIAL → LECCIÓN → EVIDENCIA → MEDICIÓN → VEREDICTO.
 
     Es el ciclo entero sobre el código real, sin red y sin tocar la base viva.
@@ -415,12 +417,13 @@ def test_de_la_investigacion_a_la_consolidacion(tmp_path: Path) -> None:
     registro = NeuronEducationApplicationRecorder(db_path).record_once()
     assert registro["applications_added"] >= MIN_APPLIED_RUNS
 
-    # 5 · El veredicto se toma sobre runs medidos, no sobre autorreporte.
+    # 5 · Las puntuaciones internas no sustituyen el examen funcional.
     veredicto = NeuronEducationResolver(db_path).resolve_once()
-    assert veredicto["decision"] == "improved"
+    assert veredicto["decision"] == "insufficient_evidence"
+    assert veredicto["functional_assessment"]["reason"] == "no_functional_assessments"
     assert veredicto["rollback_ref"], "sin versión previa no habría rollback"
-    assert _sesion(db_path, session_id)["state"] == "applied_improved"
-    assert _evidencia(db_path, session_id) == "improved"
+    assert _sesion(db_path, session_id)["state"] == "lesson_prepared"
+    assert _evidencia(db_path, session_id) == "pending"
 
 
 def test_el_vocabulario_del_dominio_es_el_mismo_en_los_dos_lados(
