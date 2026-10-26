@@ -179,7 +179,6 @@ def _protection(context):
     return context["protection_module"]
 
 
-
 def _apply_router_patch(context):
     """Apply the verified router module to an already-running R5 session."""
     staged_path = context.get("files", {}).get("router")
