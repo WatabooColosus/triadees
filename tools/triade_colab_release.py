@@ -229,7 +229,7 @@ def _apply_router_patch(context):
         if hashlib.sha256(target.read_bytes()).hexdigest() != digest:
             raise RuntimeError("SHA del router instalado no coincide")
         r5.start_real_backend()
-        with urllib.request.urlopen("http://127.0.0.1:8010/health/live", timeout=15) as response:
+        with urllib.request.urlopen(\n            "http://127.0.0.1:8010/health/live", timeout=15\n        ) as response:
             if response.status != 200:
                 raise RuntimeError("API sin HTTP 200 después del parche del router")
     except Exception:
@@ -316,7 +316,7 @@ def install(context):
 def verify(context):
     router_path = context.get("files", {}).get("router")
     live_router = Path(context["r5"].ROOT) / "triade/models/model_router.py"
-    router_ok = bool(router_path and Path(router_path).is_file() and live_router.is_file() and live_router.read_bytes() == Path(router_path).read_bytes())
+    router_ok = bool(\n        router_path\n        and Path(router_path).is_file()\n        and live_router.is_file()\n        and live_router.read_bytes() == Path(router_path).read_bytes()\n    )
     observed = _center(context).status()
     ready = bool(
         router_ok
