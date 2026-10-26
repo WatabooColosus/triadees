@@ -145,9 +145,7 @@ def test_thread_measurements_exclude_process_wide_child_cpu(monkeypatch):
             SimpleNamespace(ru_utime=24.0, ru_stime=8.0, ru_maxrss=1024),
         ]
     )
-    monkeypatch.setattr(
-        resource_ledger, "resource", SimpleNamespace(RUSAGE_CHILDREN=1)
-    )
+    monkeypatch.setattr(resource_ledger, "resource", SimpleNamespace(RUSAGE_CHILDREN=1))
     monkeypatch.setattr(resource_ledger, "_cpu_propio", lambda: next(cpu_readings))
     monkeypatch.setattr(
         resource_ledger, "_rusage", lambda which=None: next(child_readings)
