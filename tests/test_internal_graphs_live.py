@@ -1018,16 +1018,18 @@ def test_encolar_no_es_ejecutar(tmp_path: Path) -> None:
 
 
 
-def test_reports_evolution_declared_manual_entrypoint_is_classified(tmp_path: Path) -> None:
+def test_reports_evolution_declared_manual_entrypoint_is_classified(
+    tmp_path: Path,
+) -> None:
     from triade.observability.code_graph import build_entrypoint_graph
 
     root = tmp_path / "repo"
     script = root / "reports" / "evolution" / "manual_diagnostic.py"
     script.parent.mkdir(parents=True)
     script.write_text(
-        'TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"\\n'
-        'if __name__ == "__main__":\\n'
-        '    pass\\n',
+        'TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"\n'
+        'if __name__ == "__main__":\n'
+        "    pass\n",
         encoding="utf-8",
     )
 
