@@ -362,6 +362,66 @@ def test_rerender_rebuilds_widgets_but_preserves_verified_context(
     assert "&quot;neuron_id&quot;: 11" in new.view[-1].value
 
 
+def test_learning_attach_uses_stable_html_for_legacy_output_widget(monkeypatch):
+    class Widget:
+        def __init__(self, *args, **kwargs):
+            self.children = args[0] if args else ()
+            self.value = kwargs.get("value", "")
+            self.description = kwargs.get("description", "")
+
+        def on_click(self, callback):
+            self.callback = callback
+
+    class LegacyOutput:
+        pass
+
+    widgets = SimpleNamespace(
+        Button=Widget,
+        HTML=Widget,
+        Layout=Widget,
+        Box=Widget,
+    )
+    monkeypatch.setitem(sys.modules, "ipywidgets", widgets)
+    display_calls = []
+    display_module = SimpleNamespace(display=lambda item: display_calls.append(item))
+    monkeypatch.setitem(sys.modules, "IPython", SimpleNamespace(display=display_module))
+    monkeypatch.setitem(sys.modules, "IPython.display", display_module)
+
+    class Client:
+        def __init__(self):
+            self.view = (
+                None,
+                None,
+                None,
+                Widget((Widget(description="Estado real"),)),
+                None,
+                None,
+                LegacyOutput(),
+            )
+            self.results = []
+
+        def progress(self, message):
+            pass
+
+        def action(self, name):
+            self.results.append(name)
+            return {"status": "observed", "action": name}
+
+    client = Client()
+    assert learning.attach({"progress": client.progress}) == {
+        "status": "learning_controls_attached"
+    }
+    assert display_calls == [client.view[-1]]
+    button = next(
+        item
+        for item in client.view[3].children
+        if item.description == "Ver circuito de aprendizaje"
+    )
+    button.callback(button)
+    assert client.results == ["learning_status"]
+    assert "&quot;status&quot;: &quot;observed&quot;" in client.view[-1].value
+
+
 def test_complete_prospective_fixture_preserves_history_and_does_not_claim_causality(
     monkeypatch, tmp_path
 ):

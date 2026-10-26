@@ -13,6 +13,7 @@ import math
 import statistics
 import threading
 import uuid
+from html import escape
 from pathlib import Path
 
 from triade.db import sqlite3
@@ -725,7 +726,16 @@ def attach(context):
     if client is None or not getattr(client, "view", None):
         return {"status": "panel_not_rendered"}
     import ipywidgets as widgets
-    from IPython.display import clear_output
+    from IPython.display import display
+
+    output = client.view[-1]
+    if not hasattr(output, "value"):
+        output = widgets.HTML(
+            value="",
+            layout=widgets.Layout(max_height="480px", overflow="auto"),
+        )
+        client.view = (*client.view[:-1], output)
+        display(output)
 
     box = client.view[3]
     known = {getattr(child, "description", "") for child in box.children}
@@ -742,16 +752,26 @@ def attach(context):
         def click(control, selected=action):
             control.disabled = True
             try:
-                with client.view[-1]:
-                    clear_output(wait=True)
-                    print(
-                        json.dumps(
-                            client.action(selected),
-                            ensure_ascii=False,
-                            indent=2,
-                            default=str,
-                        )
+                output.value = "<small>Acción en curso…</small>"
+                try:
+                    rendered = json.dumps(
+                        client.action(selected),
+                        ensure_ascii=False,
+                        indent=2,
+                        default=str,
                     )
+                except Exception as exc:  # noqa: BLE001 - panel boundary reports action errors
+                    rendered = (
+                        "Operación detenida: "
+                        + type(exc).__name__
+                        + " "
+                        + str(exc)[:1600]
+                    )
+                output.value = (
+                    "<pre style='white-space:pre-wrap;overflow-wrap:anywhere'>"
+                    + escape(rendered)
+                    + "</pre>"
+                )
             finally:
                 control.disabled = False
 
