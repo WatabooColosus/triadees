@@ -470,7 +470,7 @@ def render(r5, *, watch=True):
 
     import ipywidgets as widgets
     from google.colab import drive
-    from IPython.display import clear_output, display
+    from IPython.display import display
 
     previous = _active_client
     if previous is not None:
@@ -490,7 +490,13 @@ def render(r5, *, watch=True):
         "Panel listo; el ciclo comprobará la versión después de conectar Drive"
     )
     progress = widgets.IntProgress(value=0, min=0, max=5, description="Etapa")
-    output = widgets.Output(layout=widgets.Layout(max_height="480px", overflow="auto"))
+    output = widgets.HTML(
+        value="",
+        layout=widgets.Layout(
+            max_height="480px",
+            overflow="auto",
+        ),
+    )
 
     def mounted():
         return os.path.ismount("/content/drive")
@@ -537,18 +543,24 @@ def render(r5, *, watch=True):
             for control in buttons:
                 control.disabled = True
             try:
-                with output:
-                    clear_output(wait=True)
-                    try:
-                        print(
-                            json.dumps(
-                                callback(), ensure_ascii=False, indent=2, default=str
-                            )
-                        )
-                    except Exception as exc:  # noqa: BLE001 - UI boundary displays the actual release error
-                        print(
-                            "Operación detenida:", type(exc).__name__, str(exc)[:1600]
-                        )
+                output.value = "<small>Acción en curso…</small>"
+                try:
+                    result = callback()
+                    rendered = json.dumps(
+                        result, ensure_ascii=False, indent=2, default=str
+                    )
+                except Exception as exc:  # noqa: BLE001 - UI boundary displays the actual release error
+                    rendered = (
+                        "Operación detenida: "
+                        + type(exc).__name__
+                        + " "
+                        + str(exc)[:1600]
+                    )
+                output.value = (
+                    "<pre style='white-space:pre-wrap;overflow-wrap:anywhere'>"
+                    + escape(rendered)
+                    + "</pre>"
+                )
             finally:
                 for control in buttons:
                     control.disabled = False

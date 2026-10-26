@@ -335,7 +335,9 @@ def test_rerender_rebuilds_widgets_but_preserves_verified_context(
     monkeypatch.setattr(panel, "_active_client", None)
     r5 = SimpleNamespace(BASE=tmp_path, WORK=tmp_path)
     old = panel.render(r5, watch=False)
-    old.module = SimpleNamespace()
+    old.module = SimpleNamespace(
+        learning_status=lambda context: {"status": "observed", "neuron_id": 11}
+    )
     old.context = {"progress": old.progress, "verified_counts": {"neurons": 16}}
     old.auto_apply = True
     old.progress("Tríade ya está encendida")
@@ -350,6 +352,14 @@ def test_rerender_rebuilds_widgets_but_preserves_verified_context(
     assert "Iniciar aprendizaje verificado" in [
         b.description for b in new.view[3].children
     ]
+    status_button = next(
+        button
+        for button in new.view[3].children
+        if button.description == "Ver circuito de aprendizaje"
+    )
+    status_button.callback(None)
+    assert "&quot;status&quot;: &quot;observed&quot;" in new.view[-1].value
+    assert "&quot;neuron_id&quot;: 11" in new.view[-1].value
 
 
 def test_complete_prospective_fixture_preserves_history_and_does_not_claim_causality(
