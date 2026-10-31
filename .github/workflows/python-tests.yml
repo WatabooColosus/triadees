@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - "apps/**"
+      - "tools/**"
       - "triade/**"
       - "tests/**"
       - "requirements.txt"
