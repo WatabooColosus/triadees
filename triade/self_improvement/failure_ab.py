@@ -226,8 +226,10 @@ class FailureABGate:
         negative = [c for c in cases if c.split == "negative"]
         a_train, a_train_runs = self._score(baseline, train)
         all_training = []
+        training_scores: list[float] = []
         for variant in variants:
             score, obs = self._score(variant.evaluator, train)
+            training_scores.append(score)
             all_training.append(
                 {"version": variant.version, "score": score, "train_observations": obs}
             )
@@ -235,7 +237,7 @@ class FailureABGate:
             range(len(variants)), key=lambda n: (all_training[n]["score"], -n)
         )
         winner = variants[winner_index]
-        b_train = float(all_training[winner_index]["score"])
+        b_train = training_scores[winner_index]
         result: dict[str, Any] = {
             "status": "insufficient_improvement",
             "experiment_id": experiment_id,
