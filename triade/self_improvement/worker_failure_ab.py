@@ -317,12 +317,31 @@ class WorkerFailureABRunner:
                 if attempts >= 5:
                     return False
             if "failure_ab_experiments" in tables:
-                already = conn.execute(
-                    "SELECT 1 FROM failure_ab_experiments WHERE report_id=?",
-                    (report_id,),
-                ).fetchone()
-                if already is not None:
-                    return False
+                for row in conn.execute(
+                    "SELECT report_id,result_json FROM failure_ab_experiments"
+                ):
+                    if row[0] == report_id:
+                        return False
+                    try:
+                        result = json.loads(row[1])
+                    except (ValueError, TypeError):
+                        return False
+                    used = {
+                        str(item.get("case_id"))
+                        for item in result.get("train_baseline_observations", [])
+                        if isinstance(item, dict)
+                    }
+                    for split in ("holdout_observations", "negative_observations"):
+                        observations = result.get(split) or {}
+                        if isinstance(observations, dict):
+                            used.update(
+                                str(item.get("case_id"))
+                                for arm in ("A", "B")
+                                for item in observations.get(arm, [])
+                                if isinstance(item, dict)
+                            )
+                    if any(case.case_id in used for case in cases):
+                        return False
         return True
 
     def evaluate_auto(self) -> dict[str, Any]:
