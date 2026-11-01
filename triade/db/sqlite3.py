@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import sqlite3 as _stdlib_sqlite3
 import threading
+import os
+import resource
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -108,19 +110,51 @@ def connection_metrics() -> dict[str, int]:
 def resource_metrics(database: str | Path) -> dict[str, int | float]:
     """Measure live process and SQLite resources from the operating system."""
 
-    process = psutil.Process()
     database_path = str(Path(database).resolve())
     sqlite_descriptors = 0
-    for opened in process.open_files():
-        if opened.path == database_path or opened.path.startswith(f"{database_path}-"):
-            sqlite_descriptors += 1
-    return {
-        **connection_metrics(),
-        "db_file_descriptors": sqlite_descriptors,
-        "process_file_descriptors": (
+    try:
+        process = psutil.Process()
+        opened_files = process.open_files()
+    except psutil.Error:
+        # Some containerized runners expose a short-lived PID to psutil even
+        # though the current process and its /proc entries are still usable.
+        # Keep health endpoints observable instead of failing the request.
+        process = None
+        opened_files = []
+
+    if process is not None:
+        for opened in opened_files:
+            if opened.path == database_path or opened.path.startswith(
+                f"{database_path}-"
+            ):
+                sqlite_descriptors += 1
+        process_file_descriptors = (
             process.num_fds()
             if hasattr(process, "num_fds")
             else cast(Any, process).num_handles()
-        ),
-        "rss_mb": round(process.memory_info().rss / (1024 * 1024), 2),
+        )
+        rss_mb = round(process.memory_info().rss / (1024 * 1024), 2)
+    else:
+        fd_root = Path("/proc/self/fd")
+        if fd_root.exists():
+            for descriptor in fd_root.iterdir():
+                try:
+                    target = os.readlink(descriptor)
+                except OSError:
+                    continue
+                if target == database_path or target.startswith(f"{database_path}-"):
+                    sqlite_descriptors += 1
+            process_file_descriptors = sum(1 for _ in fd_root.iterdir())
+        else:
+            process_file_descriptors = 0
+        # Linux reports KiB; macOS reports bytes.  The fallback is only used
+        # when psutil cannot identify the process, so keep the conversion
+        # conservative and positive for health/readiness consumers.
+        usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        rss_mb = round(usage / (1024 * 1024), 2) if usage > 1024 * 1024 else round(usage / 1024, 2)
+    return {
+        **connection_metrics(),
+        "db_file_descriptors": sqlite_descriptors,
+        "process_file_descriptors": process_file_descriptors,
+        "rss_mb": rss_mb,
     }
