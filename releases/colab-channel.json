@@ -2,16 +2,16 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 17,
-  "version": "R7.16-learning-schema-root",
+  "sequence": 18,
+  "version": "R7.16.1-learning-schema-root",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "6feb03d1de71a09e569dbdf58a8b021f68c9af61",
+  "commit": "93a146e6c6a008b380fdcfca6c43e57d5d48936c",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
-      "sha256": "3fccd2304b0c493760a423560e04df7c18ab69dc383be6797191faf4349137c2"
+      "sha256": "82197efadee07e1478e475fe9f55861186c72740f9670d1d6c317b7c08fad687"
     },
     "controller": {
       "path": "tools/triade_colab_control_r7.py",
