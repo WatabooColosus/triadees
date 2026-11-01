@@ -37,7 +37,7 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path]:
         "    return True\n",
         encoding="utf-8",
     )
-    test_path = repo / "tests" / "test_failures_become_knowledge.py"
+    test_path = repo / "tests" / "test_worker_failure_repair_oracle.py"
     test_path.parent.mkdir()
     test_path.write_text(
         "def test_regression():\n    assert True\n",
@@ -100,7 +100,7 @@ def test_b1_b2_patches_apply_without_touching_source_or_test(tmp_path):
     db, repo = _fixture(tmp_path)
     repair = AutonomousWorkerRepair(db, repo)
     source_file = repo / "triade" / "workers" / "worker_loop.py"
-    oracle = repo / "tests" / "test_failures_become_knowledge.py"
+    oracle = repo / "tests" / "test_worker_failure_repair_oracle.py"
     before = source_file.read_bytes()
     oracle_before = oracle.read_bytes()
     variants = repair._build_variants()
@@ -130,7 +130,7 @@ def test_autonomous_repair_is_bounded_idempotent_and_never_deploys(tmp_path):
             assert db_path == db
 
         def _require_trusted_regression_test(self, filename):
-            assert filename == "tests/test_failures_become_knowledge.py"
+            assert filename == "tests/test_worker_failure_repair_oracle.py"
 
         def _git(self, args, worktree):
             assert args == ["rev-parse", "HEAD"]
@@ -173,7 +173,7 @@ def test_missing_oracle_or_ambiguous_recipe_fails_closed(tmp_path):
     db, repo = _fixture(tmp_path)
     event = _record(db, 1)
     repair = AutonomousWorkerRepair(db, repo)
-    (repo / "tests" / "test_failures_become_knowledge.py").unlink()
+    (repo / "tests" / "test_worker_failure_repair_oracle.py").unlink()
     assert repair.pending_incident() is None
     (repo / "triade" / "workers" / "worker_loop.py").write_text(
         "def foo(): return 1\n", encoding="utf-8"
