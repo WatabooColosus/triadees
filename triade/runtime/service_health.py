@@ -65,6 +65,7 @@ class ServiceHealth:
             reasons.append("process_stopped")
         db_critical = False
         stalled = False
+        queue_moved_recently: bool | None = None
         try:
             with sqlite3.connect(self.db_path, timeout=2) as conn:
                 conn.row_factory = sqlite3.Row
@@ -135,6 +136,7 @@ class ServiceHealth:
                         and self._age_seconds(last_move_at, now)
                         <= self.cycle_stale_seconds
                     )
+                    queue_moved_recently = moved_recently
                     metrics["work_available"] = bool(eligible or in_flight)
                     # Atascado = hay trabajo que hacer, es viejo, y la cola no se
                     # ha movido en la ventana. Sin trabajo no hay atasco: eso es
@@ -189,7 +191,17 @@ class ServiceHealth:
                         "AND julianday(created_at)>=julianday('now','-15 minutes')"
                     ).fetchone()[0]
                     metrics["recent_repeated_errors"] = int(repeated)
-                    if repeated >= 5:
+                    # Un worker puede registrar errores recuperables mientras
+                    # sigue drenando la cola. Marcarlos automáticamente como
+                    # scheduler degradado hacía oscilar el panel entre
+                    # healthy/degraded aunque el heartbeat y el progreso fueran
+                    # correctos. El error sólo es una señal de atasco cuando no
+                    # hay transición reciente en la cola viva.
+                    errors_without_progress = (
+                        int(repeated) >= 5 and queue_moved_recently is not True
+                    )
+                    metrics["errors_without_progress"] = errors_without_progress
+                    if errors_without_progress:
                         reasons.append("repeated_worker_errors")
         except (sqlite3.Error, OSError) as exc:
             metrics["sqlite_error"] = type(exc).__name__

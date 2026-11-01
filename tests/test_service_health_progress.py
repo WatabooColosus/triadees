@@ -181,3 +181,56 @@ def test_iso_errors_outside_the_window_do_not_degrade_health(tmp_path: Path) -> 
 
     assert health.metrics["recent_repeated_errors"] == 0
     assert "repeated_worker_errors" not in health.reasons
+
+
+def test_recoverable_worker_errors_do_not_degrade_active_scheduler(
+    tmp_path: Path,
+) -> None:
+    """Errores recuperables con progreso reciente no deben oscilar el scheduler."""
+    db = _db(tmp_path)
+    _heartbeat(db)
+    _enqueue_live(db, "t-pending", age="now,-2 hours")
+    con = sqlite3.connect(db)
+    for index in range(5):
+        con.execute(
+            "INSERT INTO worker_events (id,event_type,status,created_at) "
+            "VALUES (?, 'internal_error', 'error', datetime('now'))",
+            (index + 1,),
+        )
+    # Una transición reciente demuestra que el scheduler sigue avanzando.
+    con.execute(
+        "INSERT INTO autonomous_tasks "
+        "(task_id, task_type, status, created_at, updated_at) "
+        "VALUES ('t-progress','pulse_check','completed',datetime('now'),datetime('now'))"
+    )
+    con.commit()
+    con.close()
+
+    health = ServiceHealth(db).inspect(process_running=True, ollama_probe=_OLLAMA_OK)
+
+    assert health.metrics["recent_repeated_errors"] == 5
+    assert health.metrics["errors_without_progress"] is False
+    assert "repeated_worker_errors" not in health.reasons
+    assert health.state == "healthy"
+
+
+def test_repeated_worker_errors_degrade_only_without_progress(tmp_path: Path) -> None:
+    """Sin progreso, los errores repetidos sí conservan la señal de atasco."""
+    db = _db(tmp_path)
+    _heartbeat(db)
+    _enqueue_live(db, "t-stuck", age="now,-2 hours")
+    con = sqlite3.connect(db)
+    for index in range(5):
+        con.execute(
+            "INSERT INTO worker_events (id,event_type,status,created_at) "
+            "VALUES (?, 'internal_error', 'error', datetime('now'))",
+            (index + 1,),
+        )
+    con.commit()
+    con.close()
+
+    health = ServiceHealth(db).inspect(process_running=True, ollama_probe=_OLLAMA_OK)
+
+    assert health.metrics["errors_without_progress"] is True
+    assert "repeated_worker_errors" in health.reasons
+    assert health.state == "stalled"
