@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import contextlib
 import datetime as dt
+import importlib
 import json
 import math
 import statistics
+import sys
 import threading
 import traceback
 import uuid
@@ -76,6 +78,28 @@ def _measured(r5, task_class, call, model=None):
             task_class=task_class,
             model=model,
         )
+
+
+def _refresh_worker_runtime_modules():
+    """Use a runtime-patched WorkerStateStore in an already-live Colab kernel.
+
+    The panel can update files while the notebook process keeps Python modules
+    cached. Reload the worker modules that imported the store before creating a
+    new TriadeRunner, otherwise learning would continue using the pre-patch
+    schema resolver.
+    """
+    importlib.invalidate_caches()
+    names = (
+        "triade.workers.state_store",
+        "triade.workers.task_queue",
+        "triade.workers.worker_loop",
+        "triade.workers.background_service",
+        "triade.services.supervisor",
+    )
+    for name in names:
+        module = sys.modules.get(name)
+        if module is not None:
+            importlib.reload(module)
 
 
 def inspect(r5):
@@ -438,6 +462,7 @@ def _probe(r5, state, case, phase):
             raise NotReady("lesson_material_not_authorized_by_experimental_retriever")
         prompt = build_learning_block(matches) + "\n" + prompt
         context["experimental_material_ids"] = material_ids
+    _refresh_worker_runtime_modules()
     runner = TriadeRunner(
         db_path=r5.DB,
         runs_dir=Path(r5.ROOT) / "runs",
