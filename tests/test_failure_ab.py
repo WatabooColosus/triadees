@@ -1,4 +1,4 @@
-"""Regresión: ninguna versión se aprueba por repetir prompts o inventar usos."""
+"""Un fallo real no se convierte en mejora por repetir una prueba."""
 
 import json
 import sqlite3
@@ -18,12 +18,17 @@ def _failed_report(path, decision="fail"):
             "CREATE TABLE regression_reports (report_id TEXT PRIMARY KEY,"
             "capability TEXT, decision TEXT, findings_json TEXT)"
         )
+        findings = [
+            {
+                "metric_id": "worker_correctness",
+                "status": "fail",
+                "baseline_score": 0.90,
+                "candidate_score": 0.60,
+            }
+        ]
         conn.execute(
             "INSERT INTO regression_reports VALUES (?,?,?,?)",
-            ("reg-real-1", "worker_failure", decision, json.dumps([{
-                "metric_id": "worker_correctness", "status": "fail",
-                "baseline_score": 0.90, "candidate_score": 0.60,
-            }])),
+            ("reg-real-1", "worker_failure", decision, json.dumps(findings)),
         )
 
 
@@ -32,12 +37,16 @@ def _cases():
     for split, count in (("train", 4), ("holdout", 5), ("negative", 2)):
         for i in range(count):
             cid = f"{split}-{i}"
-            cases.append(FailureCase(
-                case_id=cid, split=split,
-                inputs={"case_id": cid, "split": split},
-                expected=1, evidence_ref=f"independent-report:{cid}",
-                safety_critical=(split == "negative"),
-            ))
+            cases.append(
+                FailureCase(
+                    case_id=cid,
+                    split=split,
+                    inputs={"case_id": cid, "split": split},
+                    expected=1,
+                    evidence_ref=f"independent-report:{cid}",
+                    safety_critical=(split == "negative"),
+                )
+            )
     return cases
 
 
@@ -59,9 +68,12 @@ def _oracle(case):
 
 def _run(db, variants, *, cases=None, oracle=_oracle):
     return FailureABGate(db).run(
-        report_id="reg-real-1", metric_id="worker_correctness",
+        report_id="reg-real-1",
+        metric_id="worker_correctness",
         cases=cases if cases is not None else _cases(),
-        baseline=_baseline, variants=variants, independent_oracle=oracle,
+        baseline=_baseline,
+        variants=variants,
+        independent_oracle=oracle,
     )
 
 
@@ -69,14 +81,16 @@ def test_ab_variants_select_training_winner_then_independent_holdout(tmp_path):
     db = tmp_path / "triade.sqlite3"
     _failed_report(db)
     loser_evaluations = []
+
     def loser(payload):
         loser_evaluations.append(payload["split"])
         return 0
 
-    result = _run(db, [
+    variants = [
         CandidateVariant("B1_bad", loser),
         CandidateVariant("B2_better", _correct),
-    ])
+    ]
+    result = _run(db, variants)
     assert result["winner"] == "B2_better"
     assert result["train_baseline"] == 0
     assert result["holdout_baseline"] == 0
@@ -88,11 +102,14 @@ def test_ab_variants_select_training_winner_then_independent_holdout(tmp_path):
     assert all(split == "train" for split in loser_evaluations)
 
 
-def test_negative_control_blocks_candidate_despite_train_holdout_improvement(tmp_path):
+def test_negative_control_blocks_candidate_despite_holdout_improvement(tmp_path):
     db = tmp_path / "triade.sqlite3"
     _failed_report(db)
-    candidate = lambda payload: 0 if payload["split"] == "negative" else 1
-    result = _run(db, [CandidateVariant("B1", candidate)])
+
+    def unsafe(payload):
+        return 0 if payload["split"] == "negative" else 1
+
+    result = _run(db, [CandidateVariant("B1", unsafe)])
     assert result["holdout_candidate"] == 1
     assert result["critical_controls_passed"] is False
     assert result["eligible_for_canary"] is False
@@ -103,9 +120,11 @@ def test_no_train_improvement_does_not_expose_holdout(tmp_path):
     db = tmp_path / "triade.sqlite3"
     _failed_report(db)
     touched = []
+
     def bad(payload):
         touched.append(payload["split"])
         return 0
+
     result = _run(db, [CandidateVariant("B1", bad)])
     assert result["status"] == "insufficient_improvement"
     assert result["holdout_executed"] is False
@@ -119,8 +138,12 @@ def test_failure_gate_refuses_unverified_or_duplicate_data(tmp_path):
         _run(db, [CandidateVariant("B1", _correct)], oracle=lambda _: False)
     cases = _cases()
     cases[-1] = FailureCase(
-        case_id=cases[0].case_id, split="negative",
-        inputs={}, expected=1, evidence_ref="new", safety_critical=True
+        case_id=cases[0].case_id,
+        split="negative",
+        inputs={},
+        expected=1,
+        evidence_ref="new",
+        safety_critical=True,
     )
     with pytest.raises(ValueError, match="duplicated_or_unattested_case"):
         _run(db, [CandidateVariant("B1", _correct)], cases=cases)
@@ -128,31 +151,41 @@ def test_failure_gate_refuses_unverified_or_duplicate_data(tmp_path):
         _run(db, [CandidateVariant("B1", _correct)], oracle=None)
 
 
-def test_regression_report_must_be_real_and_failed(tmp_path):
+def test_report_must_be_real_and_failed(tmp_path):
     db = tmp_path / "triade.sqlite3"
     _failed_report(db, decision="pass")
     with pytest.raises(ValueError, match="verified_failed_regression_required"):
         _run(db, [CandidateVariant("B1", _correct)])
 
 
-def test_no_replay_on_same_frozen_suite_even_with_changed_callback(tmp_path):
+def test_same_frozen_suite_cannot_repeat_holdout(tmp_path):
     db = tmp_path / "triade.sqlite3"
     _failed_report(db)
     first = _run(db, [CandidateVariant("B1", _correct)])
+
     def forbidden(_):
-        raise AssertionError("idempotent run must not repeat holdout")
+        raise AssertionError("no se debe reabrir el holdout")
+
     second = _run(db, [CandidateVariant("B1", forbidden)])
     assert second == first
     with sqlite3.connect(db) as conn:
-        assert conn.execute("SELECT COUNT(*) FROM failure_ab_experiments").fetchone()[0] == 1
+        count = conn.execute("SELECT COUNT(*) FROM failure_ab_experiments").fetchone()[0]
+    assert count == 1
 
 
-def test_distinct_independent_case_references_required(tmp_path):
+def test_distinct_independent_sources_are_required(tmp_path):
     db = tmp_path / "triade.sqlite3"
     _failed_report(db)
     cases = _cases()
-    c = cases[-1]
-    cases[-1] = FailureCase(c.case_id, c.split, c.inputs, c.expected, cases[0].evidence_ref, c.safety_critical)
+    previous = cases[-1]
+    cases[-1] = FailureCase(
+        previous.case_id,
+        previous.split,
+        previous.inputs,
+        previous.expected,
+        cases[0].evidence_ref,
+        previous.safety_critical,
+    )
     with pytest.raises(ValueError, match="duplicated_or_unattested_case"):
         _run(db, [CandidateVariant("B1", _correct)], cases=cases)
 
