@@ -3257,6 +3257,24 @@ class WorkerLoop:
         report_id = str(task.payload.get("regression_report_id") or "")
         metric_id = str(task.payload.get("metric_id") or "")
         runner = WorkerFailureABRunner(self.db_path)
+        if task.payload.get("mode") == "functional_repair":
+            from triade.evolution.autonomous_worker_repair import (
+                AutonomousWorkerRepair,
+            )
+
+            evidence_ref = str(task.payload.get("evidence_ref") or "")
+            result = AutonomousWorkerRepair(self.db_path).evaluate(evidence_ref)
+            (task_dir / "functional-repair-evidence.json").write_text(
+                json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            # El resultado de A/B no es una autorización de despliegue.
+            verdict = str(result.get("status") or "no_evidence")
+            return {
+                **result,
+                "repair_verdict": verdict,
+                "status": "completed" if verdict == "candidate_certified_in_sandbox"
+                else "observed",
+            }
         if task.payload.get("mode") == "shadow_canary":
             from triade.self_improvement.worker_failure_canary import (
                 WorkerFailureShadowCanary,
