@@ -83,7 +83,7 @@ class WorkerFailureABRunner:
                           e.run_ref AS event_run,e.event_type,
                           e.payload_json AS event_payload,
                           t.status AS task_status,t.result_json AS task_result,
-                          t.run_ref AS task_run,t.task_type AS task_type
+                          t.run_ref AS task_run,t.task_type AS recorded_task_type
                    FROM worker_events e
                    JOIN worker_tasks t ON t.id=e.task_id
                    WHERE e.event_type LIKE 'task_%'
@@ -110,7 +110,7 @@ class WorkerFailureABRunner:
                 or not row["event_run"]
                 or row["event_run"] != row["task_run"]
                 or not row["task_type"]
-                or row["task_type"] != row["task_type"]
+                or row["task_type"] != row["recorded_task_type"]
             ):
                 continue
             seen_tasks.add(task_id)
@@ -133,12 +133,12 @@ class WorkerFailureABRunner:
         observations = self._load_observations()
         negatives = [x for x in observations if x["expected"] is False]
         positives = [x for x in observations if x["expected"] is True]
-        if len(negatives) < 2 or len(positives) < 6:
+        if len(negatives) < 5 or len(positives) < 6:
             return []
         chosen = {
-            "negative": negatives[:2],
-            "train": positives[:3],
-            "holdout": positives[3:6],
+            "negative": negatives[3:5],
+            "train": positives[:3] + negatives[:2],
+            "holdout": positives[3:6] + negatives[2:3],
         }
         cases: list[FailureCase] = []
         for split, rows in chosen.items():
@@ -179,9 +179,10 @@ class WorkerFailureABRunner:
             }
         # El oráculo vuelve a leer los registros independientemente de las
         # funciones comparadas: un cambio en una variante no cambia la etiqueta.
-        verified = {str(x["evidence_ref"]): x for x in cases}
-
         def oracle(case: FailureCase) -> bool:
+            # Releer el estado real, sin confiar en callbacks de las variantes.
+            current = self.replay_cases()
+            verified = {str(x.evidence_ref): x for x in current}
             original = verified.get(case.evidence_ref)
             return bool(
                 original is not None
