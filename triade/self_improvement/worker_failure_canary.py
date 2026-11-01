@@ -1,4 +1,5 @@
 """Canary en sombra: nunca confunde clasificación con reparación causal."""
+
 from __future__ import annotations
 
 import hashlib
@@ -105,14 +106,17 @@ class WorkerFailureShadowCanary:
             eligible: set[str] = set()
             sources = (
                 ("worker-event", "worker_events", "id"),
-                ("autonomous-transition", "autonomous_task_transitions", "transition_id"),
+                (
+                    "autonomous-transition",
+                    "autonomous_task_transitions",
+                    "transition_id",
+                ),
             )
             for prefix, table, identity in sources:
                 if table not in names:
                     continue
                 columns = {
-                    str(row[1])
-                    for row in conn.execute(f"PRAGMA table_info({table})")
+                    str(row[1]) for row in conn.execute(f"PRAGMA table_info({table})")
                 }
                 if "created_at" not in columns:
                     continue
@@ -126,8 +130,7 @@ class WorkerFailureShadowCanary:
         return [
             item
             for item in observations
-            if item["source_ref"] in eligible
-            and f"task-{item['task_id']}" not in used
+            if item["source_ref"] in eligible and f"task-{item['task_id']}" not in used
         ]
 
     def ready(self) -> bool:
@@ -155,10 +158,7 @@ class WorkerFailureShadowCanary:
         negative = [x for x in observations if x["expected"] is False][
             :_CANARY_MIN_NEGATIVE
         ]
-        if (
-            len(positive) < _CANARY_MIN_POSITIVE
-            or len(negative) < _CANARY_MIN_NEGATIVE
-        ):
+        if len(positive) < _CANARY_MIN_POSITIVE or len(negative) < _CANARY_MIN_NEGATIVE:
             return {
                 "status": "no_evidence",
                 "reason": "insufficient_new_verified_canary_outcomes",
@@ -178,9 +178,7 @@ class WorkerFailureShadowCanary:
                 "message": item["payload"].get("message"),
                 "skipped_reason": item["payload"].get("skipped_reason"),
             }
-            baseline = _should_learn_from_worker_outcome(
-                item["status"], dict(inputs)
-            )
+            baseline = _should_learn_from_worker_outcome(item["status"], dict(inputs))
             candidate = bool(variant(inputs))
             results.append(
                 {
@@ -192,11 +190,9 @@ class WorkerFailureShadowCanary:
                     "safety_control": item["expected"] is False,
                 }
             )
-        passed = (
-            all(x["candidate_correct"] for x in results)
-            and sum(x["candidate_correct"] for x in results)
-            >= sum(x["baseline_correct"] for x in results)
-        )
+        passed = all(x["candidate_correct"] for x in results) and sum(
+            x["candidate_correct"] for x in results
+        ) >= sum(x["baseline_correct"] for x in results)
         report = {
             "status": "completed",
             "experiment_id": experiment["experiment_id"],
@@ -205,9 +201,7 @@ class WorkerFailureShadowCanary:
             "evaluated_cases": len(results),
             "observations": results,
             "case_refs_hash": hashlib.sha256(
-                json.dumps(
-                    sorted(x["evidence_ref"] for x in results)
-                ).encode()
+                json.dumps(sorted(x["evidence_ref"] for x in results)).encode()
             ).hexdigest(),
             "operational_causality_proven": False,
             "production_effect_applied": False,
