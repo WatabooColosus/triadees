@@ -109,3 +109,139 @@ def test_el_vocabulario_declarado_cubre_todo_lo_que_se_escribe():
         f"declarados y no escritos: {sorted(EVOLUTION_STATES - escritos)}"
     )
     assert EVOLUTION_IN_FLIGHT <= EVOLUTION_STATES
+
+
+def test_passing_a_and_b_is_not_proof_of_a_repair():
+    """CI verde en ambas versiones no demuestra mejora funcional."""
+    review = EngineeringEvolutionWorker._review(
+        {"passed": True}, {"passed": True}, ["triade/worker_policy.py"]
+    )
+    assert review["decision"] == "reject_candidate"
+    assert review["measured_functional_repair"] is False
+
+
+def test_repair_gate_rejects_missing_independent_oracle_or_rollback():
+    proof = {
+        "baseline_regression_failed": True,
+        "candidate_regression_passed": True,
+        "oracle_unchanged": True,
+        "rollback_verified": False,
+    }
+    blocked = EngineeringEvolutionWorker._review(
+        {"passed": True},
+        {"passed": True},
+        ["triade/worker_policy.py"],
+        repair_evidence=proof,
+    )
+    assert blocked["decision"] == "reject_candidate"
+    proof["rollback_verified"] = True
+    approved_for_review = EngineeringEvolutionWorker._review(
+        {"passed": True},
+        {"passed": True},
+        ["triade/worker_policy.py"],
+        repair_evidence=proof,
+    )
+    assert approved_for_review["decision"] == "accept_candidate"
+    assert approved_for_review["rollback_verified"] is True
+
+
+def test_functional_certification_with_real_isolated_git_worktrees(tmp_path):
+    """Una prueba existente falla en A, pasa en B y el parche revierte exactamente."""
+    import subprocess
+    import time
+
+    repo = tmp_path / "repo"
+    (repo / "triade").mkdir(parents=True)
+    (repo / "tests").mkdir()
+    (repo / "triade" / "__init__.py").write_text("", encoding="utf-8")
+    old = (
+        "def report_failed(reason: str) -> bool:\n"
+        "    return True\n"
+    )
+    new = (
+        "def report_failed(reason: str) -> bool:\n"
+        '    return reason != "cancellation_requested"\n'
+    )
+    (repo / "triade" / "worker_policy.py").write_text(old, encoding="utf-8")
+    (repo / "tests" / "test_worker_policy.py").write_text(
+        "from triade.worker_policy import report_failed\n"
+        "\n"
+        "def test_requested_cancel_is_not_failure():\n"
+        '    assert report_failed("cancellation_requested") is False\n'
+        "\n"
+        "def test_unexpected_failure_stays_failure():\n"
+        '    assert report_failed("runtime_exception") is True\n',
+        encoding="utf-8",
+    )
+    for command in (
+        ["git", "init"],
+        ["git", "config", "user.name", "Tríade test"],
+        ["git", "config", "user.email", "test@example.invalid"],
+        ["git", "add", "."],
+        ["git", "commit", "-m", "trusted-oracle-baseline"],
+    ):
+        subprocess.run(command, cwd=repo, check=True, capture_output=True)
+    worker = EngineeringEvolutionWorker(repo, tmp_path / "trial.sqlite")
+    baseline_commit = worker._git(["rev-parse", "HEAD"], repo).strip()
+    worktree = worker.root / "treatment-test"
+    worker._run(
+        ["git", "worktree", "add", "--detach", str(worktree), baseline_commit],
+        repo,
+        30,
+    )
+    try:
+        import difflib
+
+        patch = "".join(
+            difflib.unified_diff(
+                old.splitlines(keepends=True),
+                new.splitlines(keepends=True),
+                fromfile="a/triade/worker_policy.py",
+                tofile="b/triade/worker_policy.py",
+            )
+        )
+        (worktree / "triade" / "worker_policy.py").write_text(
+            new, encoding="utf-8"
+        )
+        evidence = worker._certify_repair_in_worktrees(
+            baseline_commit,
+            worktree,
+            "tests/test_worker_policy.py",
+            patch,
+            EvolutionBudget(max_minutes=2),
+            time.monotonic(),
+            "isolated-trial",
+        )
+        assert evidence["baseline_regression_failed"] is True
+        assert evidence["candidate_regression_passed"] is True
+        assert evidence["oracle_unchanged"] is True
+        assert evidence["rollback_verified"] is True
+        assert evidence["production_causality_proven"] is False
+        review = worker._review(
+            {"passed": True},
+            {"passed": True},
+            ["triade/worker_policy.py"],
+            repair_evidence=evidence,
+        )
+        assert review["decision"] == "accept_candidate"
+        # La prueba del rollback NO deshace el candidato en evaluación.
+        assert (worktree / "triade" / "worker_policy.py").read_text() == new
+    finally:
+        worker._cleanup(worktree)
+
+
+def test_functional_certification_rejects_modified_independent_oracle(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / "tests").mkdir(parents=True)
+    path = repo / "tests" / "test_worker_behavior.py"
+    path.write_text("def test_safety(): assert True\n", encoding="utf-8")
+    worker = EngineeringEvolutionWorker(repo, tmp_path / "audit.sqlite")
+    import subprocess
+
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True)
+    worker._require_trusted_regression_test("tests/test_worker_behavior.py")
+    with pytest.raises(ValueError, match="trusted_regression_test_required"):
+        worker._require_trusted_regression_test("../tests/test_worker_behavior.py")
+    with pytest.raises(ValueError, match="tracked_regression_test_required"):
+        worker._require_trusted_regression_test("tests/test_untracked.py")
