@@ -1067,13 +1067,15 @@ class MissionPlanner:
                         "SELECT name FROM sqlite_master WHERE type='table'"
                     )
                 }
-                if "regression_reports" not in tables:
-                    return []
-                reports = conn.execute(
-                    "SELECT report_id,findings_json FROM regression_reports "
-                    "WHERE decision='fail' AND capability='worker_failure' "
-                    "ORDER BY rowid DESC LIMIT 10"
-                ).fetchall()
+                reports = (
+                    conn.execute(
+                        "SELECT report_id,findings_json FROM regression_reports "
+                        "WHERE decision='fail' AND capability='worker_failure' "
+                        "ORDER BY rowid DESC LIMIT 10"
+                    ).fetchall()
+                    if "regression_reports" in tables
+                    else []
+                )
                 completed = (
                     {
                         str(row[0])
