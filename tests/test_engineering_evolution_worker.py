@@ -243,5 +243,55 @@ def test_functional_certification_rejects_modified_independent_oracle(tmp_path):
     worker._require_trusted_regression_test("tests/test_worker_behavior.py")
     with pytest.raises(ValueError, match="trusted_regression_test_required"):
         worker._require_trusted_regression_test("../tests/test_worker_behavior.py")
+    (repo / "tests" / "test_untracked.py").write_text(
+        "def test_untracked(): assert True\n", encoding="utf-8"
+    )
     with pytest.raises(ValueError, match="tracked_regression_test_required"):
         worker._require_trusted_regression_test("tests/test_untracked.py")
+
+
+def test_old_approvals_cannot_bypass_independent_functional_certificate(tmp_path):
+    """No se puede firmar o desplegar aprobaciones heredadas sin evidencia."""
+    import json
+    import sqlite3
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    worker = EngineeringEvolutionWorker(repo, tmp_path / "runs.sqlite")
+    with sqlite3.connect(worker.db_path) as conn:
+        for evolution_id, status in (
+            ("legacy-awaiting", "awaiting_approval"),
+            ("legacy-approved", "approved_commit"),
+        ):
+            conn.execute(
+                "INSERT INTO engineering_evolution_runs "
+                "(evolution_id,objective,hypothesis,baseline_commit,"
+                "worktree_path,status,budget_json,changed_files_json,review_json) "
+                "VALUES(?,?,?,?,?,?,?,?,?)",
+                (
+                    evolution_id,
+                    "fix broken worker",
+                    "retry cancel handling",
+                    "baseline",
+                    str(repo / "missing-worktree"),
+                    status,
+                    json.dumps({}),
+                    json.dumps(["triade/fix.py"]),
+                    json.dumps(
+                        {
+                            "decision": "accept_candidate",
+                            "independent_tests": True,
+                        }
+                    ),
+                ),
+            )
+    commit = worker.approve_and_commit("legacy-awaiting", approved_by="operator")
+    assert commit == {
+        "status": "blocked",
+        "reason": "functional_certification_required",
+    }
+    deployment = worker.deploy("legacy-approved", approved_by="operator")
+    assert deployment == {
+        "status": "blocked",
+        "reason": "functional_certification_required",
+    }
