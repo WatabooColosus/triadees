@@ -190,7 +190,7 @@ def test_missing_oracle_or_ambiguous_recipe_fails_closed(tmp_path):
 
 
 def test_worker_planner_can_schedule_real_repair_without_user_prompt(tmp_path):
-    db, repo = _fixture(tmp_path)
+    db, _repo = _fixture(tmp_path)
     _record(db, 1)
     # La planificación usa el checkout real, por diseño; la base de eventos
     # es independiente y solo ofrece evidencia verificada.
