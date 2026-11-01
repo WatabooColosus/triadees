@@ -1,4 +1,5 @@
 """El worker autónomo A/B usa observaciones reales y falla cerrado."""
+import hashlib
 import json
 import sqlite3
 
@@ -128,3 +129,83 @@ def test_no_false_worker_regression_on_unrelated_metric(tmp_path):
     )
     assert result["status"] == "no_evidence"
     assert result["stable_memory_written"] is False
+
+
+def _add_v2_outcome(db, tmp_path, task_id, status, payload):
+    artifact_dir = tmp_path / "runs" / f"task-{task_id}"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    result_path = artifact_dir / "result.json"
+    data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    result_path.write_bytes(data)
+    digest = hashlib.sha256(data).hexdigest()
+    manifest = {
+        "task_id": str(task_id),
+        "task_type": "pulse_check",
+        "worker_id": "worker-1",
+        "status": status,
+        "lease_generation": 1,
+        "result_hash": digest,
+        "artifact_hashes": {"result.json": digest},
+    }
+    (artifact_dir / "manifest.json").write_text(json.dumps(manifest))
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "INSERT INTO autonomous_tasks VALUES(?,?,?,?,?,?,?)",
+            (
+                str(task_id), "pulse_check", status,
+                "worker-1", str(result_path), 1, "{}",
+            ),
+        )
+        conn.execute(
+            "INSERT INTO autonomous_task_transitions "
+            "(task_id,to_status,result_ref,worker_id,lease_generation) "
+            "VALUES(?,?,?,?,?)",
+            (str(task_id), status, str(result_path), "worker-1", 1),
+        )
+    return result_path
+
+
+def test_v2_receipts_provide_real_cases_without_legacy_events(tmp_path):
+    db = _database(tmp_path)
+    with sqlite3.connect(db) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE autonomous_tasks (
+                task_id TEXT, task_type TEXT, status TEXT, worker_id TEXT,
+                result_ref TEXT, lease_generation INTEGER, payload_json TEXT
+            );
+            CREATE TABLE autonomous_task_transitions (
+                transition_id INTEGER PRIMARY KEY, task_id TEXT,
+                to_status TEXT, result_ref TEXT, worker_id TEXT,
+                lease_generation INTEGER
+            );
+            """
+        )
+    for task_id, status in enumerate(
+        ("failed", "timeout", "blocked", "lease_lost", "dead_letter", "failed"),
+        start=100,
+    ):
+        _add_v2_outcome(
+            db, tmp_path, task_id, status, {"error": "verified_failure"}
+        )
+    for task_id in (200, 201, 202):
+        _add_v2_outcome(
+            db, tmp_path, task_id, "failed",
+            {"reason": "cancellation_requested"},
+        )
+    _add_v2_outcome(db, tmp_path, 203, "completed", {"status": "completed"})
+    tamper = _add_v2_outcome(
+        db, tmp_path, 204, "observed", {"status": "observed"}
+    )
+    tamper.write_text('{"status":"failed"}', encoding="utf-8")
+    assert WorkerFailureABRunner(db).replay_cases() == []
+    _add_v2_outcome(db, tmp_path, 205, "observed", {"status": "observed"})
+    cases = WorkerFailureABRunner(db).replay_cases()
+    assert len(cases) == 11
+    assert all(x.evidence_ref.startswith("autonomous-transition:") for x in cases)
+    assert MissionPlanner(db)._plan_failure_ab_evaluation()
+    outcome = WorkerFailureABRunner(db).evaluate(
+        "real-report", "worker_outcome_classification"
+    )
+    assert outcome["winner"] == "B1-explicit-cancellation"
+    assert outcome["stable_memory_written"] is False
