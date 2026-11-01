@@ -142,8 +142,9 @@ class FailureABGate:
     def _score(
         evaluator: Evaluator, cases: Sequence[FailureCase]
     ) -> tuple[float, list[dict[str, Any]]]:
-        observations = []
+        observations: list[dict[str, Any]] = []
         for case in cases:
+            error: str | None = None
             try:
                 actual = evaluator(dict(case.inputs))
                 passed = type(actual) is type(case.expected) and actual == case.expected
@@ -151,8 +152,6 @@ class FailureABGate:
                 passed = False
                 actual = None
                 error = type(exc).__name__
-            else:
-                error = None
             observations.append(
                 {
                     "case_id": case.case_id,
@@ -162,7 +161,7 @@ class FailureABGate:
                     "error_type": error,
                 }
             )
-        return sum(x["passed"] for x in observations) / len(observations), observations
+        return sum(int(bool(x["passed"])) for x in observations) / len(observations), observations
 
     def run(
         self,
@@ -235,7 +234,7 @@ class FailureABGate:
             range(len(variants)), key=lambda n: (all_training[n]["score"], -n)
         )
         winner = variants[winner_index]
-        b_train = all_training[winner_index]["score"]
+        b_train = float(all_training[winner_index]["score"])
         result: dict[str, Any] = {
             "status": "insufficient_improvement",
             "experiment_id": experiment_id,
