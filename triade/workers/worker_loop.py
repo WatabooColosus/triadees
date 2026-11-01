@@ -224,6 +224,25 @@ _STATUSES_WORTH_LEARNING = frozenset(
 )
 
 
+def _should_learn_from_worker_outcome(status: str, result: dict[str, Any]) -> bool:
+    """Una cancelación solicitada no demuestra un fallo a corregir.
+
+    La telemetría y el estado terminal se conservan. Solo se evita
+    transformar 'cancellation_requested' en una supuesta lección de error.
+    Las cancelaciones anómalas siguen siendo candidatas de investigación.
+    """
+    if status not in _STATUSES_WORTH_LEARNING:
+        return False
+    if status == "cancelled":
+        reasons = [
+            str(result.get(key) or "").strip().lower()
+            for key in ("error", "reason", "message", "skipped_reason")
+        ]
+        if "cancellation_requested" in reasons:
+            return False
+    return True
+
+
 class WorkerLoop:
     READ_ONLY_TASKS_WITHOUT_BLOOD = frozenset(
         {
@@ -1732,7 +1751,7 @@ class WorkerLoop:
                     task_type=task.task_type,
                     payload=result,
                 )
-                if persisted_status in _STATUSES_WORTH_LEARNING:
+                if _should_learn_from_worker_outcome(persisted_status, result):
                     self._learn_from_failure(run_ref, task, persisted_status, result)
                 if task.payload.get("goal_id"):
                     from triade.core.goal_orchestrator import GoalOrchestrator
