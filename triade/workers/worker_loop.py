@@ -83,6 +83,13 @@ def _timeout_for_task(task: WorkerTask, base_seconds: float, attempt: int) -> fl
     handlers conservan exactamente la escalada general 30→60→120.
     """
     standard = timeout_for_attempt(base_seconds, attempt)
+    # Los ensayos Git/pytest son CPU-only y reversibles, pero no caben en
+    # los 30 s interactivos. Solo esta operación obtiene 10 minutos.
+    if (
+        task.task_type == "failure_ab_evaluation"
+        and task.payload.get("mode") == "functional_repair"
+    ):
+        return max(standard, 600.0)
     if task.task_type != "goal_lora_train":
         return standard
     try:
