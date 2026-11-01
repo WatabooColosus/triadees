@@ -13,10 +13,10 @@ they enter a ``with`` block, they stay open until their owner calls ``close``.
 
 from __future__ import annotations
 
-import sqlite3 as _stdlib_sqlite3
-import threading
 import os
 import resource
+import sqlite3 as _stdlib_sqlite3
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
