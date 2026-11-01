@@ -15,9 +15,10 @@ import hashlib
 import json
 import math
 import re
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any
 
 from triade.db import sqlite3
 
@@ -132,7 +133,7 @@ class FailureABGate:
             try:
                 actual = evaluator(dict(case.inputs))
                 passed = type(actual) is type(case.expected) and actual == case.expected
-            except Exception as exc:  # evaluador confiable aislado; cualquier fallo reprueba
+            except Exception as exc:  # noqa: BLE001 -- error de variante = fallo, no aprobación
                 passed = False
                 actual = None
                 error = type(exc).__name__
