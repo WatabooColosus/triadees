@@ -139,7 +139,10 @@ class WorkerFailureABRunner:
                 }
             )
         observations.extend(self._load_v2_observations())
-        return sorted(observations, key=lambda x: str(x["source_ref"]))
+        return sorted(
+            observations,
+            key=lambda x: (str(x["source_ref"]).split(":")[0], int(x["event_id"])),
+        )
 
     def _load_v2_observations(self) -> list[dict[str, Any]]:
         """Solo estados terminales con transición y artefacto canónico íntegro."""
