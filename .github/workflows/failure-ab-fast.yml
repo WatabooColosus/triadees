@@ -18,6 +18,7 @@ on:
       - "tests/test_domain_admission.py"
       - "tests/test_engineering_evolution_worker.py"
       - "tests/test_autonomous_worker_repair.py"
+      - "tests/test_worker_failure_repair_oracle.py"
       - "tests/test_failures_become_knowledge.py"
       - ".github/workflows/failure-ab-fast.yml"
   workflow_dispatch:
