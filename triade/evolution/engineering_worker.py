@@ -114,6 +114,11 @@ class EngineeringEvolutionWorker:
         started = time.monotonic()
         if len(patch.encode()) > budget.max_patch_bytes:
             return {"status": "blocked", "reason": "patch_budget_exceeded"}
+        if regression_test is None:
+            return {
+                "status": "blocked",
+                "reason": "independent_functional_regression_test_required",
+            }
         # El oráculo es una prueba existente en el commit base, no código
         # que la variante o un prompt puedan introducir o reescribir.
         if regression_test is not None:
