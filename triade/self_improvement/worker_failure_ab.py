@@ -22,8 +22,16 @@ from .failure_ab import CandidateVariant, FailureABGate, FailureCase
 
 _FAILURE_METRIC = "worker_outcome_classification"
 _SUPPORTED_STATUSES = frozenset(
-    {"completed", "observed", "cancelled", "failed", "dead_letter", "timeout",
-     "lease_lost", "blocked"}
+    {
+        "completed",
+        "observed",
+        "cancelled",
+        "failed",
+        "dead_letter",
+        "timeout",
+        "lease_lost",
+        "blocked",
+    }
 )
 _SOURCE_EVENT_LIMIT = 300
 _MIN_CASES = 11
@@ -78,8 +86,9 @@ class WorkerFailureABRunner:
                     "SELECT name FROM sqlite_master WHERE type='table'"
                 )
             }
-            rows = conn.execute(
-                """SELECT e.id AS event_id,e.task_id,e.task_type,
+            rows = (
+                conn.execute(
+                    """SELECT e.id AS event_id,e.task_id,e.task_type,
                           e.run_ref AS event_run,e.event_type,
                           e.payload_json AS event_payload,
                           t.status AS task_status,t.result_json AS task_result,
@@ -88,8 +97,11 @@ class WorkerFailureABRunner:
                    JOIN worker_tasks t ON t.id=e.task_id
                    WHERE e.event_type LIKE 'task_%'
                    ORDER BY e.id DESC LIMIT ?""",
-                (_SOURCE_EVENT_LIMIT,),
-            ).fetchall() if {"worker_events", "worker_tasks"} <= names else []
+                    (_SOURCE_EVENT_LIMIT,),
+                ).fetchall()
+                if {"worker_events", "worker_tasks"} <= names
+                else []
+            )
         observations = []
         seen_tasks: set[int] = set()
         for row in rows:
@@ -114,14 +126,16 @@ class WorkerFailureABRunner:
             ):
                 continue
             seen_tasks.add(task_id)
-            observations.append({
-                "event_id": int(row["event_id"]),
-                "task_id": task_id,
-                "status": status,
-                "payload": payload,
-                "expected": _classification_label(status, payload),
-                "source_ref": f"worker-event:{row['event_id']}",
-            })
+            observations.append(
+                {
+                    "event_id": int(row["event_id"]),
+                    "task_id": task_id,
+                    "status": status,
+                    "payload": payload,
+                    "expected": _classification_label(status, payload),
+                    "source_ref": f"worker-event:{row['event_id']}",
+                }
+            )
         observations.extend(self._load_v2_observations())
         return sorted(observations, key=lambda x: str(x["source_ref"]))
 
@@ -287,7 +301,7 @@ class WorkerFailureABRunner:
 
         def baseline(inputs: Mapping[str, Any]) -> bool:
             return _should_learn_from_worker_outcome(
-                str(inputs.get("status") or ""), inputs
+                str(inputs.get("status") or ""), dict(inputs)
             )
 
         result = FailureABGate(self.db_path).run(
