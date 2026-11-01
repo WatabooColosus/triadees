@@ -467,9 +467,7 @@ def _probe(r5, state, case, phase):
             raise NotReady("lesson_material_not_authorized_by_experimental_retriever")
         prompt = build_learning_block(matches) + "\n" + prompt
         context["experimental_material_ids"] = material_ids
-    _refresh_worker_runtime_modules(
-        reload_runner=Path("/content/Triade").is_dir()
-    )
+    _refresh_worker_runtime_modules(reload_runner=Path("/content/Triade").is_dir())
     from triade.core.runner import TriadeRunner
 
     runner = TriadeRunner(
