@@ -48,3 +48,6 @@ La instalación del paquete puede reutilizar API, Ollama y memoria sin reiniciar
 La interfaz reconstruye sus widgets al abrirse desde otro frontend, preservando
 el contexto verificado y la preferencia del actualizador. Esto evita reutilizar
 controles que Colab mostraba como `HTML(value=...)` en otra sesión del navegador.
+
+
+Publicación de canal Colab: aprendizaje verificado integrado al ciclo continuo automático.
