@@ -10,6 +10,7 @@ solo que una reparación funcional de una tarea arregle su causa de origen.
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -27,7 +28,7 @@ _SOURCE_EVENT_LIMIT = 300
 _MIN_CASES = 8
 
 
-def _explicit_cancellation(payload: dict[str, Any]) -> bool:
+def _explicit_cancellation(payload: Mapping[str, Any]) -> bool:
     return any(
         str(payload.get(key) or "").strip().casefold() == "cancellation_requested"
         for key in ("reason", "error", "message", "skipped_reason")
@@ -45,14 +46,14 @@ def _classification_label(status: str, payload: dict[str, Any]) -> bool:
     return status in TERMINAL_FAILURE or status in {"blocked", "cancelled"}
 
 
-def _variant_reject_requested(payload: dict[str, Any]) -> bool:
+def _variant_reject_requested(payload: Mapping[str, Any]) -> bool:
     status = str(payload["status"])
     if _explicit_cancellation(payload):
         return False
     return status in TERMINAL_FAILURE or status in {"blocked", "cancelled"}
 
 
-def _variant_strict_terminal(payload: dict[str, Any]) -> bool:
+def _variant_strict_terminal(payload: Mapping[str, Any]) -> bool:
     status = str(payload["status"])
     if _explicit_cancellation(payload):
         return False
@@ -193,7 +194,7 @@ class WorkerFailureABRunner:
 
         from triade.workers.worker_loop import _should_learn_from_worker_outcome
 
-        def baseline(inputs: dict[str, Any]) -> bool:
+        def baseline(inputs: Mapping[str, Any]) -> bool:
             return _should_learn_from_worker_outcome(
                 str(inputs.get("status") or ""), inputs
             )
