@@ -444,3 +444,31 @@ def test_real_git_rollback_restores_original_tree(tmp_path):
     assert outcome["restored_tree"] == worker._git(
         ["rev-parse", previous + "^{tree}"], repo
     ).strip()
+
+
+def test_missing_trusted_regression_is_blocked_before_worktree(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    worker = EngineeringEvolutionWorker(repo, tmp_path / "audit.sqlite")
+    result = worker.propose(
+        "fix worker cancellation",
+        "old behavior treats requested cancellation as failure",
+        "--- a/worker.py\n+++ b/worker.py\n",
+    )
+    assert result == {
+        "status": "blocked",
+        "reason": "independent_functional_regression_test_required",
+    }
+    assert list(worker.root.iterdir()) == []
+
+
+def test_engineering_api_accepts_trusted_test_reference_without_prompt():
+    from apps.routes.governance import EvolutionRequest
+
+    request = EvolutionRequest(
+        objective="fix task cancellation",
+        hypothesis="requested cancellation should not create failure lessons",
+        patch="--- a/triade/worker.py\n+++ b/triade/worker.py\n",
+        regression_test="tests/test_worker_failure_ab.py",
+    )
+    assert request.regression_test == "tests/test_worker_failure_ab.py"
