@@ -1,0 +1,48 @@
+name: Failure AB Fast Gate
+
+on:
+  pull_request:
+    paths:
+      - "triade/self_improvement/failure_ab.py"
+      - "triade/self_improvement/worker_failure_ab.py"
+      - "triade/neurons/curriculum.py"
+      - "triade/neurons/domain_admission.py"
+      - "triade/workers/**"
+      - "triade/constitution/autonomy.py"
+      - "tests/test_failure_ab.py"
+      - "tests/test_worker_failure_ab.py"
+      - "tests/test_domain_admission.py"
+      - "tests/test_failures_become_knowledge.py"
+      - ".github/workflows/failure-ab-fast.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scoped-gate:
+    name: Scoped failure learning regression (Python)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]'
+      - name: Python static checks
+        run: |
+          ruff check triade/self_improvement/failure_ab.py triade/self_improvement/worker_failure_ab.py triade/workers/worker_loop.py triade/workers/mission_planner.py tests/test_failure_ab.py tests/test_worker_failure_ab.py
+          ruff format --check triade/self_improvement/failure_ab.py triade/self_improvement/worker_failure_ab.py tests/test_failure_ab.py tests/test_worker_failure_ab.py
+          mypy triade/self_improvement/failure_ab.py triade/self_improvement/worker_failure_ab.py
+      - name: Targeted A/B and worker learning tests
+        run: |
+          pytest -q -x tests/test_failure_ab.py tests/test_worker_failure_ab.py tests/test_domain_admission.py tests/test_failures_become_knowledge.py
