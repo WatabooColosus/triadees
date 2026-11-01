@@ -7,6 +7,7 @@ la política del worker vivo. Los casos sin procedencia concordante se descartan
 Esto compara políticas de clasificación de incidentes, NO demuestra por sí
 solo que una reparación funcional de una tarea arregle su causa de origen.
 """
+
 from __future__ import annotations
 
 import hashlib
