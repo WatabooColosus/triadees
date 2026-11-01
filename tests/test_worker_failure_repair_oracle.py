@@ -5,6 +5,7 @@ EngineeringEvolutionWorker activa este oráculo determinista *solo* al probar
 la receta correspondiente en worktrees Git aislados. Los tests y su SHA
 permanecen idénticos en A y B; jamás proceden del incidente ni del parche.
 """
+
 import os
 
 import pytest
