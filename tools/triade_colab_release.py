@@ -514,6 +514,4 @@ def learning_start(context):
         models = learning.prepare_models(context)
     except learning.NotReady as exc:
         return {"status": "blocked", "reason": str(exc), "learned": False}
-    return {"models": models, **learning.start(context)}
-
-# Canal Colab R7.15: aprendizaje verificado automático.
+    return {"models": models, **learning.start(context)}  # Colab R7.15 automático
