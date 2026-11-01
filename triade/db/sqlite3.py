@@ -151,7 +151,11 @@ def resource_metrics(database: str | Path) -> dict[str, int | float]:
         # when psutil cannot identify the process, so keep the conversion
         # conservative and positive for health/readiness consumers.
         usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-        rss_mb = round(usage / (1024 * 1024), 2) if usage > 1024 * 1024 else round(usage / 1024, 2)
+        rss_mb = (
+            round(usage / (1024 * 1024), 2)
+            if usage > 1024 * 1024
+            else round(usage / 1024, 2)
+        )
     return {
         **connection_metrics(),
         "db_file_descriptors": sqlite_descriptors,
