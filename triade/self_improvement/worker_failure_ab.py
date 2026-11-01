@@ -9,6 +9,7 @@ solo que una reparación funcional de una tarea arregle su causa de origen.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Mapping
 from pathlib import Path
@@ -25,7 +26,7 @@ _SUPPORTED_STATUSES = frozenset(
      "lease_lost", "blocked"}
 )
 _SOURCE_EVENT_LIMIT = 300
-_MIN_CASES = 8
+_MIN_CASES = 11
 
 
 def _explicit_cancellation(payload: Mapping[str, Any]) -> bool:
@@ -77,8 +78,6 @@ class WorkerFailureABRunner:
                     "SELECT name FROM sqlite_master WHERE type='table'"
                 )
             }
-            if not {"worker_events", "worker_tasks"} <= names:
-                return []
             rows = conn.execute(
                 """SELECT e.id AS event_id,e.task_id,e.task_type,
                           e.run_ref AS event_run,e.event_type,
@@ -90,7 +89,7 @@ class WorkerFailureABRunner:
                    WHERE e.event_type LIKE 'task_%'
                    ORDER BY e.id DESC LIMIT ?""",
                 (_SOURCE_EVENT_LIMIT,),
-            ).fetchall()
+            ).fetchall() if {"worker_events", "worker_tasks"} <= names else []
         observations = []
         seen_tasks: set[int] = set()
         for row in rows:
@@ -121,8 +120,100 @@ class WorkerFailureABRunner:
                 "status": status,
                 "payload": payload,
                 "expected": _classification_label(status, payload),
+                "source_ref": f"worker-event:{row['event_id']}",
             })
-        return sorted(observations, key=lambda x: x["event_id"])
+        observations.extend(self._load_v2_observations())
+        return sorted(observations, key=lambda x: str(x["source_ref"]))
+
+    def _load_v2_observations(self) -> list[dict[str, Any]]:
+        """Solo estados terminales con transición y artefacto canónico íntegro."""
+        with sqlite3.connect(
+            self.db_path.resolve().as_uri() + "?mode=ro", uri=True
+        ) as conn:
+            conn.row_factory = sqlite3.Row
+            names = {
+                str(row[0])
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
+            }
+            if not {"autonomous_tasks", "autonomous_task_transitions"} <= names:
+                return []
+            rows = conn.execute(
+                """SELECT t.task_id,t.task_type,t.status,t.worker_id,
+                          t.result_ref,t.lease_generation,
+                          e.transition_id,e.to_status,e.result_ref AS event_ref,
+                          e.worker_id AS event_worker,
+                          e.lease_generation AS event_generation
+                   FROM autonomous_task_transitions e
+                   JOIN autonomous_tasks t ON t.task_id=e.task_id
+                   WHERE e.to_status IN
+                   ('completed','observed','cancelled','blocked',
+                    'failed','dead_letter','timeout','lease_lost')
+                   ORDER BY e.transition_id DESC LIMIT ?""",
+                (_SOURCE_EVENT_LIMIT,),
+            ).fetchall()
+        observations: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for row in rows:
+            task_id = str(row["task_id"] or "")
+            status = str(row["status"] or "")
+            reference = str(row["result_ref"] or "")
+            if (
+                not task_id
+                or task_id in seen
+                or status not in _SUPPORTED_STATUSES
+                or row["to_status"] != status
+                or not reference
+                or reference != row["event_ref"]
+                or row["worker_id"] != row["event_worker"]
+                or row["lease_generation"] != row["event_generation"]
+            ):
+                continue
+            artifact = Path(reference)
+            manifest_file = artifact.parent / "manifest.json"
+            try:
+                if (
+                    artifact.name != "result.json"
+                    or artifact.is_symlink()
+                    or artifact.parent.is_symlink()
+                    or not artifact.is_file()
+                    or not manifest_file.is_file()
+                    or artifact.stat().st_size > 131072
+                    or manifest_file.stat().st_size > 131072
+                ):
+                    continue
+                raw_result = artifact.read_bytes()
+                manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+                payload = json.loads(raw_result)
+            except (OSError, ValueError, TypeError):
+                continue
+            digest = hashlib.sha256(raw_result).hexdigest()
+            if (
+                not isinstance(payload, dict)
+                or not isinstance(manifest, dict)
+                or manifest.get("task_id") != task_id
+                or manifest.get("task_type") != row["task_type"]
+                or manifest.get("worker_id") != row["worker_id"]
+                or manifest.get("status") != status
+                or manifest.get("lease_generation") != row["lease_generation"]
+                or manifest.get("result_hash") != digest
+                or not isinstance(manifest.get("artifact_hashes"), dict)
+                or manifest["artifact_hashes"].get("result.json") != digest
+            ):
+                continue
+            seen.add(task_id)
+            observations.append(
+                {
+                    "event_id": int(row["transition_id"]),
+                    "task_id": "v2-" + task_id,
+                    "status": status,
+                    "payload": payload,
+                    "expected": _classification_label(status, payload),
+                    "source_ref": f"autonomous-transition:{row['transition_id']}",
+                }
+            )
+        return observations
 
     def replay_cases(self) -> list[FailureCase]:
         """Partición por tarea real, sin duplicar el mismo evento.
@@ -157,7 +248,7 @@ class WorkerFailureABRunner:
                             "skipped_reason": payload.get("skipped_reason"),
                         },
                         expected=observation["expected"],
-                        evidence_ref=f"worker-event:{observation['event_id']}",
+                        evidence_ref=str(observation["source_ref"]),
                         safety_critical=(split == "negative"),
                     )
                 )
