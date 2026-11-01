@@ -180,8 +180,11 @@ class DomainAdmissionCoordinator:
             previous = json.loads(prior[0])
             # Idempotencia con reanudación solo cuando cambia el evaluador.
             # Las admisiones sin versión anterior se consideran versión 1.
-            if (previous.get("status") != "training_blocked" or
-                    int(previous.get("curriculum_version", 1)) >= ADMISSION_CURRICULUM_VERSION):
+            if (
+                previous.get("status") != "training_blocked"
+                or int(previous.get("curriculum_version", 1))
+                >= ADMISSION_CURRICULUM_VERSION
+            ):
                 return previous
         candidate_id = admission["candidate_id"]
         self.router._verified_candidate(candidate_id)
