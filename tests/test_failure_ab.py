@@ -169,7 +169,8 @@ def test_same_frozen_suite_cannot_repeat_holdout(tmp_path):
     second = _run(db, [CandidateVariant("B1", forbidden)])
     assert second == first
     with sqlite3.connect(db) as conn:
-        count = conn.execute("SELECT COUNT(*) FROM failure_ab_experiments").fetchone()[0]
+        cursor = conn.execute("SELECT COUNT(*) FROM failure_ab_experiments")
+        count = cursor.fetchone()[0]
     assert count == 1
 
 
