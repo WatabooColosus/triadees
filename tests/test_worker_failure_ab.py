@@ -213,3 +213,48 @@ def test_v2_receipts_provide_real_cases_without_legacy_events(tmp_path):
     )
     assert outcome["winner"] == "B1-explicit-cancellation"
     assert outcome["stable_memory_written"] is False
+
+
+def test_real_worker_outcomes_autonomously_generate_formal_regression(tmp_path):
+    db = _database(tmp_path)
+    _fill_independent_cohort(db)
+    with sqlite3.connect(db) as conn:
+        for column in (
+            "candidate_id", "suite_id", "suite_version",
+            "baseline_evaluation_id", "candidate_evaluation_id",
+            "metadata_json", "created_at",
+        ):
+            conn.execute(f"ALTER TABLE regression_reports ADD COLUMN {column} TEXT")
+    runner = WorkerFailureABRunner(db)
+    assert runner.pending_auto_measurement() is True
+    plan = MissionPlanner(db)._plan_failure_ab_evaluation()
+    assert len(plan) == 1
+    assert plan[0].payload == {"mode": "auto_measure"}
+    result = runner.evaluate_auto()
+    assert result["ab_verdict"] == "eligible_for_governed_review"
+    assert result["stable_memory_written"] is False
+    assert result["activated"] is False
+    with sqlite3.connect(db) as conn:
+        row = conn.execute(
+            "SELECT decision,metadata_json FROM regression_reports "
+            "WHERE suite_id='worker-outcome-classification'"
+        ).fetchone()
+    assert row is not None
+    assert row[0] == "fail"
+    assert len(json.loads(row[1])["case_refs"]) == 11
+    assert MissionPlanner(db)._plan_failure_ab_evaluation() == []
+
+
+def test_auto_measurement_refuses_cohort_without_measured_gap(tmp_path):
+    db = _database(tmp_path)
+    _fill_independent_cohort(db)
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "UPDATE worker_tasks SET status='completed', "
+            "result_json='{}' WHERE id IN (11,12,13)"
+        )
+        conn.execute(
+            "UPDATE worker_events SET event_type='task_completed', "
+            "payload_json='{}' WHERE task_id IN (11,12,13)"
+        )
+    assert WorkerFailureABRunner(db).pending_auto_measurement() is False
