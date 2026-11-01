@@ -258,7 +258,14 @@ def test_real_worker_outcomes_autonomously_generate_formal_regression(tmp_path):
     assert row is not None
     assert row[0] == "fail"
     assert len(json.loads(row[1])["case_refs"]) == 11
-    assert MissionPlanner(db)._plan_failure_ab_evaluation() == []
+    # No se repite la medición; solo puede continuar la reparación gobernada.
+    followup = MissionPlanner(db)._plan_failure_ab_evaluation()
+    assert len(followup) == 1
+    assert followup[0].source == "verified_worker_failure"
+    assert followup[0].payload == {
+        "mode": "functional_repair",
+        "evidence_ref": "worker-event:13",
+    }
 
 
 def test_auto_measurement_refuses_cohort_without_measured_gap(tmp_path):
@@ -312,7 +319,17 @@ def test_canary_uses_only_events_after_offline_experiment(tmp_path):
     assert result["production_effect_applied"] is False
     assert result["stable_memory_written"] is False
     assert canary.ready() is False
-    assert MissionPlanner(db)._plan_failure_ab_evaluation() == []
+    # La cohorte del canary queda consumida; una reparación requiere su propio gate.
+    followup = MissionPlanner(db)._plan_failure_ab_evaluation()
+    assert len(followup) == 1
+    assert followup[0].source == "verified_worker_failure"
+    assert followup[0].payload.get("mode") == "functional_repair"
+    assert followup[0].payload.get("evidence_ref") in {
+        "worker-event:11",
+        "worker-event:12",
+        "worker-event:13",
+        "worker-event:304",
+    }
 
 
 def test_shadow_canary_cannot_reuse_training_cases(tmp_path):
