@@ -2,7 +2,7 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 24,
+  "sequence": 25,
   "version": "R7.17.0-scheduler-health",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
@@ -47,7 +47,7 @@
       "sha256": "2ecd09ca7c6500014d22afc4943f8a84ed50c2454412e443b4595919b413cd1c"
     },
     "worker_state_store": {
-      "path": "tools/colab_runtime_payloads/state_store.py",
+      "path": "triade/workers/state_store.py",
       "sha256": "12fd5e1d4d4b495a1ebd6d26d87578fabb0ebb77edc32bed5e7a1fa99cf97bda"
     }
   }
