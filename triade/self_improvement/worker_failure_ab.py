@@ -310,13 +310,16 @@ class WorkerFailureABRunner:
                 )
             }
             if "regression_reports" in tables:
-                attempts = conn.execute(
-                    "SELECT COUNT(*) FROM regression_reports "
-                    "WHERE suite_id='worker-outcome-classification'"
-                ).fetchone()[0] if "suite_id" in {
+                columns = {
                     str(c[1])
                     for c in conn.execute("PRAGMA table_info(regression_reports)")
-                } else 0
+                }
+                attempts = 0
+                if "suite_id" in columns:
+                    attempts = conn.execute(
+                        "SELECT COUNT(*) FROM regression_reports "
+                        "WHERE suite_id='worker-outcome-classification'"
+                    ).fetchone()[0]
                 if attempts >= 5:
                     return False
             if "failure_ab_experiments" in tables:
@@ -435,6 +438,7 @@ class WorkerFailureABRunner:
                 "cases": len(cases),
                 "stable_memory_written": False,
             }
+
         # El oráculo vuelve a leer los registros independientemente de las
         # funciones comparadas: un cambio en una variante no cambia la etiqueta.
         def oracle(case: FailureCase) -> bool:
