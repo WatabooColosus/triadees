@@ -20,7 +20,7 @@ from .engineering_worker import EngineeringEvolutionWorker, EvolutionBudget
 
 REPAIR_PROTOCOL_VERSION = "worker-repair-v1"
 REPAIR_RULE = "requested_cancellation_marked_failed"
-REPAIR_TEST = "tests/test_failures_become_knowledge.py"
+REPAIR_TEST = "tests/test_worker_failure_repair_oracle.py"
 REPAIR_TARGET = "triade/workers/worker_loop.py"
 MAX_TRIALS_PER_SOURCE = 2
 MAX_INCIDENTS_PER_REVISION = 2
