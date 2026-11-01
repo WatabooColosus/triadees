@@ -1,10 +1,10 @@
 {
   "project": "triadees",
-  "latest_version": "5.8.0",
-  "channel": "stable-candidate",
-  "branch": "codex/triade-5.8.0-runtime-recovery",
-  "commit": "c269bdf06599d183e89b712f203d68f4fa2f9673",
-  "release_path": "releases/5.8.0/README.md",
-  "updated_at": "2026-10-22T02:24:23Z",
-  "requires_review": true
+  "latest_version": "7.17.0",
+  "channel": "stable",
+  "branch": "main",
+  "commit": "bb5e3f35e0aec6ee9d3a2cc71b216507247d0e34",
+  "release_path": "releases/7.17.0/README.md",
+  "updated_at": "2026-11-01T07:45:00Z",
+  "requires_review": false
 }
