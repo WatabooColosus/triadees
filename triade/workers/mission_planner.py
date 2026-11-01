@@ -1084,7 +1084,18 @@ class MissionPlanner:
                     if "failure_ab_experiments" in tables
                     else set()
                 )
-            if not WorkerFailureABRunner(self.db_path).replay_cases():
+            runner = WorkerFailureABRunner(self.db_path)
+            if runner.pending_auto_measurement():
+                return [
+                    PlannedTask(
+                        task_type="failure_ab_evaluation",
+                        priority=7,
+                        reason="Regresión real de clasificación medida automáticamente",
+                        source="worker_failure_observation",
+                        payload={"mode": "auto_measure"},
+                    )
+                ]
+            if not runner.replay_cases():
                 return []
             for report in reports:
                 report_id = str(report["report_id"])
