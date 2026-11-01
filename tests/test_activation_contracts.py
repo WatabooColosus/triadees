@@ -16,6 +16,7 @@ Las tres que importan:
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 
@@ -308,12 +309,20 @@ def test_todos_los_contratos_declarados_se_sostienen_en_la_base_viva():
         load_contracts,
     )
 
+    # La base que crean otras pruebas durante CI no es memoria viva de
+    # producción y no puede demostrar `rows_present`. La auditoría de esa
+    # evidencia se ejecuta sólo cuando el operador la solicita explícitamente;
+    # la verificación estructural de los contratos sigue siendo obligatoria en
+    # cada ejecución.
+    if os.getenv("TRIADE_VERIFY_LIVE_DB") != "1":
+        pytest.skip(
+            "auditoría de memoria viva desactivada; use TRIADE_VERIFY_LIVE_DB=1"
+        )
+
     # Absoluta desde `ROOT`: con ruta relativa el test se saltaba en silencio
     # según desde dónde se invocara pytest, que es la peor forma de no probar.
     db = ROOT / "triade" / "memory" / "triade.db"
     if not db.is_file():
-        import pytest
-
         pytest.skip("sin base viva: la evidencia de runtime no se puede comprobar")
 
     contratos = load_contracts()

@@ -71,7 +71,14 @@ def test_las_sondas_estaticas_no_se_repiten_dentro_del_ttl(monkeypatch):
     son estáticos y ninguno es VRAM libre, así que cachearlos no esconde ningún
     dato vivo.
     """
+    import shutil
+
+    import pytest
+
     from triade.models import hardware_profile as hp
+
+    if not any(shutil.which(tool) for tool in ("nvidia-smi", "lspci")):
+        pytest.skip("sin sonda de GPU disponible en este runner")
 
     hp.reset_static_probes()
     llamadas: list[list[str]] = []
