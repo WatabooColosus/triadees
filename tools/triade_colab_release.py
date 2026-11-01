@@ -311,7 +311,9 @@ def _apply_runtime_path_patches(context):
                 raise RuntimeError("SHA del runtime instalado no coincide: " + name)
             installed.append({"component": name, "path": relative, "sha256": digest})
         r5.start_real_backend()
-        with urllib.request.urlopen("http://127.0.0.1:8010/health/live", timeout=15) as response:
+        with urllib.request.urlopen(
+            "http://127.0.0.1:8010/health/live", timeout=15
+        ) as response:
             if response.status != 200:
                 raise RuntimeError("API sin HTTP 200 después de parches de runtime")
     except Exception:
@@ -324,7 +326,11 @@ def _apply_runtime_path_patches(context):
         except (OSError, RuntimeError, ValueError, TypeError):
             pass
         raise
-    return {"status": "patched_and_restarted", "restarted": True, "components": installed}
+    return {
+        "status": "patched_and_restarted",
+        "restarted": True,
+        "components": installed,
+    }
 
 
 def _learning(context):
