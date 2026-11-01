@@ -251,6 +251,7 @@ def _apply_router_patch(context):
 
 def _apply_runtime_path_patches(context):
     """Apply immutable package-data path fixes to the verified R5 checkout."""
+    # Release candidate includes the verified worker schema resolver.
     components = {
         "worker_state_store": "triade/workers/state_store.py",
         "neuron_activity_schema": "triade/core/neuron_activity_store.py",
