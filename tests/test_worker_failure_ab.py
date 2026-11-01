@@ -5,6 +5,7 @@ import json
 import sqlite3
 
 from triade.self_improvement.worker_failure_ab import WorkerFailureABRunner
+from triade.self_improvement.worker_failure_canary import WorkerFailureShadowCanary
 from triade.workers.mission_planner import MissionPlanner
 
 
@@ -262,3 +263,59 @@ def test_auto_measurement_refuses_cohort_without_measured_gap(tmp_path):
             "payload_json='{}' WHERE task_id IN (11,12,13)"
         )
     assert WorkerFailureABRunner(db).pending_auto_measurement() is False
+
+
+def test_canary_uses_only_events_after_offline_experiment(tmp_path):
+    db = _database(tmp_path)
+    with sqlite3.connect(db) as conn:
+        conn.execute("ALTER TABLE worker_events ADD COLUMN created_at TEXT")
+    _fill_independent_cohort(db)
+    baseline = WorkerFailureABRunner(db).evaluate(
+        "real-report", "worker_outcome_classification"
+    )
+    assert baseline["eligible_for_canary"] is True
+    canary = WorkerFailureShadowCanary(db)
+    assert canary.ready() is False
+    assert canary.observe()["status"] == "no_evidence"
+    for task_id, status, payload in (
+        (301, "failed", {"error": "verified_fault"}),
+        (302, "blocked", {"error": "verified_fault"}),
+        (303, "timeout", {"error": "verified_fault"}),
+        (304, "failed", {"reason": "cancellation_requested"}),
+        (305, "completed", {"status": "completed"}),
+    ):
+        _event(db, task_id, status, payload)
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "UPDATE worker_events SET created_at='2099-04-04T14:00:00+00:00' "
+            "WHERE task_id >= 301"
+        )
+    assert canary.ready() is True
+    plan = MissionPlanner(db)._plan_failure_ab_evaluation()
+    assert len(plan) == 1
+    assert plan[0].payload == {"mode": "shadow_canary"}
+    result = canary.observe()
+    assert result["shadow_verdict"] == "supported"
+    assert result["evaluated_cases"] == 5
+    assert result["operational_causality_proven"] is False
+    assert result["production_effect_applied"] is False
+    assert result["stable_memory_written"] is False
+    assert canary.ready() is False
+    assert MissionPlanner(db)._plan_failure_ab_evaluation() == []
+
+
+def test_shadow_canary_cannot_reuse_training_cases(tmp_path):
+    db = _database(tmp_path)
+    with sqlite3.connect(db) as conn:
+        conn.execute("ALTER TABLE worker_events ADD COLUMN created_at TEXT")
+    _fill_independent_cohort(db)
+    WorkerFailureABRunner(db).evaluate(
+        "real-report", "worker_outcome_classification"
+    )
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "UPDATE worker_events SET created_at='2099-04-04T14:00:00+00:00'"
+        )
+    canary = WorkerFailureShadowCanary(db)
+    assert canary.ready() is False
+    assert canary.observe()["status"] == "no_evidence"
