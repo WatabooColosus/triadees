@@ -1,11 +1,14 @@
 """Regresión: ninguna versión se aprueba por repetir prompts o inventar usos."""
+
 import json
 import sqlite3
 
 import pytest
 
 from triade.self_improvement.failure_ab import (
-    CandidateVariant, FailureABGate, FailureCase,
+    CandidateVariant,
+    FailureABGate,
+    FailureCase,
 )
 
 
