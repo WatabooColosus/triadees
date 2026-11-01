@@ -58,7 +58,9 @@ def _event(db, task_id, status, payload):
             (task_id, task_type, status, json.dumps(payload), run_ref),
         )
         conn.execute(
-            "INSERT INTO worker_events VALUES (?,?,?,?,?,?)",
+            "INSERT INTO worker_events "
+            "(id,task_id,task_type,run_ref,event_type,payload_json) "
+            "VALUES (?,?,?,?,?,?)",
             (
                 task_id,
                 task_id,
