@@ -81,6 +81,7 @@ class MissionPlanner:
 
         tasks.extend(self._plan_baseline())
         tasks.extend(self._plan_unharvested_regressions())
+        tasks.extend(self._plan_failure_ab_evaluation())
         tasks.extend(self._plan_pending_learning())
         tasks.extend(self._plan_failed_recent())
         tasks.extend(self._plan_memory_consolidation())
@@ -1053,6 +1054,68 @@ class MissionPlanner:
             )
 
         return tasks
+
+    def _plan_failure_ab_evaluation(self) -> list[PlannedTask]:
+        """Solo planifica A/B con regresión real y casos distintos suficientes."""
+        try:
+            from triade.self_improvement.worker_failure_ab import WorkerFailureABRunner
+
+            with closing(self._connect()) as conn:
+                tables = {
+                    str(row[0])
+                    for row in conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table'"
+                    )
+                }
+                if "regression_reports" not in tables:
+                    return []
+                reports = conn.execute(
+                    "SELECT report_id,findings_json FROM regression_reports "
+                    "WHERE decision='fail' AND capability='worker_failure' "
+                    "ORDER BY rowid DESC LIMIT 10"
+                ).fetchall()
+                completed = (
+                    {
+                        str(row[0])
+                        for row in conn.execute(
+                            "SELECT report_id FROM failure_ab_experiments"
+                        )
+                    }
+                    if "failure_ab_experiments" in tables
+                    else set()
+                )
+            if not WorkerFailureABRunner(self.db_path).replay_cases():
+                return []
+            for report in reports:
+                report_id = str(report["report_id"])
+                if report_id in completed:
+                    continue
+                findings = json.loads(report["findings_json"] or "[]")
+                if not isinstance(findings, list):
+                    continue
+                if any(
+                    isinstance(item, dict)
+                    and item.get("metric_id") == "worker_outcome_classification"
+                    and item.get("status") == "fail"
+                    for item in findings
+                ):
+                    return [
+                        PlannedTask(
+                            task_type="failure_ab_evaluation",
+                            priority=7,
+                            reason="Regresión real con casos independientes para A/B",
+                            source="worker_failure_regression",
+                            payload={
+                                "regression_report_id": report_id,
+                                "metric_id": "worker_outcome_classification",
+                            },
+                        )
+                    ]
+        except MISSION_PLANNER_ERRORS as exc:
+            record_internal_error(
+                "mission_planner.failure_ab", exc, db_path=self.db_path
+            )
+        return []
 
     def _plan_unharvested_regressions(self) -> list[PlannedTask]:
         """Despierta la cosecha de regresiones sin depender de learning_queue.
