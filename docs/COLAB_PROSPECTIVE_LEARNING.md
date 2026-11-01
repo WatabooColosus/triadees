@@ -7,12 +7,18 @@ admisión conservaba `training_blocked: independent_transfer_evaluator_unavailab
 El contenido era un objetivo de evitar un timeout, no una regla de transferencia
 con un oráculo independiente. No se convierte ese objetivo en conocimiento aplicado.
 
-La publicación añade al mismo panel dos acciones:
+El aprendizaje verificado forma parte del ciclo continuo interno. Al montar o
+reutilizar el runtime verificado, Tríade lo inicia automáticamente y mantiene un
+monitor de progreso idempotente; no hace falta ejecutar otra celda ni pulsar un
+botón de inicio. El panel conserva una acción de consulta:
 
 - **Ver circuito de aprendizaje** consulta modelos, lecciones, material, misiones,
   presupuestos y bloqueos de admisión sin modificar SQLite.
-- **Iniciar aprendizaje verificado** prepara el embedding que falte y ejecuta una
-  evaluación experimental acotada, con las cuotas y los filtros nativos.
+
+El arranque automático prepara el embedding que falte y ejecuta evaluaciones
+experimentales acotadas, con las cuotas y los filtros nativos. Si un modelo,
+presupuesto, evidencia o verificador no está disponible, el ciclo registra el
+bloqueo y continúa con el resto de Tríade; no fuerza una aplicación insegura.
 
 La solicitud explícita permite examinar ahora una neurona experimental aunque su
 revisión ordinaria esté programada para después. No cambia esa fecha manualmente,
