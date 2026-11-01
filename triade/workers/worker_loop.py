@@ -3249,9 +3249,13 @@ class WorkerLoop:
 
         report_id = str(task.payload.get("regression_report_id") or "")
         metric_id = str(task.payload.get("metric_id") or "")
-        if not report_id or not metric_id:
+        runner = WorkerFailureABRunner(self.db_path)
+        if task.payload.get("mode") == "auto_measure":
+            result = runner.evaluate_auto()
+        elif report_id and metric_id:
+            result = runner.evaluate(report_id, metric_id)
+        else:
             return {"status": "observed", "reason": "missing_regression_identity"}
-        result = WorkerFailureABRunner(self.db_path).evaluate(report_id, metric_id)
         (task_dir / "failure-ab-result.json").write_text(
             json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
         )
