@@ -14,7 +14,10 @@ class NeuronActivityStore:
 
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)
-        self.schema_path = Path("triade/memory/schemas.sql")
+        # Colab may restore the package from a mounted Drive path while the
+        # process cwd remains /content. Resolve package data from this module,
+        # never from the transient cwd.
+        self.schema_path = Path(__file__).resolve().parents[1] / "memory/schemas.sql"
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 

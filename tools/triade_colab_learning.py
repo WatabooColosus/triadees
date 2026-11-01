@@ -12,6 +12,7 @@ import json
 import math
 import statistics
 import threading
+import traceback
 import uuid
 from html import escape
 from pathlib import Path
@@ -702,6 +703,8 @@ def start(context):
                     {
                         "reason": "study_stopped",
                         "error_type": type(exc).__name__,
+                        "error": str(exc)[:1000],
+                        "traceback": traceback.format_exc(limit=8)[-4000:],
                         "at": dt.datetime.now(dt.UTC).isoformat(),
                     },
                 )

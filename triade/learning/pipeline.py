@@ -150,7 +150,9 @@ class LearningPipeline:
             if enforce_model_policy is None
             else bool(enforce_model_policy)
         )
-        self.schema_path = Path("triade/memory/schemas.sql")
+        # Resolve the schema beside the installed package. Colab commonly
+        # executes from /content while this release lives under Drive.
+        self.schema_path = Path(__file__).resolve().parents[1] / "memory/schemas.sql"
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
         # Reutiliza la maquinaria semántica para la consolidación a memoria estable.
