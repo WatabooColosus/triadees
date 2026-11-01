@@ -88,6 +88,12 @@ def _refresh_worker_runtime_modules(*, reload_runner=False):
     new TriadeRunner, otherwise learning would continue using the pre-patch
     schema resolver.
     """
+    # The reload is only safe in the live Colab runtime. In ordinary test
+    # processes, reloading worker_loop replaces its class object while spawned
+    # multiprocessing tasks still reference the previous class, causing
+    # PicklingError ("it's not the same object").
+    if not Path("/content/Triade").is_dir():
+        return
     importlib.invalidate_caches()
     names = (
         "triade.workers.state_store",
