@@ -183,7 +183,9 @@ def test_iso_errors_outside_the_window_do_not_degrade_health(tmp_path: Path) -> 
     assert "repeated_worker_errors" not in health.reasons
 
 
-def test_recoverable_worker_errors_do_not_degrade_active_scheduler(tmp_path: Path) -> None:
+def test_recoverable_worker_errors_do_not_degrade_active_scheduler(
+    tmp_path: Path,
+) -> None:
     """Errores recuperables con progreso reciente no deben oscilar el scheduler."""
     db = _db(tmp_path)
     _heartbeat(db)

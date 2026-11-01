@@ -198,8 +198,7 @@ class ServiceHealth:
                     # correctos. El error sólo es una señal de atasco cuando no
                     # hay transición reciente en la cola viva.
                     errors_without_progress = (
-                        int(repeated) >= 5
-                        and queue_moved_recently is not True
+                        int(repeated) >= 5 and queue_moved_recently is not True
                     )
                     metrics["errors_without_progress"] = errors_without_progress
                     if errors_without_progress:
