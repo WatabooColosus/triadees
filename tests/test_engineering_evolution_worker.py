@@ -325,3 +325,122 @@ def test_certification_rejects_zero_collected_cases(tmp_path):
     assert receipt["tests"] == 0
     assert receipt["assertion_failure_verified"] is False
     assert receipt["passed"] is False
+
+
+def test_certified_patch_mutation_blocks_approval(tmp_path):
+    import json
+    import sqlite3
+
+    repo = tmp_path / "repo"
+    (repo / "triade").mkdir(parents=True)
+    candidate = repo / "triade" / "worker_policy.py"
+    candidate.write_text("BUG_FIXED = True\n", encoding="utf-8")
+    worker = EngineeringEvolutionWorker(repo, tmp_path / "audit.sqlite")
+    original_digest = worker._files_digest(repo, ["triade/worker_policy.py"])
+    with sqlite3.connect(worker.db_path) as conn:
+        conn.execute(
+            "INSERT INTO engineering_evolution_runs "
+            "(evolution_id,objective,hypothesis,baseline_commit,"
+            "worktree_path,status,budget_json,changed_files_json,review_json) "
+            "VALUES(?,?,?,?,?,?,?,?,?)",
+            (
+                "candidate-a", "repair", "replay", "BASE", str(repo),
+                "awaiting_approval", json.dumps({}),
+                json.dumps(["triade/worker_policy.py"]),
+                json.dumps({
+                    "decision": "accept_candidate",
+                    "measured_functional_repair": True,
+                    "rollback_verified": True,
+                    "candidate_tree_digest": original_digest,
+                }),
+            ),
+        )
+    candidate.write_text("BUG_FIXED = False\n", encoding="utf-8")
+    result = worker.approve_and_commit("candidate-a", approved_by="reviewer")
+    assert result["status"] == "blocked"
+    assert result["reason"] == "certified_patch_mutated"
+
+
+def test_deployment_requires_exact_tested_baseline(tmp_path):
+    import json
+    import sqlite3
+    import subprocess
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("stable\n", encoding="utf-8")
+    for cmd in (
+        ["git", "init"],
+        ["git", "config", "user.name", "Tríade test"],
+        ["git", "config", "user.email", "test@example.invalid"],
+        ["git", "add", "."],
+        ["git", "commit", "-m", "trusted-base"],
+    ):
+        subprocess.run(cmd, cwd=repo, capture_output=True, check=True)
+    worker = EngineeringEvolutionWorker(repo, tmp_path / "audit.sqlite")
+    with sqlite3.connect(worker.db_path) as conn:
+        conn.execute(
+            "INSERT INTO engineering_evolution_runs "
+            "(evolution_id,objective,hypothesis,baseline_commit,"
+            "worktree_path,status,budget_json,review_json,commit_hash) "
+            "VALUES(?,?,?,?,?,?,?,?,?)",
+            (
+                "candidate-b", "repair", "replay", "OUTDATED",
+                str(repo), "approved_commit", "{}",
+                json.dumps({
+                    "decision": "accept_candidate",
+                    "measured_functional_repair": True,
+                    "rollback_verified": True,
+                }), "FAKE",
+            ),
+        )
+    result = worker.deploy("candidate-b", approved_by="reviewer")
+    assert result["status"] == "blocked"
+    assert result["reason"] == "deployment_baseline_changed"
+
+
+def test_real_git_rollback_restores_original_tree(tmp_path):
+    import json
+    import sqlite3
+    import subprocess
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    source = repo / "worker.py"
+    source.write_text("VALUE = 0\n", encoding="utf-8")
+    for cmd in (
+        ["git", "init"],
+        ["git", "config", "user.name", "Tríade test"],
+        ["git", "config", "user.email", "test@example.invalid"],
+        ["git", "add", "."],
+        ["git", "commit", "-m", "stable"],
+    ):
+        subprocess.run(cmd, cwd=repo, capture_output=True, check=True)
+    worker = EngineeringEvolutionWorker(repo, tmp_path / "audit.sqlite")
+    previous = worker._git(["rev-parse", "HEAD"], repo).strip()
+    source.write_text("VALUE = 1\n", encoding="utf-8")
+    for cmd in (
+        ["git", "add", "worker.py"],
+        ["git", "commit", "-m", "candidate"],
+    ):
+        subprocess.run(cmd, cwd=repo, capture_output=True, check=True)
+    updated = worker._git(["rev-parse", "HEAD"], repo).strip()
+    with sqlite3.connect(worker.db_path) as conn:
+        conn.execute(
+            "INSERT INTO engineering_evolution_runs "
+            "(evolution_id,objective,hypothesis,baseline_commit,"
+            "worktree_path,status,budget_json,rollback_json) "
+            "VALUES(?,?,?,?,?,?,?,?)",
+            (
+                "rollback-smoke", "repair", "replay", previous,
+                str(worker.root / "unused-worktree"), "deployed_canary",
+                "{}", json.dumps({"commit": updated, "previous": previous}),
+            ),
+        )
+    outcome = worker.rollback("rollback-smoke", approved_by="reviewer")
+    assert outcome["status"] == "rolled_back"
+    assert outcome["rollback_verified"] is True
+    assert source.read_text(encoding="utf-8") == "VALUE = 0\n"
+    assert outcome["restored_tree"] == worker._git(
+        ["rev-parse", previous + "^{tree}"], repo
+    ).strip()
