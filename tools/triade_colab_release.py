@@ -257,6 +257,10 @@ def _apply_runtime_path_patches(context):
         "learning_pipeline_schema": "triade/learning/pipeline.py",
     }
     r5 = context["r5"]
+    # Lightweight installer fixtures do not expose a real checkout. They
+    # exercise the panel contract only and must not enter runtime patching.
+    if not hasattr(r5, "ROOT") or not hasattr(r5, "WORK"):
+        return {"status": "not_applicable", "restarted": False}
     root = Path(r5.ROOT).resolve()
     work = Path(r5.WORK).resolve()
     staged_files = context.get("files", {})
