@@ -376,3 +376,61 @@ def test_resource_only_certification_retry_is_bounded_and_not_a_competence_overr
     payload["arms"]["treatment"] = [{"passed": False, "error": None}]
     receipt(payload)
     assert coordinator.certification_attempt(43) is None
+
+
+def test_training_blocked_retries_only_after_evaluator_version_upgrade(tmp_path, monkeypatch):
+    """Un bloqueo por falta de oráculo no queda eternamente fijado.
+
+    El reintento es autónomo al subir la versión, pero debe seguir bloqueado
+    mientras no exista un evaluador funcional. Nunca se declara competencia.
+    """
+    from triade.neurons import curriculum
+    from triade.workers.mission_planner import MissionPlanner
+
+    db, candidate_id, _ = _prepared_db(tmp_path, baseline_score=0.5)
+    NeuronRegistry(db).update_status("neurona-auditora", "quarantined")
+    coordinator = DomainAdmissionCoordinator(db)
+    admission = coordinator.request(candidate_id, correlation_id="ab-evaluator-retry")
+    formed = coordinator.form(admission["event_id"], correlation_id="ab-evaluator-retry")
+
+    def forbidden(*_args):
+        raise AssertionError("sin oráculo no se invoca el modelo")
+
+    blocked1 = coordinator.train(
+        admission["event_id"], correlation_id="ab-evaluator-retry",
+        generate=forbidden,
+    )
+    assert blocked1["status"] == "training_blocked"
+    assert blocked1["curriculum_version"] == 1
+    assert not any(
+        t.payload.get("admission_phase") == "training"
+        for t in MissionPlanner(db_path=db)._plan_neuron_formation()
+    )
+
+    monkeypatch.setattr(curriculum, "ADMISSION_CURRICULUM_VERSION", 2)
+    plans = MissionPlanner(db_path=db)._plan_neuron_formation()
+    assert any(
+        t.payload.get("admission_event_id") == admission["event_id"]
+        and t.payload.get("admission_phase") == "training"
+        for t in plans
+    )
+    blocked2 = coordinator.train(
+        admission["event_id"], correlation_id="ab-evaluator-retry",
+        generate=forbidden,
+    )
+    assert blocked2["status"] == "training_blocked"
+    assert blocked2["curriculum_version"] == 2
+    with sqlite3.connect(db) as conn:
+        assert conn.execute(
+            "SELECT COUNT(*) FROM neuron_education_events "
+            "WHERE event_type='domain_training_completed' "
+            "AND json_extract(payload_json,'$.admission_event_id')=?",
+            (admission["event_id"],),
+        ).fetchone()[0] == 2
+        assert conn.execute(
+            "SELECT status FROM neurons WHERE id=?", (formed["neuron_id"],)
+        ).fetchone()[0] == "candidate"
+    assert not any(
+        t.payload.get("admission_phase") == "training"
+        for t in MissionPlanner(db_path=db)._plan_neuron_formation()
+    )
