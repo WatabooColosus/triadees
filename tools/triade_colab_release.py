@@ -249,6 +249,84 @@ def _apply_router_patch(context):
     return {"status": "patched_and_restarted", "sha256": digest, "restarted": True}
 
 
+def _apply_runtime_path_patches(context):
+    """Apply immutable package-data path fixes to the verified R5 checkout."""
+    components = {
+        "neuron_activity_schema": "triade/core/neuron_activity_store.py",
+        "neuron_registry_schema": "triade/core/neuron_registry.py",
+        "learning_pipeline_schema": "triade/learning/pipeline.py",
+    }
+    r5 = context["r5"]
+    root = Path(r5.ROOT).resolve()
+    work = Path(r5.WORK).resolve()
+    staged_files = context.get("files", {})
+    prepared = []
+    for name, relative in components.items():
+        staged_path = staged_files.get(name)
+        if not staged_path:
+            continue
+        target = (root / relative).resolve()
+        staged = Path(staged_path).resolve()
+        if (
+            not target.is_file()
+            or target.is_symlink()
+            or not staged.is_file()
+            or staged.is_symlink()
+            or root not in target.parents
+        ):
+            raise RuntimeError("Componente de runtime ausente o inseguro: " + name)
+        source = staged.read_bytes()
+        ast.parse(source.decode("utf-8"), filename=relative)
+        digest = hashlib.sha256(source).hexdigest()
+        if target.read_bytes() != source:
+            prepared.append((name, relative, target, source, digest))
+    if not prepared:
+        return {"status": "already_installed", "restarted": False}
+    if not _center(context)._origin_verified():
+        raise RuntimeError("Checkout R5 no verificado; no sustituir código de runtime")
+
+    from tools.colab_service_lifecycle import stop_owned
+
+    stamp = dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%S%fZ")
+    backup_root = work / "actualizaciones" / "runtime_path_patches" / stamp
+    backup_root.mkdir(parents=True, exist_ok=False)
+    ownership = work / "api_ownership.json"
+    stop_owned(root, ownership, port=8010)
+    installed = []
+    try:
+        for name, relative, target, source, digest in prepared:
+            backup = backup_root / relative
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(target, backup)
+            temporary = target.with_name("." + target.name + ".triade-path-tmp")
+            if temporary.exists() or temporary.is_symlink():
+                raise RuntimeError("Temporal de runtime existente: " + name)
+            fd = os.open(str(temporary), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(source)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, target)
+            if hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+                raise RuntimeError("SHA del runtime instalado no coincide: " + name)
+            installed.append({"component": name, "path": relative, "sha256": digest})
+        r5.start_real_backend()
+        with urllib.request.urlopen("http://127.0.0.1:8010/health/live", timeout=15) as response:
+            if response.status != 200:
+                raise RuntimeError("API sin HTTP 200 después de parches de runtime")
+    except Exception:
+        for _, relative, target, _, _ in prepared:
+            backup = backup_root / relative
+            if backup.is_file():
+                shutil.copy2(backup, target)
+        try:
+            r5.start_real_backend()
+        except (OSError, RuntimeError, ValueError, TypeError):
+            pass
+        raise
+    return {"status": "patched_and_restarted", "restarted": True, "components": installed}
+
+
 def _learning(context):
     if "learning" not in context.get("files", {}):
         return None
@@ -287,12 +365,14 @@ def install(context):
         context["progress"](
             "Actualizando el auditor del panel; Tríade sigue encendida…"
         )
+        runtime_patches = _apply_runtime_path_patches(context)
         router_patch = _apply_router_patch(context)
         protection = _attach_panel_components(context)
         return {
             "status": "ready",
             "dependencies": {"status": "existing_runtime_verified"},
             "runtime": {"state": "already_running_verified"},
+            "runtime_path_patches": runtime_patches,
             "router_patch": router_patch,
             "backup_protection": protection,
         }
@@ -304,12 +384,14 @@ def install(context):
         "already_running_verified",
     ):
         raise RuntimeError("El arranque no terminó verificado")
+    runtime_patches = _apply_runtime_path_patches(context)
     router_patch = _apply_router_patch(context)
     protection = _attach_panel_components(context)
     return {
         "status": "ready",
         "dependencies": dependencies,
         "runtime": result,
+        "runtime_path_patches": runtime_patches,
         "router_patch": router_patch,
         "backup_protection": protection,
     }
