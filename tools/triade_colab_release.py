@@ -256,6 +256,8 @@ def _apply_runtime_path_patches(context):
         "neuron_registry_schema": "triade/core/neuron_registry.py",
         "learning_pipeline_schema": "triade/learning/pipeline.py",
     }
+    if "r5" not in context:
+        return {"status": "not_applicable", "restarted": False}
     r5 = context["r5"]
     # Lightweight installer fixtures do not expose a real checkout. They
     # exercise the panel contract only and must not enter runtime patching.
