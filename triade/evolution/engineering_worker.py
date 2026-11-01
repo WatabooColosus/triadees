@@ -105,12 +105,20 @@ class EngineeringEvolutionWorker:
         patch: str,
         *,
         budget: EvolutionBudget | None = None,
+        regression_test: str | None = None,
     ) -> dict[str, Any]:
         budget = budget or EvolutionBudget()
         eid = "evo-" + uuid.uuid4().hex[:12]
         started = time.monotonic()
         if len(patch.encode()) > budget.max_patch_bytes:
             return {"status": "blocked", "reason": "patch_budget_exceeded"}
+        # El oráculo es una prueba existente en el commit base, no código
+        # que la variante o un prompt puedan introducir o reescribir.
+        if regression_test is not None:
+            try:
+                self._require_trusted_regression_test(regression_test)
+            except (ValueError, RuntimeError) as exc:
+                return {"status": "blocked", "reason": str(exc)}
         baseline = self._git(["rev-parse", "HEAD"], self.repo).strip()
         worktree = self.root / eid
         with sqlite3.connect(self.db_path) as c:
@@ -144,7 +152,17 @@ class EngineeringEvolutionWorker:
                 baseline, eid + "-baseline", budget, started
             )
             candidate_result = self._eval_worktree(worktree, budget, started)
-            review = self._review(baseline_result, candidate_result, changed)
+            repair_evidence = (
+                self._certify_repair_in_worktrees(
+                    baseline, worktree, regression_test, patch, budget, started, eid
+                )
+                if regression_test is not None
+                else None
+            )
+            review = self._review(
+                baseline_result, candidate_result, changed,
+                repair_evidence=repair_evidence,
+            )
             status = (
                 "awaiting_approval"
                 if review["decision"] == "accept_candidate"
@@ -171,6 +189,7 @@ class EngineeringEvolutionWorker:
                 "baseline_commit": baseline,
                 "changed_files": changed,
                 "review": review,
+                "repair_evidence": repair_evidence,
                 "worktree": str(worktree),
             }
         except ENGINEERING_ERRORS as exc:
@@ -319,14 +338,153 @@ class EngineeringEvolutionWorker:
             "commands": results,
         }
 
+    def _require_trusted_regression_test(self, test_path: str) -> None:
+        """Solo un oráculo existente y rastreado en git, fuera del parche."""
+        from pathlib import PurePosixPath
+
+        path = PurePosixPath(test_path)
+        if (
+            not test_path
+            or path.is_absolute()
+            or ".." in path.parts
+            or len(path.parts) != 2
+            or path.parts[0] != "tests"
+            or not path.name.startswith("test_")
+            or path.suffix != ".py"
+            or not (self.repo / test_path).is_file()
+            or (self.repo / test_path).is_symlink()
+        ):
+            raise ValueError("trusted_regression_test_required")
+        try:
+            self._git(["ls-files", "--error-unmatch", "--", test_path], self.repo)
+        except subprocess.CalledProcessError as exc:
+            raise ValueError("tracked_regression_test_required") from exc
+
     @staticmethod
-    def _review(base: dict, candidate: dict, changed: list[str]) -> dict:
-        accept = base.get("passed") and candidate.get("passed")
+    def _run_trusted_regression(
+        root: Path, test_path: str, remaining_seconds: int
+    ) -> dict[str, Any]:
+        cmd = ["python", "-m", "pytest", "-q", "--", test_path]
+        completed = subprocess.run(
+            cmd,
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=max(1, remaining_seconds),
+            env={
+                **os.environ,
+                "TRIADE_RUNTIME_SCOPE": "test",
+                "TRIADE_DISABLE_BACKGROUND": "1",
+            },
+        )
         return {
-            "reviewer": "deterministic_independent_gate",
+            "passed": completed.returncode == 0,
+            "returncode": completed.returncode,
+            "output_sha256": hashlib.sha256(
+                (completed.stdout + completed.stderr).encode()
+            ).hexdigest(),
+        }
+
+    def _certify_repair_in_worktrees(
+        self,
+        baseline_commit: str,
+        candidate_tree: Path,
+        test_path: str,
+        patch: str,
+        budget: EvolutionBudget,
+        started: float,
+        evolution_id: str,
+    ) -> dict[str, Any]:
+        """Prueba regresión A roja, B verde y rollback en otro worktree.
+
+        Nunca modifica el checkout de producción ni toca Bodega.
+        Una regresión normal del suite completo se evalúa por separado.
+        """
+        self._require_trusted_regression_test(test_path)
+        test_bytes = (self.repo / test_path).read_bytes()
+        if (candidate_tree / test_path).read_bytes() != test_bytes:
+            raise ValueError("independent_oracle_changed")
+        baseline_tree = self.root / (evolution_id + "-repair-baseline")
+        rollback_tree = self.root / (evolution_id + "-rollback-probe")
+        self._run(
+            ["git", "worktree", "add", "--detach", str(baseline_tree), baseline_commit],
+            self.repo, 120,
+        )
+        try:
+            if (baseline_tree / test_path).read_bytes() != test_bytes:
+                raise ValueError("independent_oracle_changed")
+            remaining = max(1, int(budget.max_minutes * 60 - (time.monotonic() - started)))
+            baseline = self._run_trusted_regression(
+                baseline_tree, test_path, remaining
+            )
+            remaining = max(1, int(budget.max_minutes * 60 - (time.monotonic() - started)))
+            treatment = self._run_trusted_regression(
+                candidate_tree, test_path, remaining
+            )
+            rollback_verified = self._rollback_probe(
+                baseline_commit, patch, rollback_tree
+            )
+            return {
+                "regression_test": test_path,
+                "oracle_sha256": hashlib.sha256(test_bytes).hexdigest(),
+                "oracle_unchanged": True,
+                "baseline_regression_failed": baseline["returncode"] == 1,
+                "candidate_regression_passed": treatment["passed"],
+                "rollback_verified": rollback_verified,
+                "baseline_receipt": baseline,
+                "candidate_receipt": treatment,
+                "scope": "isolated_functional_regression_only",
+                "production_causality_proven": False,
+                "production_deployed": False,
+            }
+        finally:
+            self._cleanup(baseline_tree)
+
+    def _rollback_probe(
+        self, baseline_commit: str, patch: str, rollback_tree: Path
+    ) -> bool:
+        self._run(
+            ["git", "worktree", "add", "--detach", str(rollback_tree), baseline_commit],
+            self.repo, 120,
+        )
+        # El parche vive fuera de ese worktree para que 'git status' sea exacto.
+        patch_file = self.root / (rollback_tree.name + ".patch")
+        try:
+            patch_file.write_text(patch, encoding="utf-8")
+            self._run(["git", "apply", "--check", str(patch_file)], rollback_tree, 30)
+            self._run(["git", "apply", str(patch_file)], rollback_tree, 30)
+            if not self._git(["status", "--porcelain"], rollback_tree).strip():
+                raise ValueError("rollback_probe_no_effect")
+            self._run(["git", "apply", "-R", str(patch_file)], rollback_tree, 30)
+            return not self._git(["status", "--porcelain"], rollback_tree).strip()
+        finally:
+            patch_file.unlink(missing_ok=True)
+            self._cleanup(rollback_tree)
+
+    @staticmethod
+    def _review(
+        base: dict, candidate: dict, changed: list[str],
+        *, repair_evidence: dict[str, Any] | None = None,
+    ) -> dict:
+        # Un suite verde sin caso roto ANTES del cambio no demuestra reparación.
+        verified_repair = bool(
+            repair_evidence
+            and repair_evidence.get("baseline_regression_failed") is True
+            and repair_evidence.get("candidate_regression_passed") is True
+            and repair_evidence.get("oracle_unchanged") is True
+            and repair_evidence.get("rollback_verified") is True
+        )
+        accept = bool(base.get("passed") and candidate.get("passed") and verified_repair)
+        return {
+            "reviewer": "deterministic_independent_repair_gate",
             "independent_tests": True,
             "baseline_passed": base.get("passed"),
             "candidate_passed": candidate.get("passed"),
+            "measured_functional_repair": verified_repair,
+            "rollback_verified": bool(
+                repair_evidence and repair_evidence.get("rollback_verified")
+            ),
             "changed_files": changed,
             "decision": "accept_candidate" if accept else "reject_candidate",
         }
