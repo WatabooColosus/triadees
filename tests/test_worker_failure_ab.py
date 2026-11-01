@@ -1,4 +1,5 @@
 """El worker autónomo A/B usa observaciones reales y falla cerrado."""
+
 import hashlib
 import json
 import sqlite3
@@ -58,7 +59,11 @@ def _event(db, task_id, status, payload):
         conn.execute(
             "INSERT INTO worker_events VALUES (?,?,?,?,?,?)",
             (
-                task_id, task_id, task_type, run_ref, f"task_{status}",
+                task_id,
+                task_id,
+                task_type,
+                run_ref,
+                f"task_{status}",
                 json.dumps(payload),
             ),
         )
@@ -112,21 +117,16 @@ def test_mismatched_event_and_task_are_never_learning_evidence(tmp_path):
     db = _database(tmp_path)
     _fill_independent_cohort(db)
     with sqlite3.connect(db) as conn:
-        conn.execute(
-            "UPDATE worker_events SET run_ref='other-run' WHERE task_id=11"
-        )
+        conn.execute("UPDATE worker_events SET run_ref='other-run' WHERE task_id=11")
     assert not any(
-        case.case_id == "task-11"
-        for case in WorkerFailureABRunner(db).replay_cases()
+        case.case_id == "task-11" for case in WorkerFailureABRunner(db).replay_cases()
     )
 
 
 def test_no_false_worker_regression_on_unrelated_metric(tmp_path):
     db = _database(tmp_path)
     _fill_independent_cohort(db)
-    result = WorkerFailureABRunner(db).evaluate(
-        "real-report", "unsupported_metric"
-    )
+    result = WorkerFailureABRunner(db).evaluate("real-report", "unsupported_metric")
     assert result["status"] == "no_evidence"
     assert result["stable_memory_written"] is False
 
@@ -152,8 +152,13 @@ def _add_v2_outcome(db, tmp_path, task_id, status, payload):
         conn.execute(
             "INSERT INTO autonomous_tasks VALUES(?,?,?,?,?,?,?)",
             (
-                str(task_id), "pulse_check", status,
-                "worker-1", str(result_path), 1, "{}",
+                str(task_id),
+                "pulse_check",
+                status,
+                "worker-1",
+                str(result_path),
+                1,
+                "{}",
             ),
         )
         conn.execute(
@@ -185,18 +190,17 @@ def test_v2_receipts_provide_real_cases_without_legacy_events(tmp_path):
         ("failed", "timeout", "blocked", "lease_lost", "dead_letter", "failed"),
         start=100,
     ):
-        _add_v2_outcome(
-            db, tmp_path, task_id, status, {"error": "verified_failure"}
-        )
+        _add_v2_outcome(db, tmp_path, task_id, status, {"error": "verified_failure"})
     for task_id in (200, 201, 202):
         _add_v2_outcome(
-            db, tmp_path, task_id, "failed",
+            db,
+            tmp_path,
+            task_id,
+            "failed",
             {"reason": "cancellation_requested"},
         )
     _add_v2_outcome(db, tmp_path, 203, "completed", {"status": "completed"})
-    tamper = _add_v2_outcome(
-        db, tmp_path, 204, "observed", {"status": "observed"}
-    )
+    tamper = _add_v2_outcome(db, tmp_path, 204, "observed", {"status": "observed"})
     tamper.write_text('{"status":"failed"}', encoding="utf-8")
     assert WorkerFailureABRunner(db).replay_cases() == []
     _add_v2_outcome(db, tmp_path, 205, "observed", {"status": "observed"})
