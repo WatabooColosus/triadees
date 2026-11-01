@@ -16,6 +16,7 @@ Las tres que importan:
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 
@@ -313,9 +314,6 @@ def test_todos_los_contratos_declarados_se_sostienen_en_la_base_viva():
     # evidencia se ejecuta sólo cuando el operador la solicita explícitamente;
     # la verificación estructural de los contratos sigue siendo obligatoria en
     # cada ejecución.
-    import os
-    import pytest
-
     if os.getenv("TRIADE_VERIFY_LIVE_DB") != "1":
         pytest.skip("auditoría de memoria viva desactivada; use TRIADE_VERIFY_LIVE_DB=1")
 
