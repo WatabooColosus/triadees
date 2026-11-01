@@ -462,6 +462,13 @@ class EngineeringEvolutionWorker:
                 env={
                     **os.environ,
                     "PYTHONDONTWRITEBYTECODE": "1",
+                    # La prueba preexistente se despierta solo para esta receta;
+                    # CI ordinario no debe tratar un fallo intencional como rojo.
+                    "TRIADE_FUNCTIONAL_REPAIR_PROBE": (
+                        "requested_cancellation_marked_failed"
+                        if test_path == "tests/test_worker_failure_repair_oracle.py"
+                        else ""
+                    ),
                     "TRIADE_RUNTIME_SCOPE": "test",
                     "TRIADE_DISABLE_BACKGROUND": "1",
                 },
