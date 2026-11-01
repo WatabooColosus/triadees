@@ -295,3 +295,33 @@ def test_old_approvals_cannot_bypass_independent_functional_certificate(tmp_path
         "status": "blocked",
         "reason": "functional_certification_required",
     }
+
+
+def test_certification_rejects_broken_test_runner_as_fake_repair(tmp_path):
+    """Un error de importación no es prueba de un defecto funcional reparable."""
+    test_file = tmp_path / "test_broken_oracle.py"
+    test_file.write_text(
+        "from nonexisting_certification_module import missing\n"
+        "\n"
+        "def test_regression():\n"
+        "    assert missing is True\n",
+        encoding="utf-8",
+    )
+    receipt = EngineeringEvolutionWorker._run_trusted_regression(
+        tmp_path, test_file.name, 35
+    )
+    assert receipt["returncode"] != 0
+    assert receipt["assertion_failure_verified"] is False
+    assert receipt["passed"] is False
+    assert receipt["errors"] >= 1
+
+
+def test_certification_rejects_zero_collected_cases(tmp_path):
+    test_file = tmp_path / "test_no_tests.py"
+    test_file.write_text("ANSWER = 42\n", encoding="utf-8")
+    receipt = EngineeringEvolutionWorker._run_trusted_regression(
+        tmp_path, test_file.name, 35
+    )
+    assert receipt["tests"] == 0
+    assert receipt["assertion_failure_verified"] is False
+    assert receipt["passed"] is False
