@@ -3250,7 +3250,13 @@ class WorkerLoop:
         report_id = str(task.payload.get("regression_report_id") or "")
         metric_id = str(task.payload.get("metric_id") or "")
         runner = WorkerFailureABRunner(self.db_path)
-        if task.payload.get("mode") == "auto_measure":
+        if task.payload.get("mode") == "shadow_canary":
+            from triade.self_improvement.worker_failure_canary import (
+                WorkerFailureShadowCanary,
+            )
+
+            result = WorkerFailureShadowCanary(self.db_path).observe()
+        elif task.payload.get("mode") == "auto_measure":
             result = runner.evaluate_auto()
         elif report_id and metric_id:
             result = runner.evaluate(report_id, metric_id)
