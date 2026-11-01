@@ -210,8 +210,29 @@ class EngineeringEvolutionWorker:
         row = self._get(evolution_id)
         if not row or row["status"] != "awaiting_approval":
             return {"status": "blocked", "reason": "candidate_not_awaiting_approval"}
+        try:
+            review = json.loads(row["review_json"] or "{}")
+        except (TypeError, ValueError):
+            return {"status": "blocked", "reason": "invalid_certification_receipt"}
+        if (
+            review.get("decision") != "accept_candidate"
+            or review.get("measured_functional_repair") is not True
+            or review.get("rollback_verified") is not True
+        ):
+            return {"status": "blocked", "reason": "functional_certification_required"}
         wt = Path(row["worktree_path"])
-        self._run(["git", "add", "-A"], wt, 30)
+        changed = json.loads(row["changed_files_json"] or "[]")
+        budget = EvolutionBudget(**json.loads(row["budget_json"]))
+        if not isinstance(changed, list) or not changed:
+            return {"status": "blocked", "reason": "approved_patch_file_list_required"}
+        try:
+            self._validate_files(changed, budget)
+            self._run(["git", "add", "--", *changed], wt, 30)
+            staged = set(self._git(["diff", "--cached", "--name-only"], wt).splitlines())
+            if staged != set(changed):
+                return {"status": "blocked", "reason": "staged_patch_mismatch"}
+        except ENGINEERING_ERRORS as exc:
+            return {"status": "blocked", "reason": "candidate_contents_invalid", "error": str(exc)}
         try:
             self._run(
                 ["git", "commit", "-S", "-m", f"evolution: {row['objective'][:60]}"],
@@ -247,6 +268,16 @@ class EngineeringEvolutionWorker:
         row = self._get(evolution_id)
         if not row or row["status"] != "approved_commit" or not approved_by:
             return {"status": "blocked", "reason": "approved_signed_commit_required"}
+        try:
+            review = json.loads(row["review_json"] or "{}")
+        except (TypeError, ValueError):
+            return {"status": "blocked", "reason": "invalid_certification_receipt"}
+        if (
+            review.get("decision") != "accept_candidate"
+            or review.get("measured_functional_repair") is not True
+            or review.get("rollback_verified") is not True
+        ):
+            return {"status": "blocked", "reason": "functional_certification_required"}
         if self._git(["status", "--porcelain"], self.repo).strip():
             return {"status": "blocked", "reason": "production_worktree_not_clean"}
         before = self._git(["rev-parse", "HEAD"], self.repo).strip()
