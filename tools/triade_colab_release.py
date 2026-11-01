@@ -252,6 +252,7 @@ def _apply_router_patch(context):
 def _apply_runtime_path_patches(context):
     """Apply immutable package-data path fixes to the verified R5 checkout."""
     components = {
+        "worker_state_store": "triade/workers/state_store.py",
         "neuron_activity_schema": "triade/core/neuron_activity_store.py",
         "neuron_registry_schema": "triade/core/neuron_registry.py",
         "learning_pipeline_schema": "triade/learning/pipeline.py",
