@@ -6,8 +6,10 @@ import hashlib
 import json
 import os
 import subprocess
+import tempfile
 import time
 import uuid
+import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -395,22 +397,47 @@ class EngineeringEvolutionWorker:
     def _run_trusted_regression(
         root: Path, test_path: str, remaining_seconds: int
     ) -> dict[str, Any]:
-        cmd = ["python", "-m", "pytest", "-q", "--", test_path]
-        completed = subprocess.run(
-            cmd,
-            cwd=root,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=max(1, remaining_seconds),
-            env={
-                **os.environ,
-                "TRIADE_RUNTIME_SCOPE": "test",
-                "TRIADE_DISABLE_BACKGROUND": "1",
-            },
-        )
+        with tempfile.TemporaryDirectory(prefix="triade-oracle-") as evidence_dir:
+            junit = Path(evidence_dir) / "results.xml"
+            cmd = [
+                "python", "-m", "pytest", "-q", "-p", "no:cacheprovider",
+                f"--junitxml={junit}", "--", test_path,
+            ]
+            completed = subprocess.run(
+                cmd,
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=max(1, remaining_seconds),
+                env={
+                    **os.environ,
+                    "PYTHONDONTWRITEBYTECODE": "1",
+                    "TRIADE_RUNTIME_SCOPE": "test",
+                    "TRIADE_DISABLE_BACKGROUND": "1",
+                },
+            )
+            try:
+                root_xml = ET.parse(junit).getroot()
+                suites = (
+                    [root_xml] if root_xml.tag == "testsuite"
+                    else list(root_xml.iter("testsuite"))
+                )
+                tests = sum(int(item.get("tests", "0")) for item in suites)
+                failures = sum(int(item.get("failures", "0")) for item in suites)
+                errors = sum(int(item.get("errors", "0")) for item in suites)
+                skipped = sum(int(item.get("skipped", "0")) for item in suites)
+            except (ET.ParseError, OSError, ValueError):
+                tests, failures, errors, skipped = 0, 0, 1, 0
         return {
-            "passed": completed.returncode == 0,
+            "passed": completed.returncode == 0 and tests >= 2
+            and failures == 0 and errors == 0 and skipped == 0,
+            "assertion_failure_verified": completed.returncode == 1
+            and tests >= 2 and failures >= 1 and errors == 0,
+            "tests": tests,
+            "failures": failures,
+            "errors": errors,
+            "skipped": skipped,
             "returncode": completed.returncode,
             "output_sha256": hashlib.sha256(
                 (completed.stdout + completed.stderr).encode()
@@ -460,7 +487,7 @@ class EngineeringEvolutionWorker:
                 "regression_test": test_path,
                 "oracle_sha256": hashlib.sha256(test_bytes).hexdigest(),
                 "oracle_unchanged": True,
-                "baseline_regression_failed": baseline["returncode"] == 1,
+                "baseline_regression_failed": baseline["assertion_failure_verified"],
                 "candidate_regression_passed": treatment["passed"],
                 "rollback_verified": rollback_verified,
                 "baseline_receipt": baseline,
