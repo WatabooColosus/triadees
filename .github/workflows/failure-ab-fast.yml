@@ -48,9 +48,9 @@ jobs:
           python -m pip install ruff mypy
       - name: Python static checks
         run: |
-          ruff check triade/self_improvement/failure_ab.py triade/self_improvement/worker_failure_ab.py triade/self_improvement/worker_failure_canary.py triade/evolution/engineering_worker.py triade/evolution/autonomous_worker_repair.py apps/routes/governance.py triade/workers/worker_loop.py triade/workers/mission_planner.py tests/test_failure_ab.py tests/test_worker_failure_ab.py
-          ruff format --check triade/self_improvement/failure_ab.py triade/self_improvement/worker_failure_ab.py triade/self_improvement/worker_failure_canary.py triade/evolution/engineering_worker.py triade/evolution/autonomous_worker_repair.py tests/test_engineering_evolution_worker.py tests/test_autonomous_worker_repair.py tests/test_failure_ab.py tests/test_worker_failure_ab.py
-          mypy triade/self_improvement/failure_ab.py triade/self_improvement/worker_failure_ab.py
+          ruff check triade/self_improvement/failure_ab.py triade/self_improvement/worker_failure_ab.py triade/self_improvement/worker_failure_canary.py triade/evolution/engineering_worker.py triade/evolution/autonomous_worker_repair.py apps/routes/governance.py triade/workers/worker_loop.py triade/workers/mission_planner.py tests/test_failure_ab.py tests/test_worker_failure_ab.py tests/test_autonomous_worker_repair.py tests/test_worker_failure_repair_oracle.py
+          ruff format --check triade/self_improvement/failure_ab.py triade/self_improvement/worker_failure_ab.py triade/self_improvement/worker_failure_canary.py triade/evolution/engineering_worker.py triade/evolution/autonomous_worker_repair.py tests/test_engineering_evolution_worker.py tests/test_autonomous_worker_repair.py tests/test_worker_failure_repair_oracle.py tests/test_failure_ab.py tests/test_worker_failure_ab.py
+          mypy triade/self_improvement/failure_ab.py triade/self_improvement/worker_failure_ab.py triade/evolution/autonomous_worker_repair.py
       - name: Targeted A/B and worker learning tests
         run: |
           pytest -q -x tests/test_failure_ab.py tests/test_worker_failure_ab.py tests/test_domain_admission.py tests/test_failures_become_knowledge.py tests/test_engineering_evolution_worker.py tests/test_autonomous_worker_repair.py
