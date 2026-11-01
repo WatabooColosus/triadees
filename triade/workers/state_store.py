@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from contextlib import closing
 from pathlib import Path
 from typing import Any
@@ -19,7 +20,20 @@ from .contracts import WorkerRunConfig, WorkerTask
 class WorkerStateStore:
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)
-        repo_root = Path(__file__).resolve().parents[2]
+        module_root = Path(__file__).resolve().parents[2]
+        candidates = [module_root]
+        configured_root = os.environ.get("TRIADE_ROOT")
+        if configured_root:
+            candidates.insert(0, Path(configured_root).expanduser())
+        candidates.append(Path.cwd())
+        repo_root = next(
+            (
+                candidate.resolve()
+                for candidate in candidates
+                if (candidate / "triade/memory/schemas.sql").is_file()
+            ),
+            module_root,
+        )
         self.schema_path = repo_root / "triade/memory/schemas.sql"
         self.migration_paths = [
             repo_root / "triade/memory/migrations/003_living_workers.sql",
