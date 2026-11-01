@@ -367,6 +367,17 @@ def _attach_panel_components(context):
     learning = _learning(context)
     if learning is not None:
         context["learning_controls"] = learning.attach(context)
+        # El aprendizaje verificado pertenece al ciclo continuo de Tríade.
+        # Arrancarlo al montar el runtime evita que una acción manual sea la
+        # condición de entrada; las compuertas de evidencia siguen decidiendo
+        # si alguna sesión puede avanzar o aplicarse.
+        try:
+            result["learning"] = learning_start(context)
+        except Exception as exc:  # noqa: BLE001 - panel reports a guarded block
+            result["learning"] = {
+                "status": "automatic_learning_blocked",
+                "reason": f"{type(exc).__name__}: {str(exc)[:500]}",
+            }
     return result
 
 
