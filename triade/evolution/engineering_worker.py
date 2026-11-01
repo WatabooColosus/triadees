@@ -167,7 +167,9 @@ class EngineeringEvolutionWorker:
                 else None
             )
             review = self._review(
-                baseline_result, candidate_result, changed,
+                baseline_result,
+                candidate_result,
+                changed,
                 repair_evidence=repair_evidence,
             )
             status = (
@@ -242,11 +244,17 @@ class EngineeringEvolutionWorker:
             ):
                 return {"status": "blocked", "reason": "certified_patch_mutated"}
             self._run(["git", "add", "--", *changed], wt, 30)
-            staged = set(self._git(["diff", "--cached", "--name-only"], wt).splitlines())
+            staged = set(
+                self._git(["diff", "--cached", "--name-only"], wt).splitlines()
+            )
             if staged != set(changed):
                 return {"status": "blocked", "reason": "staged_patch_mismatch"}
         except ENGINEERING_ERRORS as exc:
-            return {"status": "blocked", "reason": "candidate_contents_invalid", "error": str(exc)}
+            return {
+                "status": "blocked",
+                "reason": "candidate_contents_invalid",
+                "error": str(exc),
+            }
         try:
             self._run(
                 ["git", "commit", "-S", "-m", f"evolution: {row['objective'][:60]}"],
@@ -298,7 +306,9 @@ class EngineeringEvolutionWorker:
         if before != row["baseline_commit"]:
             return {"status": "blocked", "reason": "deployment_baseline_changed"}
         try:
-            parent = self._git(["rev-parse", row["commit_hash"] + "^"], self.repo).strip()
+            parent = self._git(
+                ["rev-parse", row["commit_hash"] + "^"], self.repo
+            ).strip()
         except subprocess.CalledProcessError:
             return {"status": "blocked", "reason": "signed_commit_missing"}
         if parent != before:
@@ -432,8 +442,15 @@ class EngineeringEvolutionWorker:
         with tempfile.TemporaryDirectory(prefix="triade-oracle-") as evidence_dir:
             junit = Path(evidence_dir) / "results.xml"
             cmd = [
-                "python", "-m", "pytest", "-q", "-p", "no:cacheprovider",
-                f"--junitxml={junit}", "--", test_path,
+                "python",
+                "-m",
+                "pytest",
+                "-q",
+                "-p",
+                "no:cacheprovider",
+                f"--junitxml={junit}",
+                "--",
+                test_path,
             ]
             completed = subprocess.run(
                 cmd,
@@ -452,7 +469,8 @@ class EngineeringEvolutionWorker:
             try:
                 root_xml = ET.parse(junit).getroot()
                 suites = (
-                    [root_xml] if root_xml.tag == "testsuite"
+                    [root_xml]
+                    if root_xml.tag == "testsuite"
                     else list(root_xml.iter("testsuite"))
                 )
                 tests = sum(int(item.get("tests", "0")) for item in suites)
@@ -462,10 +480,15 @@ class EngineeringEvolutionWorker:
             except (ET.ParseError, OSError, ValueError):
                 tests, failures, errors, skipped = 0, 0, 1, 0
         return {
-            "passed": completed.returncode == 0 and tests >= 2
-            and failures == 0 and errors == 0 and skipped == 0,
+            "passed": completed.returncode == 0
+            and tests >= 2
+            and failures == 0
+            and errors == 0
+            and skipped == 0,
             "assertion_failure_verified": completed.returncode == 1
-            and tests >= 2 and failures >= 1 and errors == 0,
+            and tests >= 2
+            and failures >= 1
+            and errors == 0,
             "tests": tests,
             "failures": failures,
             "errors": errors,
@@ -499,16 +522,19 @@ class EngineeringEvolutionWorker:
         rollback_tree = self.root / (evolution_id + "-rollback-probe")
         self._run(
             ["git", "worktree", "add", "--detach", str(baseline_tree), baseline_commit],
-            self.repo, 120,
+            self.repo,
+            120,
         )
         try:
             if (baseline_tree / test_path).read_bytes() != test_bytes:
                 raise ValueError("independent_oracle_changed")
-            remaining = max(1, int(budget.max_minutes * 60 - (time.monotonic() - started)))
-            baseline = self._run_trusted_regression(
-                baseline_tree, test_path, remaining
+            remaining = max(
+                1, int(budget.max_minutes * 60 - (time.monotonic() - started))
             )
-            remaining = max(1, int(budget.max_minutes * 60 - (time.monotonic() - started)))
+            baseline = self._run_trusted_regression(baseline_tree, test_path, remaining)
+            remaining = max(
+                1, int(budget.max_minutes * 60 - (time.monotonic() - started))
+            )
             treatment = self._run_trusted_regression(
                 candidate_tree, test_path, remaining
             )
@@ -539,7 +565,8 @@ class EngineeringEvolutionWorker:
     ) -> bool:
         self._run(
             ["git", "worktree", "add", "--detach", str(rollback_tree), baseline_commit],
-            self.repo, 120,
+            self.repo,
+            120,
         )
         # El parche vive fuera de ese worktree para que 'git status' sea exacto.
         patch_file = self.root / (rollback_tree.name + ".patch")
@@ -557,8 +584,11 @@ class EngineeringEvolutionWorker:
 
     @staticmethod
     def _review(
-        base: dict, candidate: dict, changed: list[str],
-        *, repair_evidence: dict[str, Any] | None = None,
+        base: dict,
+        candidate: dict,
+        changed: list[str],
+        *,
+        repair_evidence: dict[str, Any] | None = None,
     ) -> dict:
         # Un suite verde sin caso roto ANTES del cambio no demuestra reparación.
         verified_repair = bool(
@@ -568,7 +598,9 @@ class EngineeringEvolutionWorker:
             and repair_evidence.get("oracle_unchanged") is True
             and repair_evidence.get("rollback_verified") is True
         )
-        accept = bool(base.get("passed") and candidate.get("passed") and verified_repair)
+        accept = bool(
+            base.get("passed") and candidate.get("passed") and verified_repair
+        )
         return {
             "reviewer": "deterministic_independent_repair_gate",
             "independent_tests": True,
@@ -580,7 +612,8 @@ class EngineeringEvolutionWorker:
             ),
             "candidate_tree_digest": (
                 repair_evidence.get("candidate_tree_digest")
-                if repair_evidence else None
+                if repair_evidence
+                else None
             ),
             "changed_files": changed,
             "decision": "accept_candidate" if accept else "reject_candidate",
@@ -605,11 +638,7 @@ class EngineeringEvolutionWorker:
         digest = hashlib.sha256()
         for relative in sorted(paths):
             path = PurePosixPath(relative)
-            if (
-                path.is_absolute()
-                or ".." in path.parts
-                or not relative
-            ):
+            if path.is_absolute() or ".." in path.parts or not relative:
                 raise ValueError("candidate_path_invalid")
             target = worktree / relative
             if target.is_symlink() or not target.resolve().is_relative_to(root):
