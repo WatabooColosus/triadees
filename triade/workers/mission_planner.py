@@ -1560,7 +1560,9 @@ class MissionPlanner:
         return int(report.get("debt_items_total") or 0), resumen or "sin categorías"
 
     def _plan_neuron_formation(self) -> list[PlannedTask]:
-        """Evalúa si hay candidatos neuronales sin training."""
+        """Reintenta un bloqueo sólo si existe una versión NUEVA del evaluador."""
+        from triade.neurons.curriculum import ADMISSION_CURRICULUM_VERSION
+
         tasks: list[PlannedTask] = []
         try:
             with closing(self._connect()) as conn, conn:
@@ -1604,8 +1606,11 @@ class MissionPlanner:
                     WHERE a.event_type='domain_admission_requested'
                       AND NOT EXISTS (SELECT 1 FROM neuron_education_events t
                         WHERE t.event_type='domain_training_completed'
-                          AND json_extract(t.payload_json,'$.admission_event_id')=a.id)
-                    ORDER BY a.id LIMIT 10"""
+                          AND json_extract(t.payload_json,'$.admission_event_id')=a.id
+                          AND (json_extract(t.payload_json,'$.status') != 'training_blocked'
+                            OR COALESCE(json_extract(t.payload_json,'$.curriculum_version'),1) >= ?))
+                    ORDER BY a.id LIMIT 10""",
+                    (ADMISSION_CURRICULUM_VERSION,),
                 ).fetchall()
                 for admission in formed:
                     payload = json.loads(admission["payload_json"])
