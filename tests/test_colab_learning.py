@@ -349,7 +349,7 @@ def test_rerender_rebuilds_widgets_but_preserves_verified_context(
     assert new.context["progress"].__self__ is new
     assert new.auto_apply is True
     assert new.view[-2].value is True
-    assert "Iniciar aprendizaje verificado" in [
+    assert "Iniciar aprendizaje verificado" not in [
         b.description for b in new.view[3].children
     ]
     status_button = next(
