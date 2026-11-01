@@ -5,6 +5,7 @@ de reglas de código predeterminadas, y entrega las variantes al certificador
 Git aislado. Nunca ejecuta código procedente del evento, de un prompt o de
 fuentes externas. Nunca aprueba, fusiona ni despliega un parche.
 """
+
 from __future__ import annotations
 
 import difflib
@@ -39,8 +40,7 @@ def _is_repairable_incident(item: Mapping[str, Any]) -> bool:
         item.get("status") == "failed"
         and isinstance(payload, dict)
         and any(
-            str(payload.get(key) or "").strip().casefold()
-            == "cancellation_requested"
+            str(payload.get(key) or "").strip().casefold() == "cancellation_requested"
             for key in ("reason", "error", "message", "skipped_reason")
         )
         and str(item.get("source_ref") or "").startswith(
@@ -51,7 +51,9 @@ def _is_repairable_incident(item: Mapping[str, Any]) -> bool:
 
 class AutonomousWorkerRepair:
     def __init__(
-        self, db_path: str | Path, repo: str | Path | None = None,
+        self,
+        db_path: str | Path,
+        repo: str | Path | None = None,
         *,
         engine_factory: Callable[..., EngineeringEvolutionWorker] = (
             EngineeringEvolutionWorker
@@ -134,7 +136,9 @@ class AutonomousWorkerRepair:
         if source_path.is_symlink() or not source_path.is_file():
             raise ValueError("trusted_repair_source_unavailable")
         source = source_path.read_text(encoding="utf-8")
-        return [(name, self._patch(source, replacement)) for name, replacement in _VARIANTS]
+        return [
+            (name, self._patch(source, replacement)) for name, replacement in _VARIANTS
+        ]
 
     def _reserve(self, evidence_ref: str, revision: str) -> bool:
         with sqlite3.connect(self.db_path) as conn:
@@ -162,8 +166,12 @@ class AutonomousWorkerRepair:
                 "(attempt_id,evidence_ref,protocol,rule_id,baseline_commit,status)"
                 " VALUES(?,?,?,?,?,?)",
                 (
-                    attempt_id, evidence_ref, REPAIR_PROTOCOL_VERSION,
-                    REPAIR_RULE, revision, "investigating",
+                    attempt_id,
+                    evidence_ref,
+                    REPAIR_PROTOCOL_VERSION,
+                    REPAIR_RULE,
+                    revision,
+                    "investigating",
                 ),
             )
             return cursor.rowcount == 1
@@ -196,9 +204,7 @@ class AutonomousWorkerRepair:
             "stable_memory_written": False,
             "approval_requested_from_user": False,
         }
-        if not any(
-            item["source_ref"] == evidence_ref for item in self._observed()
-        ):
+        if not any(item["source_ref"] == evidence_ref for item in self._observed()):
             return {**result, "reason": "unverified_or_inapplicable_incident"}
         engine = self.engine_factory(repo=self.repo, db_path=self.db_path)
         try:
@@ -207,7 +213,8 @@ class AutonomousWorkerRepair:
             variants = self._build_variants()
         except (OSError, RuntimeError, ValueError) as exc:
             return {
-                **result, "reason": "no_independent_functional_oracle_or_recipe",
+                **result,
+                "reason": "no_independent_functional_oracle_or_recipe",
                 "detail": type(exc).__name__,
             }
         if not variants or len(variants) > MAX_TRIALS_PER_SOURCE:
@@ -217,10 +224,13 @@ class AutonomousWorkerRepair:
         receipts = []
         for name, patch in variants:
             if not patch or len(patch.encode()) > 4096:
-                receipts.append({
-                    "version": name, "status": "blocked",
-                    "reason": "patch_budget_exceeded",
-                })
+                receipts.append(
+                    {
+                        "version": name,
+                        "status": "blocked",
+                        "reason": "patch_budget_exceeded",
+                    }
+                )
                 continue
             try:
                 trial = engine.propose(
@@ -233,41 +243,50 @@ class AutonomousWorkerRepair:
                     patch=patch,
                     regression_test=REPAIR_TEST,
                     budget=EvolutionBudget(
-                        max_files=1, max_commands=4, max_minutes=3,
-                        max_patch_bytes=4096, max_disk_mb=384,
+                        max_files=1,
+                        max_commands=4,
+                        max_minutes=3,
+                        max_patch_bytes=4096,
+                        max_disk_mb=384,
                         max_gpu_minutes=0.0,
                     ),
                 )
             except (OSError, RuntimeError, ValueError) as exc:
                 trial = {"status": "error", "reason": type(exc).__name__}
-            receipts.append({
-                "version": name,
-                "patch_sha256": hashlib.sha256(patch.encode()).hexdigest(),
-                "status": str(trial.get("status") or "error"),
-                "evolution_id": trial.get("evolution_id"),
-                "review": trial.get("review"),
-                "reason": trial.get("reason") or trial.get("error"),
-            })
+            receipts.append(
+                {
+                    "version": name,
+                    "patch_sha256": hashlib.sha256(patch.encode()).hexdigest(),
+                    "status": str(trial.get("status") or "error"),
+                    "evolution_id": trial.get("evolution_id"),
+                    "review": trial.get("review"),
+                    "reason": trial.get("reason") or trial.get("error"),
+                }
+            )
         candidates = [
-            item for item in receipts
+            item
+            for item in receipts
             if item["status"] == "awaiting_approval"
             and isinstance(item["review"], dict)
             and item["review"].get("measured_functional_repair") is True
             and item["review"].get("rollback_verified") is True
         ]
-        result.update({
-            "status": (
-                "candidate_certified_in_sandbox"
-                if candidates else "no_certified_repair"
-            ),
-            "variants": receipts,
-            "candidate_evolution_id": (
-                candidates[0]["evolution_id"] if candidates else None
-            ),
-            "certification_scope": "isolated_git_worktrees_only",
-            "production_causality_proven": False,
-            "production_changed": False,
-            "stable_memory_written": False,
-        })
+        result.update(
+            {
+                "status": (
+                    "candidate_certified_in_sandbox"
+                    if candidates
+                    else "no_certified_repair"
+                ),
+                "variants": receipts,
+                "candidate_evolution_id": (
+                    candidates[0]["evolution_id"] if candidates else None
+                ),
+                "certification_scope": "isolated_git_worktrees_only",
+                "production_causality_proven": False,
+                "production_changed": False,
+                "stable_memory_written": False,
+            }
+        )
         self._record(evidence_ref, result)
         return result
