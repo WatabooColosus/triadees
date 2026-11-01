@@ -89,7 +89,7 @@ def test_autonomous_ab_evaluates_multiple_versions_without_promotion(tmp_path):
     scheduled = planner._plan_failure_ab_evaluation()
     assert len(scheduled) == 1
     assert scheduled[0].task_type == "failure_ab_evaluation"
-    assert scheduled[0].payload["regression_report_id"] == "real-report"
+    assert scheduled[0].payload == {"mode": "auto_measure"}
     result = WorkerFailureABRunner(db).evaluate(
         "real-report", "worker_outcome_classification"
     )
