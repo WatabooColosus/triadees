@@ -1084,6 +1084,24 @@ class MissionPlanner:
                         payload={"mode": "shadow_canary"},
                     )
                 ]
+            from triade.evolution.autonomous_worker_repair import (
+                AutonomousWorkerRepair,
+            )
+
+            incident = AutonomousWorkerRepair(self.db_path).pending_incident()
+            if incident:
+                return [
+                    PlannedTask(
+                        task_type="failure_ab_evaluation",
+                        priority=5,
+                        reason="Fallo real verificable con receta de reparación funcional",
+                        source="verified_worker_failure",
+                        payload={
+                            "mode": "functional_repair",
+                            "evidence_ref": incident,
+                        },
+                    )
+                ]
         except MISSION_PLANNER_ERRORS as exc:
             record_internal_error(
                 "mission_planner.failure_ab", exc, db_path=self.db_path
