@@ -742,10 +742,7 @@ def attach(context):
 
     box = client.view[3]
     known = {getattr(child, "description", "") for child in box.children}
-    for label, action in (
-        ("Ver circuito de aprendizaje", "learning_status"),
-        ("Iniciar aprendizaje verificado", "learning_start"),
-    ):
+    for label, action in (("Ver circuito de aprendizaje", "learning_status"),):
         if label in known:
             continue
         button = widgets.Button(
