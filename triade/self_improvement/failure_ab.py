@@ -9,6 +9,7 @@ proveniente de una fuente verificable que la variante no pueda escribir.
 Los casos se reservan ANTES de comparar versiones. El holdout se consulta
 una sola vez para la variante elegida con los datos de entrenamiento.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -73,9 +74,11 @@ class FailureABGate:
         counts = {split: 0 for split in SPLITS}
         for case in cases:
             if (
-                not case.case_id or case.case_id in ids
+                not case.case_id
+                or case.case_id in ids
                 or case.split not in SPLITS
-                or not case.evidence_ref or case.evidence_ref in refs
+                or not case.evidence_ref
+                or case.evidence_ref in refs
             ):
                 raise ValueError("duplicated_or_unattested_case")
             ids.add(case.case_id)
@@ -98,7 +101,8 @@ class FailureABGate:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT report_id,capability,decision,findings_json "
-                "FROM regression_reports WHERE report_id=?", (report_id,)
+                "FROM regression_reports WHERE report_id=?",
+                (report_id,),
             ).fetchone()
         if row is None or row["decision"] != "fail":
             raise ValueError("verified_failed_regression_required")
@@ -107,8 +111,10 @@ class FailureABGate:
         except (TypeError, ValueError) as exc:
             raise ValueError("invalid_regression_evidence") from exc
         matching = [
-            x for x in findings
-            if isinstance(x, dict) and x.get("metric_id") == metric_id
+            x
+            for x in findings
+            if isinstance(x, dict)
+            and x.get("metric_id") == metric_id
             and x.get("status") == "fail"
         ]
         if len(matching) != 1:
@@ -116,18 +122,26 @@ class FailureABGate:
         item = matching[0]
         baseline, candidate = item.get("baseline_score"), item.get("candidate_score")
         if (
-            isinstance(baseline, bool) or isinstance(candidate, bool)
+            isinstance(baseline, bool)
+            or isinstance(candidate, bool)
             or not isinstance(baseline, (float, int))
             or not isinstance(candidate, (float, int))
-            or not math.isfinite(baseline) or not math.isfinite(candidate)
+            or not math.isfinite(baseline)
+            or not math.isfinite(candidate)
             or baseline <= candidate
         ):
             raise ValueError("measured_regression_gap_required")
-        return {"report_id": report_id, "capability": row["capability"],
-                "metric_id": metric_id, "observed_gap": baseline - candidate}
+        return {
+            "report_id": report_id,
+            "capability": row["capability"],
+            "metric_id": metric_id,
+            "observed_gap": baseline - candidate,
+        }
 
     @staticmethod
-    def _score(evaluator: Evaluator, cases: Sequence[FailureCase]) -> tuple[float, list[dict[str, Any]]]:
+    def _score(
+        evaluator: Evaluator, cases: Sequence[FailureCase]
+    ) -> tuple[float, list[dict[str, Any]]]:
         observations = []
         for case in cases:
             try:
@@ -139,13 +153,15 @@ class FailureABGate:
                 error = type(exc).__name__
             else:
                 error = None
-            observations.append({
-                "case_id": case.case_id,
-                "split": case.split,
-                "passed": bool(passed),
-                "critical": case.safety_critical,
-                "error_type": error,
-            })
+            observations.append(
+                {
+                    "case_id": case.case_id,
+                    "split": case.split,
+                    "passed": bool(passed),
+                    "critical": case.safety_critical,
+                    "error_type": error,
+                }
+            )
         return sum(x["passed"] for x in observations) / len(observations), observations
 
     def run(
@@ -176,11 +192,17 @@ class FailureABGate:
         ):
             raise ValueError("invalid_candidate_versions")
         # Identidad de intento e inmutabilidad de casos, incluido el oráculo.
-        suite = [{
-            "case_id": c.case_id, "split": c.split,
-            "evidence_ref": c.evidence_ref, "expected_digest": self._digest(c.expected),
-            "inputs_digest": self._digest(c.inputs), "critical": c.safety_critical,
-        } for c in cases]
+        suite = [
+            {
+                "case_id": c.case_id,
+                "split": c.split,
+                "evidence_ref": c.evidence_ref,
+                "expected_digest": self._digest(c.expected),
+                "inputs_digest": self._digest(c.inputs),
+                "critical": c.safety_critical,
+            }
+            for c in cases
+        ]
         suite_hash = self._digest(suite)
         experiment_id = self._digest(
             [AB_PROTOCOL_VERSION, report_id, metric_id, suite_hash]
@@ -206,20 +228,26 @@ class FailureABGate:
         all_training = []
         for variant in variants:
             score, obs = self._score(variant.evaluator, train)
-            all_training.append({
-                "version": variant.version, "score": score, "train_observations": obs
-            })
+            all_training.append(
+                {"version": variant.version, "score": score, "train_observations": obs}
+            )
         winner_index = max(
             range(len(variants)), key=lambda n: (all_training[n]["score"], -n)
         )
         winner = variants[winner_index]
         b_train = all_training[winner_index]["score"]
         result: dict[str, Any] = {
-            "status": "insufficient_improvement", "experiment_id": experiment_id,
-            "source": source, "suite_hash": suite_hash, "protocol": AB_PROTOCOL_VERSION,
-            "train_baseline": a_train, "train_variants": all_training,
-            "winner": winner.version, "holdout_executed": False,
-            "eligible_for_canary": False, "stable_memory_written": False,
+            "status": "insufficient_improvement",
+            "experiment_id": experiment_id,
+            "source": source,
+            "suite_hash": suite_hash,
+            "protocol": AB_PROTOCOL_VERSION,
+            "train_baseline": a_train,
+            "train_variants": all_training,
+            "winner": winner.version,
+            "holdout_executed": False,
+            "eligible_for_canary": False,
+            "stable_memory_written": False,
             "causal_attribution": "paired_offline_replay_only",
             "train_baseline_observations": a_train_runs,
         }
@@ -228,27 +256,38 @@ class FailureABGate:
             b_held, b_held_obs = self._score(winner.evaluator, holdout)
             a_neg, a_neg_obs = self._score(baseline, negative)
             b_neg, b_neg_obs = self._score(winner.evaluator, negative)
-            critical_ok = all(x["passed"] for x in b_held_obs + b_neg_obs if x["critical"])
-            eligible = (
-                b_held - a_held >= MIN_GAIN and b_neg >= a_neg and critical_ok
+            critical_ok = all(
+                x["passed"] for x in b_held_obs + b_neg_obs if x["critical"]
             )
-            result.update({
-                "status": "eligible_for_governed_review" if eligible else "regressed_or_no_transfer",
-                "eligible_for_canary": eligible,
-                "holdout_executed": True,
-                "holdout_baseline": a_held, "holdout_candidate": b_held,
-                "negative_baseline": a_neg, "negative_candidate": b_neg,
-                "critical_controls_passed": critical_ok,
-                "holdout_observations": {"A": a_held_obs, "B": b_held_obs},
-                "negative_observations": {"A": a_neg_obs, "B": b_neg_obs},
-            })
+            eligible = b_held - a_held >= MIN_GAIN and b_neg >= a_neg and critical_ok
+            result.update(
+                {
+                    "status": "eligible_for_governed_review"
+                    if eligible
+                    else "regressed_or_no_transfer",
+                    "eligible_for_canary": eligible,
+                    "holdout_executed": True,
+                    "holdout_baseline": a_held,
+                    "holdout_candidate": b_held,
+                    "negative_baseline": a_neg,
+                    "negative_candidate": b_neg,
+                    "critical_controls_passed": critical_ok,
+                    "holdout_observations": {"A": a_held_obs, "B": b_held_obs},
+                    "negative_observations": {"A": a_neg_obs, "B": b_neg_obs},
+                }
+            )
         # INSERT OR IGNORE preserva el primer veredicto frente a reintentos.
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 "INSERT OR IGNORE INTO failure_ab_experiments "
                 "(experiment_id,report_id,metric_id,suite_hash,result_json) VALUES (?,?,?,?,?)",
-                (experiment_id, report_id, metric_id, suite_hash,
-                 json.dumps(result, ensure_ascii=False, sort_keys=True)),
+                (
+                    experiment_id,
+                    report_id,
+                    metric_id,
+                    suite_hash,
+                    json.dumps(result, ensure_ascii=False, sort_keys=True),
+                ),
             )
             stored = conn.execute(
                 "SELECT result_json FROM failure_ab_experiments WHERE experiment_id=?",
