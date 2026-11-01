@@ -220,9 +220,13 @@ def test_real_worker_outcomes_autonomously_generate_formal_regression(tmp_path):
     _fill_independent_cohort(db)
     with sqlite3.connect(db) as conn:
         for column in (
-            "candidate_id", "suite_id", "suite_version",
-            "baseline_evaluation_id", "candidate_evaluation_id",
-            "metadata_json", "created_at",
+            "candidate_id",
+            "suite_id",
+            "suite_version",
+            "baseline_evaluation_id",
+            "candidate_evaluation_id",
+            "metadata_json",
+            "created_at",
         ):
             conn.execute(f"ALTER TABLE regression_reports ADD COLUMN {column} TEXT")
     runner = WorkerFailureABRunner(db)
