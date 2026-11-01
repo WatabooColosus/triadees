@@ -221,7 +221,7 @@ class AutonomousWorkerRepair:
             return {**result, "reason": "invalid_repair_variant_budget"}
         if not self._reserve(evidence_ref, revisions):
             return {**result, "reason": "already_evaluated_or_budget_exhausted"}
-        receipts = []
+        receipts: list[dict[str, Any]] = []
         for name, patch in variants:
             if not patch or len(patch.encode()) > 4096:
                 receipts.append(

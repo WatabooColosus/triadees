@@ -3272,7 +3272,8 @@ class WorkerLoop:
             return {
                 **result,
                 "repair_verdict": verdict,
-                "status": "completed" if verdict == "candidate_certified_in_sandbox"
+                "status": "completed"
+                if verdict == "candidate_certified_in_sandbox"
                 else "observed",
             }
         if task.payload.get("mode") == "shadow_canary":
