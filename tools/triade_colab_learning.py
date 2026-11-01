@@ -80,7 +80,7 @@ def _measured(r5, task_class, call, model=None):
         )
 
 
-def _refresh_worker_runtime_modules():
+def _refresh_worker_runtime_modules(*, reload_runner=False):
     """Use a runtime-patched WorkerStateStore in an already-live Colab kernel.
 
     The panel can update files while the notebook process keeps Python modules
@@ -96,6 +96,12 @@ def _refresh_worker_runtime_modules():
         "triade.workers.background_service",
         "triade.services.supervisor",
     )
+    if reload_runner:
+        names += (
+            "triade.core.goal_orchestrator",
+            "triade.core.learning_planner",
+            "triade.core.runner",
+        )
     for name in names:
         module = sys.modules.get(name)
         if module is not None:
@@ -428,7 +434,6 @@ def _target(engine, db):
 
 def _probe(r5, state, case, phase):
     from triade.core.ollama_blood import check_ollama_blood
-    from triade.core.runner import TriadeRunner
     from triade.neurons.functional_evidence import register_actual_probe
 
     model = check_ollama_blood().get("reasoning_model")
@@ -462,7 +467,11 @@ def _probe(r5, state, case, phase):
             raise NotReady("lesson_material_not_authorized_by_experimental_retriever")
         prompt = build_learning_block(matches) + "\n" + prompt
         context["experimental_material_ids"] = material_ids
-    _refresh_worker_runtime_modules()
+    _refresh_worker_runtime_modules(
+        reload_runner=Path("/content/Triade").is_dir()
+    )
+    from triade.core.runner import TriadeRunner
+
     runner = TriadeRunner(
         db_path=r5.DB,
         runs_dir=Path(r5.ROOT) / "runs",
