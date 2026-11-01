@@ -102,7 +102,16 @@ def test_autonomous_ab_evaluates_multiple_versions_without_promotion(tmp_path):
     assert result["critical_controls_passed"] is True
     assert result["activated"] is False
     assert result["stable_memory_written"] is False
-    assert planner._plan_failure_ab_evaluation() == []
+    # El A/B ya consumido no se repite: la reparación funcional es un
+    # protocolo distinto y solo se programa con evidencia verificable.
+    followup = planner._plan_failure_ab_evaluation()
+    assert len(followup) == 1
+    assert followup[0].task_type == "failure_ab_evaluation"
+    assert followup[0].source == "verified_worker_failure"
+    assert followup[0].payload == {
+        "mode": "functional_repair",
+        "evidence_ref": "worker-event:13",
+    }
 
 
 def test_no_evidence_without_multiple_independent_events(tmp_path):
