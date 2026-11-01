@@ -161,7 +161,8 @@ class FailureABGate:
                     "error_type": error,
                 }
             )
-        return sum(int(bool(x["passed"])) for x in observations) / len(observations), observations
+        score = sum(int(bool(x["passed"])) for x in observations) / len(observations)
+        return score, observations
 
     def run(
         self,
