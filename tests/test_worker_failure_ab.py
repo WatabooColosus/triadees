@@ -309,13 +309,9 @@ def test_shadow_canary_cannot_reuse_training_cases(tmp_path):
     with sqlite3.connect(db) as conn:
         conn.execute("ALTER TABLE worker_events ADD COLUMN created_at TEXT")
     _fill_independent_cohort(db)
-    WorkerFailureABRunner(db).evaluate(
-        "real-report", "worker_outcome_classification"
-    )
+    WorkerFailureABRunner(db).evaluate("real-report", "worker_outcome_classification")
     with sqlite3.connect(db) as conn:
-        conn.execute(
-            "UPDATE worker_events SET created_at='2099-04-04T14:00:00+00:00'"
-        )
+        conn.execute("UPDATE worker_events SET created_at='2099-04-04T14:00:00+00:00'")
     canary = WorkerFailureShadowCanary(db)
     assert canary.ready() is False
     assert canary.observe()["status"] == "no_evidence"
