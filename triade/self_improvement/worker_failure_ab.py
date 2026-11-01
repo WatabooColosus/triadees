@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import UTC, datetime
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -268,6 +269,134 @@ class WorkerFailureABRunner:
                     )
                 )
         return cases
+
+    def _cohort_identity(self, cases: list[FailureCase]) -> str:
+        refs = sorted(c.evidence_ref for c in cases)
+        return hashlib.sha256(
+            json.dumps(refs, sort_keys=True).encode("utf-8")
+        ).hexdigest()[:24]
+
+    def pending_auto_measurement(self) -> bool:
+        """Una regresión observada, no un prompt ni un contador arbitrario."""
+        cases = self.replay_cases()
+        if len(cases) < _MIN_CASES:
+            return False
+        from triade.workers.worker_loop import _should_learn_from_worker_outcome
+
+        mismatches = {
+            split: sum(
+                _should_learn_from_worker_outcome(
+                    str(case.inputs["status"]), dict(case.inputs)
+                )
+                != case.expected
+                for case in cases
+                if case.split == split
+            )
+            for split in ("train", "holdout")
+        }
+        if not (mismatches["train"] and mismatches["holdout"]):
+            return False
+        report_id = "worker-ab-regression-" + self._cohort_identity(cases)
+        with sqlite3.connect(
+            self.db_path.resolve().as_uri() + "?mode=ro", uri=True
+        ) as conn:
+            tables = {
+                str(row[0])
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
+            }
+            if "regression_reports" in tables:
+                attempts = conn.execute(
+                    "SELECT COUNT(*) FROM regression_reports "
+                    "WHERE suite_id='worker-outcome-classification'"
+                ).fetchone()[0] if "suite_id" in {
+                    str(c[1])
+                    for c in conn.execute("PRAGMA table_info(regression_reports)")
+                } else 0
+                if attempts >= 5:
+                    return False
+            if "failure_ab_experiments" in tables:
+                already = conn.execute(
+                    "SELECT 1 FROM failure_ab_experiments WHERE report_id=?",
+                    (report_id,),
+                ).fetchone()
+                if already is not None:
+                    return False
+        return True
+
+    def evaluate_auto(self) -> dict[str, Any]:
+        """Regresión real desde tareas archivadas; luego comparación A/B."""
+        cases = self.replay_cases()
+        if not self.pending_auto_measurement():
+            return {
+                "status": "no_evidence",
+                "reason": "no_measured_worker_regression_or_attempts_exhausted",
+                "stable_memory_written": False,
+            }
+        from triade.evaluation import EvaluationRun, MetricResult
+        from triade.regression import MetricPolicy, RegressionGate
+        from triade.workers.worker_loop import _should_learn_from_worker_outcome
+
+        cohort_id = self._cohort_identity(cases)
+        report_id = "worker-ab-regression-" + cohort_id
+        correct = sum(
+            _should_learn_from_worker_outcome(
+                str(case.inputs["status"]), dict(case.inputs)
+            )
+            == case.expected
+            for case in cases
+        )
+        actual_score = correct / len(cases)
+        now = datetime.now(UTC).isoformat()
+        suite = "worker-outcome-classification"
+
+        def measured(evaluation_id: str, score: float) -> EvaluationRun:
+            return EvaluationRun(
+                evaluation_id=evaluation_id,
+                suite_id=suite,
+                suite_version="failure-ab-1",
+                subject_id=evaluation_id,
+                results=(
+                    MetricResult(
+                        case_id=_FAILURE_METRIC,
+                        score=score,
+                        passed=score >= 1.0,
+                        actual=score,
+                        expected=1.0,
+                    ),
+                ),
+                aggregate_score=score,
+                created_at=now,
+            )
+
+        report = RegressionGate(self.db_path).evaluate(
+            report_id=report_id,
+            candidate_id="worker-outcome-policy-A-" + cohort_id,
+            capability="worker_failure",
+            baseline=measured(report_id + ":contract", 1.0),
+            candidate=measured(report_id + ":runtime", actual_score),
+            policies=(
+                MetricPolicy(
+                    metric_id=_FAILURE_METRIC,
+                    severity="critical",
+                    max_absolute_drop=0.0,
+                    max_relative_drop=0.0,
+                ),
+            ),
+            metadata={
+                "evaluation_source": "canonical_worker_task_outcomes",
+                "case_refs": [case.evidence_ref for case in cases],
+                "cohort_id": cohort_id,
+            },
+        )
+        if report.decision != "fail":
+            return {
+                "status": "no_evidence",
+                "reason": "classification_did_not_regress",
+                "stable_memory_written": False,
+            }
+        return self.evaluate(report_id, _FAILURE_METRIC)
 
     def evaluate(self, report_id: str, metric_id: str) -> dict[str, Any]:
         if metric_id != _FAILURE_METRIC:
