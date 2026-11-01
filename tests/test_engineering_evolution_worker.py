@@ -154,10 +154,7 @@ def test_functional_certification_with_real_isolated_git_worktrees(tmp_path):
     (repo / "triade").mkdir(parents=True)
     (repo / "tests").mkdir()
     (repo / "triade" / "__init__.py").write_text("", encoding="utf-8")
-    old = (
-        "def report_failed(reason: str) -> bool:\n"
-        "    return True\n"
-    )
+    old = "def report_failed(reason: str) -> bool:\n    return True\n"
     new = (
         "def report_failed(reason: str) -> bool:\n"
         '    return reason != "cancellation_requested"\n'
@@ -200,9 +197,7 @@ def test_functional_certification_with_real_isolated_git_worktrees(tmp_path):
                 tofile="b/triade/worker_policy.py",
             )
         )
-        (worktree / "triade" / "worker_policy.py").write_text(
-            new, encoding="utf-8"
-        )
+        (worktree / "triade" / "worker_policy.py").write_text(new, encoding="utf-8")
         evidence = worker._certify_repair_in_worktrees(
             baseline_commit,
             worktree,
@@ -344,15 +339,22 @@ def test_certified_patch_mutation_blocks_approval(tmp_path):
             "worktree_path,status,budget_json,changed_files_json,review_json) "
             "VALUES(?,?,?,?,?,?,?,?,?)",
             (
-                "candidate-a", "repair", "replay", "BASE", str(repo),
-                "awaiting_approval", json.dumps({}),
+                "candidate-a",
+                "repair",
+                "replay",
+                "BASE",
+                str(repo),
+                "awaiting_approval",
+                json.dumps({}),
                 json.dumps(["triade/worker_policy.py"]),
-                json.dumps({
-                    "decision": "accept_candidate",
-                    "measured_functional_repair": True,
-                    "rollback_verified": True,
-                    "candidate_tree_digest": original_digest,
-                }),
+                json.dumps(
+                    {
+                        "decision": "accept_candidate",
+                        "measured_functional_repair": True,
+                        "rollback_verified": True,
+                        "candidate_tree_digest": original_digest,
+                    }
+                ),
             ),
         )
     candidate.write_text("BUG_FIXED = False\n", encoding="utf-8")
@@ -385,13 +387,21 @@ def test_deployment_requires_exact_tested_baseline(tmp_path):
             "worktree_path,status,budget_json,review_json,commit_hash) "
             "VALUES(?,?,?,?,?,?,?,?,?)",
             (
-                "candidate-b", "repair", "replay", "OUTDATED",
-                str(repo), "approved_commit", "{}",
-                json.dumps({
-                    "decision": "accept_candidate",
-                    "measured_functional_repair": True,
-                    "rollback_verified": True,
-                }), "FAKE",
+                "candidate-b",
+                "repair",
+                "replay",
+                "OUTDATED",
+                str(repo),
+                "approved_commit",
+                "{}",
+                json.dumps(
+                    {
+                        "decision": "accept_candidate",
+                        "measured_functional_repair": True,
+                        "rollback_verified": True,
+                    }
+                ),
+                "FAKE",
             ),
         )
     result = worker.deploy("candidate-b", approved_by="reviewer")
@@ -432,18 +442,24 @@ def test_real_git_rollback_restores_original_tree(tmp_path):
             "worktree_path,status,budget_json,rollback_json) "
             "VALUES(?,?,?,?,?,?,?,?)",
             (
-                "rollback-smoke", "repair", "replay", previous,
-                str(worker.root / "unused-worktree"), "deployed_canary",
-                "{}", json.dumps({"commit": updated, "previous": previous}),
+                "rollback-smoke",
+                "repair",
+                "replay",
+                previous,
+                str(worker.root / "unused-worktree"),
+                "deployed_canary",
+                "{}",
+                json.dumps({"commit": updated, "previous": previous}),
             ),
         )
     outcome = worker.rollback("rollback-smoke", approved_by="reviewer")
     assert outcome["status"] == "rolled_back"
     assert outcome["rollback_verified"] is True
     assert source.read_text(encoding="utf-8") == "VALUE = 0\n"
-    assert outcome["restored_tree"] == worker._git(
-        ["rev-parse", previous + "^{tree}"], repo
-    ).strip()
+    assert (
+        outcome["restored_tree"]
+        == worker._git(["rev-parse", previous + "^{tree}"], repo).strip()
+    )
 
 
 def test_missing_trusted_regression_is_blocked_before_worktree(tmp_path):
