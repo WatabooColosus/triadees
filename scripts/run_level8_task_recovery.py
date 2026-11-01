@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import multiprocessing as mp
 import os
+import signal
 import sqlite3
 import subprocess
 import time
@@ -22,7 +23,7 @@ from triade.runtime.task_leases import AutonomousTaskStore
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def worker(root):
+def worker(root, supervisor_pid):
     root = Path(root)
     db = root / "recovery.db"
     store = AutonomousTaskStore(db)
@@ -49,6 +50,7 @@ def worker(root):
         root / f"checkpoint-{task['attempt']}.json",
         {
             "pid": os.getpid(),
+            "supervisor_pid": supervisor_pid,
             "task_id": tid,
             "lease_generation": generation,
             "attempt": task["attempt"],
@@ -75,7 +77,7 @@ def worker(root):
 
 def supervise(root):
     for attempt in range(2):
-        child = mp.Process(target=worker, args=(root,))
+        child = mp.Process(target=worker, args=(root, os.getpid()))
         child.start()
         child.join(45)
         if child.is_alive():
@@ -114,11 +116,15 @@ def run(root):
             raise RuntimeError("worker never reached persisted checkpoint")
         first = json.loads(marker.read_text())
         before = store.get(task["task_id"])
-        child = psutil.Process(first["pid"])
-        if child.ppid() != supervisor.pid:
-            raise RuntimeError("refusing to kill unowned process")
+        if first.get("supervisor_pid") != supervisor.pid:
+            raise RuntimeError("refusing to kill worker from another supervisor")
         start = time.monotonic()
-        child.terminate()
+        try:
+            os.kill(first["pid"], signal.SIGTERM)
+        except ProcessLookupError:
+            # The supervisor may have observed the worker exit already; its
+            # recovery path remains the behavior under test.
+            pass
         supervisor.join(40)
         if supervisor.is_alive():
             raise RuntimeError("automatic recovery timed out")
@@ -161,8 +167,17 @@ def run(root):
         }
     finally:
         if supervisor.is_alive():
-            for child in psutil.Process(supervisor.pid).children(recursive=True):
-                child.terminate()
+            try:
+                children = psutil.Process(supervisor.pid).children(recursive=True)
+            except psutil.Error:
+                # The supervisor can exit between is_alive() and the psutil
+                # lookup. Cleanup is best-effort once recovery has completed.
+                children = []
+            for child in children:
+                try:
+                    child.terminate()
+                except psutil.Error:
+                    pass
             supervisor.terminate()
             supervisor.join()
 
