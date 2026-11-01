@@ -1070,6 +1070,20 @@ class MissionPlanner:
                         payload={"mode": "auto_measure"},
                     )
                 ]
+            from triade.self_improvement.worker_failure_canary import (
+                WorkerFailureShadowCanary,
+            )
+
+            if WorkerFailureShadowCanary(self.db_path).ready():
+                return [
+                    PlannedTask(
+                        task_type="failure_ab_evaluation",
+                        priority=6,
+                        reason="Canary en sombra con incidentes nuevos verificables",
+                        source="worker_failure_shadow",
+                        payload={"mode": "shadow_canary"},
+                    )
+                ]
         except MISSION_PLANNER_ERRORS as exc:
             record_internal_error(
                 "mission_planner.failure_ab", exc, db_path=self.db_path
