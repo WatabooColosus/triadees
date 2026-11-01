@@ -2,12 +2,12 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 19,
-  "version": "R7.16.2-compatible-schema-package",
+  "sequence": 20,
+  "version": "R7.17.0-scheduler-health",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "cd2c524cbfaf9ddd2b2974ebfd817516283c6d7b",
+  "commit": "c2ee1d3fed04a186619b531a87c3ff6476f1a77e",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
