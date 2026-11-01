@@ -229,6 +229,13 @@ class EngineeringEvolutionWorker:
             return {"status": "blocked", "reason": "approved_patch_file_list_required"}
         try:
             self._validate_files(changed, budget)
+            certified_digest = review.get("candidate_tree_digest")
+            if (
+                not isinstance(certified_digest, str)
+                or len(certified_digest) != 64
+                or self._files_digest(wt, changed) != certified_digest
+            ):
+                return {"status": "blocked", "reason": "certified_patch_mutated"}
             self._run(["git", "add", "--", *changed], wt, 30)
             staged = set(self._git(["diff", "--cached", "--name-only"], wt).splitlines())
             if staged != set(changed):
@@ -283,6 +290,14 @@ class EngineeringEvolutionWorker:
         if self._git(["status", "--porcelain"], self.repo).strip():
             return {"status": "blocked", "reason": "production_worktree_not_clean"}
         before = self._git(["rev-parse", "HEAD"], self.repo).strip()
+        if before != row["baseline_commit"]:
+            return {"status": "blocked", "reason": "deployment_baseline_changed"}
+        try:
+            parent = self._git(["rev-parse", row["commit_hash"] + "^"], self.repo).strip()
+        except subprocess.CalledProcessError:
+            return {"status": "blocked", "reason": "signed_commit_missing"}
+        if parent != before:
+            return {"status": "blocked", "reason": "signed_commit_parent_mismatch"}
         self._run(["git", "cherry-pick", row["commit_hash"]], self.repo, 120)
         rollback = {
             "action": "git_revert",
@@ -305,11 +320,23 @@ class EngineeringEvolutionWorker:
         if not row or not approved_by:
             return {"status": "blocked", "reason": "approval_or_run_missing"}
         rb = json.loads(row["rollback_json"] or "{}")
-        if row["status"] == "deployed_canary" and rb.get("commit"):
-            self._run(["git", "revert", "--no-edit", rb["commit"]], self.repo, 120)
+        if row["status"] != "deployed_canary" or not rb.get("commit"):
+            return {"status": "blocked", "reason": "no_deployed_canary_to_rollback"}
+        self._run(["git", "revert", "--no-edit", rb["commit"]], self.repo, 120)
+        restored = self._git(["rev-parse", "HEAD^{tree}"], self.repo).strip()
+        expected = self._git(
+            ["rev-parse", str(rb.get("previous")) + "^{tree}"], self.repo
+        ).strip()
+        if restored != expected:
+            return {"status": "failed", "reason": "rollback_tree_not_restored"}
         self._cleanup(Path(row["worktree_path"]))
         self._status(evolution_id, "rolled_back")
-        return {"status": "rolled_back", "evolution_id": evolution_id}
+        return {
+            "status": "rolled_back",
+            "evolution_id": evolution_id,
+            "restored_tree": restored,
+            "rollback_verified": True,
+        }
 
     def watchdog(self) -> dict[str, Any]:
         marcadores = ",".join("?" * len(EVOLUTION_IN_FLIGHT))
@@ -486,6 +513,9 @@ class EngineeringEvolutionWorker:
             return {
                 "regression_test": test_path,
                 "oracle_sha256": hashlib.sha256(test_bytes).hexdigest(),
+                "candidate_tree_digest": self._files_digest(
+                    candidate_tree, self._changed_files(candidate_tree)
+                ),
                 "oracle_unchanged": True,
                 "baseline_regression_failed": baseline["assertion_failure_verified"],
                 "candidate_regression_passed": treatment["passed"],
@@ -543,6 +573,10 @@ class EngineeringEvolutionWorker:
             "rollback_verified": bool(
                 repair_evidence and repair_evidence.get("rollback_verified")
             ),
+            "candidate_tree_digest": (
+                repair_evidence.get("candidate_tree_digest")
+                if repair_evidence else None
+            ),
             "changed_files": changed,
             "decision": "accept_candidate" if accept else "reject_candidate",
         }
@@ -556,6 +590,32 @@ class EngineeringEvolutionWorker:
                 x in f for x in ("secret", "private_key")
             ):
                 raise ValueError(f"protected_path:{f}")
+
+    @staticmethod
+    def _files_digest(worktree: Path, paths: list[str]) -> str:
+        """Vincula el certificado al contenido exacto antes del commit."""
+        from pathlib import PurePosixPath
+
+        root = worktree.resolve()
+        digest = hashlib.sha256()
+        for relative in sorted(paths):
+            path = PurePosixPath(relative)
+            if (
+                path.is_absolute()
+                or ".." in path.parts
+                or not relative
+            ):
+                raise ValueError("candidate_path_invalid")
+            target = worktree / relative
+            if target.is_symlink() or not target.resolve().is_relative_to(root):
+                raise ValueError("candidate_path_escapes_worktree")
+            if target.exists() and not target.is_file():
+                raise ValueError("candidate_path_not_file")
+            content = target.read_bytes() if target.is_file() else b""
+            digest.update(relative.encode("utf-8") + b"\0")
+            digest.update(b"present" if target.is_file() else b"deleted")
+            digest.update(hashlib.sha256(content).digest())
+        return digest.hexdigest()
 
     def _changed_files(self, worktree: Path) -> list[str]:
         lines = self._git(["status", "--porcelain"], worktree).splitlines()
