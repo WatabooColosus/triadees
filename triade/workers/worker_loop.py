@@ -270,6 +270,7 @@ class WorkerLoop:
         # el handler comprueba Ollama y devuelve deferred sin gastar intentos.
         "learning_evidence_generation",
         "neural_learning_distribution",
+        "failure_ab_evaluation",
         "neuron_education_cycle",
     }
     # Estas tareas representan un evento concreto y traen una clave de
@@ -1645,6 +1646,7 @@ class WorkerLoop:
                     "neural_learning_distribution": (
                         self._neural_learning_distribution
                     ),
+                    "failure_ab_evaluation": self._failure_ab_evaluation,
                     "peft_canary_observation": self._peft_canary_observation,
                 }
                 # El plazo crece con el intento: un timeout dice "no le dio
@@ -3238,6 +3240,24 @@ class WorkerLoop:
             "stable_memory_written": False,
             "effect_receipt": receipt.model_dump(mode="json"),
         }
+
+    def _failure_ab_evaluation(
+        self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
+    ) -> dict[str, Any]:
+        """Ejecuta pruebas A/B aisladas sin tocar producción ni memoria estable."""
+        from triade.self_improvement.worker_failure_ab import WorkerFailureABRunner
+
+        report_id = str(task.payload.get("regression_report_id") or "")
+        metric_id = str(task.payload.get("metric_id") or "")
+        if not report_id or not metric_id:
+            return {"status": "observed", "reason": "missing_regression_identity"}
+        result = WorkerFailureABRunner(self.db_path).evaluate(report_id, metric_id)
+        (task_dir / "failure-ab-result.json").write_text(
+            json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        if result.get("status") == "no_evidence":
+            return {**result, "status": "observed"}
+        return result
 
     def _learning_evidence_generation(
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
