@@ -315,7 +315,9 @@ def test_todos_los_contratos_declarados_se_sostienen_en_la_base_viva():
     # la verificación estructural de los contratos sigue siendo obligatoria en
     # cada ejecución.
     if os.getenv("TRIADE_VERIFY_LIVE_DB") != "1":
-        pytest.skip("auditoría de memoria viva desactivada; use TRIADE_VERIFY_LIVE_DB=1")
+        pytest.skip(
+            "auditoría de memoria viva desactivada; use TRIADE_VERIFY_LIVE_DB=1"
+        )
 
     # Absoluta desde `ROOT`: con ruta relativa el test se saltaba en silencio
     # según desde dónde se invocara pytest, que es la peor forma de no probar.
