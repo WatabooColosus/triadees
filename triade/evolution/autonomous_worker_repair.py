@@ -11,6 +11,7 @@ from __future__ import annotations
 import difflib
 import hashlib
 import json
+import subprocess
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
@@ -76,7 +77,7 @@ class AutonomousWorkerRepair:
             if _is_repairable_incident(row)
         ]
 
-    def _attempted(self, evidence_ref: str) -> bool:
+    def _attempted(self, evidence_ref: str, revision: str) -> bool:
         with sqlite3.connect(
             self.db_path.resolve().as_uri() + "?mode=ro", uri=True
         ) as conn:
@@ -95,8 +96,8 @@ class AutonomousWorkerRepair:
             ).fetchone()
             total = conn.execute(
                 "SELECT COUNT(*) FROM autonomous_worker_repair_attempts "
-                "WHERE protocol=?",
-                (REPAIR_PROTOCOL_VERSION,),
+                "WHERE protocol=? AND baseline_commit=?",
+                (REPAIR_PROTOCOL_VERSION, revision),
             ).fetchone()[0]
             return existing is not None or total >= MAX_INCIDENTS_PER_REVISION
 
@@ -111,9 +112,24 @@ class AutonomousWorkerRepair:
             return None
         if source_path.read_text(encoding="utf-8").count(_OLD_GUARD) != 1:
             return None
+        # El presupuesto pertenece al commit actual, no a toda la historia.
+        # Sin identidad Git verificable no se programan reparaciones.
+        try:
+            revision = subprocess.check_output(
+                ["git", "-C", str(self.repo), "rev-parse", "--verify", "HEAD"],
+                text=True,
+                stderr=subprocess.DEVNULL,
+                timeout=3,
+            ).strip()
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            return None
+        if len(revision) != 40 or not all(
+            char in "0123456789abcdef" for char in revision
+        ):
+            return None
         for item in reversed(self._observed()):
             evidence_ref = str(item["source_ref"])
-            if not self._attempted(evidence_ref):
+            if not self._attempted(evidence_ref, revision):
                 return evidence_ref
         return None
 

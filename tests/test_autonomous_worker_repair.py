@@ -44,7 +44,28 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path]:
         "def test_regression():\n    assert True\n",
         encoding="utf-8",
     )
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    _commit(repo, "baseline")
     return db_path, repo
+
+
+def _commit(repo: Path, message: str) -> None:
+    subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "user.name=Triade Test",
+            "-c",
+            "user.email=triade-tests@example.invalid",
+            "commit",
+            "-qm",
+            message,
+        ],
+        check=True,
+    )
 
 
 def _record(
@@ -139,7 +160,9 @@ def test_autonomous_repair_is_bounded_idempotent_and_never_deploys(tmp_path):
 
         def _git(self, args, worktree):
             assert args == ["rev-parse", "HEAD"]
-            return "e" * 40
+            return subprocess.check_output(
+                ["git", "-C", str(worktree), "rev-parse", "HEAD"], text=True
+            ).strip()
 
         def propose(self, **kwargs):
             calls.append(kwargs)
@@ -170,7 +193,17 @@ def test_autonomous_repair_is_bounded_idempotent_and_never_deploys(tmp_path):
     _record(db, 2)
     second = repair.evaluate("worker-event:2")
     assert second["status"] == "no_certified_repair"
-    _record(db, 3)
+    third = _record(db, 3)
+    assert repair.pending_incident() is None
+    # Al cambiar el commit se abre un nuevo presupuesto, sin reutilizar
+    # evidencias ya investigadas ni activar parches en producción.
+    (repo / "revision-note.txt").write_text("nueva revisión\n", encoding="utf-8")
+    _commit(repo, "next verified baseline")
+    assert repair.pending_incident() == third
+    revised = repair.evaluate(third)
+    assert revised["status"] == "no_certified_repair"
+    assert revised["production_changed"] is False
+    assert len(calls) == 6
     assert repair.pending_incident() is None
 
 
