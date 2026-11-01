@@ -2,7 +2,7 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 23,
+  "sequence": 24,
   "version": "R7.17.0-scheduler-health",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
@@ -16,7 +16,7 @@
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
-      "sha256": "82197efadee07e1478e475fe9f55861186c72740f9670d1d6c317b7c08fad687"
+      "sha256": "3fccd2304b0c493760a423560e04df7c18ab69dc383be6797191faf4349137c2"
     },
     "controller": {
       "path": "tools/triade_colab_control_r7.py",
@@ -40,7 +40,7 @@
     },
     "learning": {
       "path": "tools/triade_colab_learning.py",
-      "sha256": "c5c744acae440972ead194d53abec655530d91d25d2bb32521ebc6e486bcfb2b"
+      "sha256": "89e1c75dc1d55894e05f2082f1a737717baa2f5f31ef439c7c89b4c7988a4329"
     },
     "router": {
       "path": "tools/model_router.py",
