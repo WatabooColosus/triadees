@@ -1,4 +1,5 @@
 """Fallo verificable -> variantes deterministas -> gate funcional, sin promoción."""
+
 import sqlite3
 import subprocess
 from pathlib import Path
@@ -46,8 +47,9 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path]:
     return db_path, repo
 
 
-def _record(db_path, n, status="failed", reason="cancellation_requested",
-            *, mismatched=False):
+def _record(
+    db_path, n, status="failed", reason="cancellation_requested", *, mismatched=False
+):
     import json
 
     run_ref = f"run-{n}"
@@ -60,9 +62,12 @@ def _record(db_path, n, status="failed", reason="cancellation_requested",
         conn.execute(
             "INSERT INTO worker_events VALUES (?,?,?,?,?,?)",
             (
-                n, n, "pulse_check",
+                n,
+                n,
+                "pulse_check",
                 "fake-run" if mismatched else run_ref,
-                f"task_{status}", json.dumps(payload),
+                f"task_{status}",
+                json.dumps(payload),
             ),
         )
     return f"worker-event:{n}"
