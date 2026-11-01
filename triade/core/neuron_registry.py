@@ -82,7 +82,10 @@ class NeuronRegistry:
 
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)
-        self.schema_path = Path("triade/memory/schemas.sql")
+        # The runtime cwd is not stable across Colab restarts. Package data
+        # must follow the installed module, otherwise a valid run fails with
+        # FileNotFoundError after rehydration.
+        self.schema_path = Path(__file__).resolve().parents[1] / "memory/schemas.sql"
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
