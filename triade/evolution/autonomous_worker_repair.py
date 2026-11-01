@@ -51,14 +51,18 @@ def _is_repairable_incident(item: Mapping[str, Any]) -> bool:
 
 class AutonomousWorkerRepair:
     def __init__(
-        self, db_path: str | Path, repo: str | Path = ".",
+        self, db_path: str | Path, repo: str | Path | None = None,
         *,
         engine_factory: Callable[..., EngineeringEvolutionWorker] = (
             EngineeringEvolutionWorker
         ),
     ) -> None:
         self.db_path = Path(db_path)
-        self.repo = Path(repo).resolve()
+        self.repo = (
+            Path(repo).resolve()
+            if repo is not None
+            else Path(__file__).resolve().parents[2]
+        )
         self.engine_factory = engine_factory
 
     def _observed(self) -> list[dict[str, Any]]:
@@ -82,15 +86,29 @@ class AutonomousWorkerRepair:
             }
             if "autonomous_worker_repair_attempts" not in tables:
                 return False
-            row = conn.execute(
+            existing = conn.execute(
                 "SELECT 1 FROM autonomous_worker_repair_attempts "
                 "WHERE evidence_ref=? AND protocol=? LIMIT 1",
                 (evidence_ref, REPAIR_PROTOCOL_VERSION),
             ).fetchone()
-            return row is not None
+            total = conn.execute(
+                "SELECT COUNT(*) FROM autonomous_worker_repair_attempts "
+                "WHERE protocol=?",
+                (REPAIR_PROTOCOL_VERSION,),
+            ).fetchone()[0]
+            return existing is not None or total >= MAX_INCIDENTS_PER_REVISION
 
     def pending_incident(self) -> str | None:
         """Consulta read-only para el planificador, no crea ni cambia tareas."""
+        # No despertar workers caros si desapareció la receta o el oráculo.
+        source_path = self.repo / REPAIR_TARGET
+        test_path = self.repo / REPAIR_TEST
+        if not source_path.is_file() or not test_path.is_file():
+            return None
+        if source_path.is_symlink() or test_path.is_symlink():
+            return None
+        if source_path.read_text(encoding="utf-8").count(_OLD_GUARD) != 1:
+            return None
         for item in reversed(self._observed()):
             evidence_ref = str(item["source_ref"])
             if not self._attempted(evidence_ref):
