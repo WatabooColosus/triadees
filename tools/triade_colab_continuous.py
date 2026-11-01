@@ -580,9 +580,6 @@ def render(r5, *, watch=True):
         button("Guardar memoria", lambda: client.action("save")),
         button("Auditar actividad (30 s)", lambda: client.action("audit")),
         button("Ver circuito de aprendizaje", lambda: client.action("learning_status")),
-        button(
-            "Iniciar aprendizaje verificado", lambda: client.action("learning_start")
-        ),
     ]
     client.set_busy = lambda value: [
         setattr(control, "disabled", value) for control in buttons
@@ -603,8 +600,9 @@ def render(r5, *, watch=True):
             actions, layout=widgets.Layout(display="flex", flex_flow="row wrap")
         ),
         widgets.HTML(
-            "<small>Consulta continua cada 10 minutos mientras la sesión esté activa. "
-            "Las candidatas se aplican con el botón. No necesitas otra celda por versión.</small>"
+            "<small>El aprendizaje verificado corre dentro del ciclo continuo mientras "
+            "la sesión esté activa. Las compuertas aplican sólo evidencia segura; no "
+            "necesitas otra celda ni un botón de inicio.</small>"
         ),
         automatic,
         output,
