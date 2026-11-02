@@ -106,8 +106,9 @@ def test_report_is_outside_database_and_never_certifies(tmp_path, monkeypatch):
         conn.execute("INSERT INTO neurons VALUES (1)")
     checksum = hashlib.sha256(bodega.read_bytes()).hexdigest()
 
-    def mocked_probe(copy, checkout):
+    def mocked_probe(copy, checkout, artifact_root=None):
         assert checkout == repo
+        assert artifact_root is None
         with sqlite3.connect(copy) as conn:
             assert conn.execute("SELECT COUNT(*) FROM neurons").fetchone() == (1,)
         return {"verified_observations": 0}
@@ -224,7 +225,9 @@ def test_diagnostic_resolves_relative_canonical_results(tmp_path):
             ("task-1", "real_task", "worker-1", "failed", 1, ref),
         )
         conn.execute(
-            "INSERT INTO autonomous_task_transitions VALUES (?,?,?,?,?,?)",
+            "INSERT INTO autonomous_task_transitions "
+            "(task_id, to_status, worker_id, lease_generation, result_ref) "
+            "VALUES (?,?,?,?,?)",
             ("task-1", "failed", "worker-1", 1, ref),
         )
     without_root = audit.diagnose_evidence_sources(db)
