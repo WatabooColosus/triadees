@@ -494,7 +494,6 @@ def audit(context):
     return context["r5"].audit_progress(30)
 
 
-
 def failure_ab_status(context):
     """Auditoría aislada del candidato, accesible desde el panel permanente.
 
