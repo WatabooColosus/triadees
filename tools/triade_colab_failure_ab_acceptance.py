@@ -90,6 +90,164 @@ def snapshot_sqlite(source: Path, target: Path) -> dict[str, Any]:
     return {"sha256": digest.hexdigest(), "quick_check": "ok", "counts": counts}
 
 
+
+def diagnose_evidence_sources(snapshot: Path) -> dict[str, Any]:
+    """Indica por qué 3.000 tareas pueden dar cero observaciones válidas.
+
+    Solo consulta la copia. No infiere fallos de las tareas pendientes y no
+    atribuye causalidad a archivos cuyo hash todavía no se haya validado.
+    """
+    terminal = (
+        "completed", "observed", "cancelled", "blocked",
+        "failed", "dead_letter", "timeout", "lease_lost",
+    )
+    with sqlite3.connect(
+        snapshot.resolve().as_uri() + "?mode=ro", uri=True
+    ) as conn:
+        conn.row_factory = sqlite3.Row
+        tables = {
+            str(row[0])
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+
+        def columns(table: str) -> set[str]:
+            if table not in tables:
+                return set()
+            return {
+                str(row[1])
+                for row in conn.execute(f'PRAGMA table_info("{table}")')
+            }
+
+        def count(table: str) -> int | None:
+            if table not in tables:
+                return None
+            return int(conn.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0])
+
+        statuses: dict[str, int] = {}
+        if {"autonomous_tasks"} <= tables and "status" in columns("autonomous_tasks"):
+            statuses = {
+                str(row["status"]): int(row["total"])
+                for row in conn.execute(
+                    "SELECT status, COUNT(*) AS total FROM autonomous_tasks "
+                    "GROUP BY status ORDER BY status LIMIT 30"
+                )
+            }
+
+        legacy_required = {
+            "worker_tasks": {"id", "run_ref", "status", "task_type", "result_json"},
+            "worker_events": {
+                "task_id", "event_type", "run_ref", "task_type", "payload_json"
+            },
+        }
+        canonical_required = {
+            "autonomous_tasks": {
+                "task_id", "status", "worker_id", "result_ref", "lease_generation"
+            },
+            "autonomous_task_transitions": {
+                "task_id", "to_status", "worker_id", "result_ref", "lease_generation"
+            },
+        }
+        missing_legacy = {
+            table: sorted(fields - columns(table))
+            for table, fields in legacy_required.items()
+            if fields - columns(table)
+        }
+        missing_canonical = {
+            table: sorted(fields - columns(table))
+            for table, fields in canonical_required.items()
+            if fields - columns(table)
+        }
+
+        legacy_matches = None
+        if not missing_legacy:
+            legacy_matches = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM worker_events e "
+                    "JOIN worker_tasks t ON t.id = e.task_id "
+                    "WHERE e.event_type LIKE 'task_%'"
+                ).fetchone()[0]
+            )
+
+        canonical_matches = None
+        references = {
+            "sampled_terminal_transitions": 0,
+            "nonempty_result_refs": 0,
+            "accessible_result_json": 0,
+            "accessible_manifest_json": 0,
+        }
+        if not missing_canonical:
+            placeholders = ",".join("?" for _ in terminal)
+            sql = (
+                "SELECT t.result_ref AS result_ref "
+                "FROM autonomous_task_transitions e "
+                "JOIN autonomous_tasks t ON t.task_id = e.task_id "
+                "WHERE e.to_status IN (" + placeholders + ") "
+                "ORDER BY e.rowid DESC LIMIT 1000"
+            )
+            canonical_matches = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM autonomous_task_transitions e "
+                    "JOIN autonomous_tasks t ON t.task_id = e.task_id "
+                    "WHERE e.to_status IN (" + placeholders + ")",
+                    terminal,
+                ).fetchone()[0]
+            )
+            for row in conn.execute(sql, terminal):
+                references["sampled_terminal_transitions"] += 1
+                reference = str(row["result_ref"] or "")
+                if not reference:
+                    continue
+                references["nonempty_result_refs"] += 1
+                if not Path(reference).is_absolute():
+                    continue
+                artifact = Path(reference)
+                if (
+                    artifact.name != "result.json"
+                    or artifact.is_symlink()
+                    or artifact.parent.is_symlink()
+                    or not artifact.is_file()
+                ):
+                    continue
+                references["accessible_result_json"] += 1
+                manifest = artifact.parent / "manifest.json"
+                if manifest.is_file() and not manifest.is_symlink():
+                    references["accessible_manifest_json"] += 1
+
+    reasons = []
+    if missing_legacy:
+        reasons.append("legacy_contract_missing")
+    elif legacy_matches == 0:
+        reasons.append("no_linked_legacy_task_events")
+    if missing_canonical:
+        reasons.append("canonical_contract_missing")
+    elif canonical_matches == 0:
+        reasons.append("no_terminal_canonical_transitions")
+    elif references["nonempty_result_refs"] == 0:
+        reasons.append("terminal_transitions_without_result_refs")
+    elif references["accessible_result_json"] == 0:
+        reasons.append("result_artifacts_not_accessible_in_this_colab")
+    elif references["accessible_manifest_json"] == 0:
+        reasons.append("canonical_manifests_not_accessible")
+    return {
+        "table_counts": {
+            table: count(table)
+            for table in (
+                "autonomous_tasks", "autonomous_task_transitions",
+                "worker_tasks", "worker_events",
+            )
+        },
+        "autonomous_task_status_counts": statuses,
+        "legacy_contract_missing": missing_legacy,
+        "canonical_contract_missing": missing_canonical,
+        "linked_legacy_task_events": legacy_matches,
+        "canonical_terminal_transitions": canonical_matches,
+        "canonical_artifact_sample": references,
+        "diagnostic_codes": reasons,
+        "canonical_artifacts_fully_verified": False,
+        "production_modified": False,
+    }
+
+
 def inspect_copy(snapshot: Path, checkout: Path) -> dict[str, Any]:
     """Leer métodos de elegibilidad; no crear experimentos ni canaries."""
     import triade
@@ -108,6 +266,7 @@ def inspect_copy(snapshot: Path, checkout: Path) -> dict[str, Any]:
     incident = AutonomousWorkerRepair(snapshot, repo=checkout).pending_incident()
     return {
         "verified_observations": len(observations),
+        "evidence_source_diagnostics": diagnose_evidence_sources(snapshot),
         "source_ref_fingerprint": hashlib.sha256(
             json.dumps(refs, separators=(",", ":")).encode()
         ).hexdigest(),
