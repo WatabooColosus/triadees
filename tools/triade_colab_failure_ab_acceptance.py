@@ -90,7 +90,9 @@ def snapshot_sqlite(source: Path, target: Path) -> dict[str, Any]:
     return {"sha256": digest.hexdigest(), "quick_check": "ok", "counts": counts}
 
 
-def diagnose_evidence_sources(snapshot: Path) -> dict[str, Any]:
+def diagnose_evidence_sources(
+    snapshot: Path, artifact_root: Path | None = None
+) -> dict[str, Any]:
     """Indica por qué 3.000 tareas pueden dar cero observaciones válidas.
 
     Solo consulta la copia. No infiere fallos de las tareas pendientes y no
@@ -186,9 +188,14 @@ def diagnose_evidence_sources(snapshot: Path) -> dict[str, Any]:
         references = {
             "sampled_terminal_transitions": 0,
             "nonempty_result_refs": 0,
+            "relative_result_refs": 0,
             "accessible_result_json": 0,
             "accessible_manifest_json": 0,
         }
+        # Reuse the same provenance and symlink guard as the formal A/B reader.
+        from triade.self_improvement.worker_failure_ab import WorkerFailureABRunner
+
+        resolver = WorkerFailureABRunner(snapshot, artifact_root=artifact_root)
         if not missing_canonical:
             placeholders = ",".join("?" for _ in terminal)
             sql = (
@@ -213,8 +220,12 @@ def diagnose_evidence_sources(snapshot: Path) -> dict[str, Any]:
                     continue
                 references["nonempty_result_refs"] += 1
                 if not Path(reference).is_absolute():
+                    references["relative_result_refs"] += 1
+                    if artifact_root is None:
+                        continue
+                artifact = resolver._artifact_path(reference)
+                if artifact is None:
                     continue
-                artifact = Path(reference)
                 if (
                     artifact.name != "result.json"
                     or artifact.is_symlink()
@@ -239,7 +250,10 @@ def diagnose_evidence_sources(snapshot: Path) -> dict[str, Any]:
     elif references["nonempty_result_refs"] == 0:
         reasons.append("terminal_transitions_without_result_refs")
     elif references["accessible_result_json"] == 0:
-        reasons.append("result_artifacts_not_accessible_in_this_colab")
+        if references["relative_result_refs"] and artifact_root is None:
+            reasons.append("relative_result_refs_require_artifact_root")
+        else:
+            reasons.append("result_artifacts_not_accessible_in_this_colab")
     elif references["accessible_manifest_json"] == 0:
         reasons.append("canonical_manifests_not_accessible")
     return {
@@ -258,13 +272,16 @@ def diagnose_evidence_sources(snapshot: Path) -> dict[str, Any]:
         "linked_legacy_task_events": legacy_matches,
         "canonical_terminal_transitions": canonical_matches,
         "canonical_artifact_sample": references,
+        "artifact_root_configured": artifact_root is not None,
         "diagnostic_codes": reasons,
         "canonical_artifacts_fully_verified": False,
         "production_modified": False,
     }
 
 
-def inspect_copy(snapshot: Path, checkout: Path) -> dict[str, Any]:
+def inspect_copy(
+    snapshot: Path, checkout: Path, artifact_root: Path | None = None
+) -> dict[str, Any]:
     """Leer métodos de elegibilidad; no crear experimentos ni canaries."""
     import triade
     from triade.evolution.autonomous_worker_repair import AutonomousWorkerRepair
@@ -275,14 +292,18 @@ def inspect_copy(snapshot: Path, checkout: Path) -> dict[str, Any]:
 
     if Path(triade.__file__).resolve().parents[1] != checkout.resolve():
         raise RuntimeError("Importación de Tríade desde un checkout diferente")
-    runner = WorkerFailureABRunner(snapshot)
+    runner = WorkerFailureABRunner(snapshot, artifact_root=artifact_root)
     observations = runner._load_observations()
     cases = runner.replay_cases()
     refs = sorted(str(row["source_ref"]) for row in observations)
-    incident = AutonomousWorkerRepair(snapshot, repo=checkout).pending_incident()
+    incident = AutonomousWorkerRepair(
+        snapshot, repo=checkout, artifact_root=artifact_root
+    ).pending_incident()
     return {
         "verified_observations": len(observations),
-        "evidence_source_diagnostics": diagnose_evidence_sources(snapshot),
+        "evidence_source_diagnostics": diagnose_evidence_sources(
+            snapshot, artifact_root=artifact_root
+        ),
         "source_ref_fingerprint": hashlib.sha256(
             json.dumps(refs, separators=(",", ":")).encode()
         ).hexdigest(),
@@ -291,7 +312,9 @@ def inspect_copy(snapshot: Path, checkout: Path) -> dict[str, Any]:
             for split in ("train", "holdout", "negative")
         },
         "real_regression_measurement_pending": runner.pending_auto_measurement(),
-        "shadow_canary_ready": WorkerFailureShadowCanary(snapshot).ready(),
+        "shadow_canary_ready": WorkerFailureShadowCanary(
+            snapshot, artifact_root=artifact_root
+        ).ready(),
         "functional_repair_incident_pending": bool(incident),
         "incident_ref_hash": (
             hashlib.sha256(incident.encode()).hexdigest() if incident else None
@@ -300,7 +323,11 @@ def inspect_copy(snapshot: Path, checkout: Path) -> dict[str, Any]:
 
 
 def acceptance(
-    database: Path, checkout: Path, expected_commit: str, report_path: Path
+    database: Path,
+    checkout: Path,
+    expected_commit: str,
+    report_path: Path,
+    artifact_root: Path | None = None,
 ) -> dict[str, Any]:
     checkout = checkout.resolve(strict=True)
     if not SHA40.fullmatch(expected_commit):
@@ -308,6 +335,10 @@ def acceptance(
     commit = checked_head(checkout)
     if commit != expected_commit:
         raise RuntimeError("El checkout no coincide con el commit autorizado")
+    if artifact_root is not None:
+        if artifact_root.is_symlink() or not artifact_root.is_dir():
+            raise RuntimeError("Directorio de artefactos inexistente o inseguro")
+        artifact_root = artifact_root.resolve(strict=True)
     target = report_path.resolve()
     if (
         report_path.is_symlink()
@@ -318,7 +349,7 @@ def acceptance(
     with tempfile.TemporaryDirectory(prefix="triade-failure-ab-") as folder:
         snapshot = Path(folder) / "snapshot.sqlite3"
         receipt = snapshot_sqlite(database, snapshot)
-        findings = inspect_copy(snapshot, checkout)
+        findings = inspect_copy(snapshot, checkout, artifact_root=artifact_root)
     result = {
         "schema": "triade.colab.failure_ab.acceptance.v1",
         "created_at": dt.datetime.now(dt.UTC).isoformat(),
@@ -351,9 +382,12 @@ def main() -> int:
     parser.add_argument("--repo", required=True, type=Path)
     parser.add_argument("--expected-commit", required=True)
     parser.add_argument("--report", required=True, type=Path)
+    parser.add_argument("--artifact-root", type=Path, default=None)
     args = parser.parse_args()
     try:
-        result = acceptance(args.db, args.repo, args.expected_commit, args.report)
+        result = acceptance(
+            args.db, args.repo, args.expected_commit, args.report, args.artifact_root
+        )
     except Exception as exc:  # noqa: BLE001 - CLI boundary reports all failed probes
         print(
             json.dumps(
