@@ -1,4 +1,5 @@
 """Restore proof tests use synthetic isolated receipts, never production data."""
+
 from __future__ import annotations
 
 import hashlib
@@ -22,15 +23,17 @@ def _fixture(tmp_path: Path) -> Path:
     file_hash = hashlib.sha256(raw).hexdigest()
     (dest / "result.json").write_bytes(raw)
     (dest / "manifest.json").write_text(
-        json.dumps({
-            "task_id": "task-100",
-            "task_type": "synthetic_unit_fixture",
-            "status": "failed",
-            "worker_id": "worker-test",
-            "lease_generation": 1,
-            "result_hash": file_hash,
-            "artifact_hashes": {"result.json": file_hash},
-        }),
+        json.dumps(
+            {
+                "task_id": "task-100",
+                "task_type": "synthetic_unit_fixture",
+                "status": "failed",
+                "worker_id": "worker-test",
+                "lease_generation": 1,
+                "result_hash": file_hash,
+                "artifact_hashes": {"result.json": file_hash},
+            }
+        ),
         encoding="utf-8",
     )
     db = tmp_path / "fixture.sqlite3"
@@ -42,7 +45,15 @@ def _fixture(tmp_path: Path) -> Path:
         )
         conn.execute(
             "INSERT INTO autonomous_tasks VALUES (?, ?, ?, ?, ?, ?, ?)",
-            ("task-100", "synthetic_unit_fixture", "failed", "worker-test", 1, ref, "2026-11-01T00:00:00Z"),
+            (
+                "task-100",
+                "synthetic_unit_fixture",
+                "failed",
+                "worker-test",
+                1,
+                ref,
+                "2026-11-01T00:00:00Z",
+            ),
         )
     store = tmp_path / "private_archive"
     store.mkdir()

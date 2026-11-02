@@ -3,6 +3,7 @@
 Restores into a disposable filesystem root; never passes the live runtime or
 SQLite path to the restore routine. It cannot authorize A/B promotion.
 """
+
 from __future__ import annotations
 
 import datetime as dt
@@ -18,7 +19,9 @@ def _sha(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
-def prove_isolated_restore(agent: Any, store_dir: Path, *, temp_base: Path) -> dict[str, Any]:
+def prove_isolated_restore(
+    agent: Any, store_dir: Path, *, temp_base: Path
+) -> dict[str, Any]:
     """Verify archive, restore, idempotence and corruption refusal in isolation.
 
     Never removes an original artifact. Temporary trees live outside Drive.
@@ -29,7 +32,9 @@ def prove_isolated_restore(agent: Any, store_dir: Path, *, temp_base: Path) -> d
         raise RuntimeError("unsafe_archive_store")
     if temp_base.is_symlink() or not temp_base.is_dir():
         raise RuntimeError("unsafe_temporary_root")
-    if temp_base.resolve().is_relative_to(store.resolve()) or store.resolve().is_relative_to(temp_base.resolve()):
+    if temp_base.resolve().is_relative_to(
+        store.resolve()
+    ) or store.resolve().is_relative_to(temp_base.resolve()):
         raise RuntimeError("isolation_boundary_invalid")
     items = store / "items"
     if items.is_symlink() or not items.is_dir():
@@ -52,7 +57,9 @@ def prove_isolated_restore(agent: Any, store_dir: Path, *, temp_base: Path) -> d
 
     record, relative, files = selected
     digest = _sha(relative.as_posix().encode("utf-8"))
-    with tempfile.TemporaryDirectory(prefix="triade-proof-", dir=str(temp_base)) as folder:
+    with tempfile.TemporaryDirectory(
+        prefix="triade-proof-", dir=str(temp_base)
+    ) as folder:
         isolation = Path(folder)
         sandbox_store = isolation / "archive"
         copy_target = sandbox_store / "items" / digest[:2] / digest
@@ -68,14 +75,16 @@ def prove_isolated_restore(agent: Any, store_dir: Path, *, temp_base: Path) -> d
             raise RuntimeError("isolated_restore_not_verified")
         restored_dir = clean_runtime / relative.parent
         for name, raw in files.items():
-            if (restored_dir / name).is_symlink() or (restored_dir / name).read_bytes() != raw:
+            if (restored_dir / name).is_symlink() or (
+                restored_dir / name
+            ).read_bytes() != raw:
                 raise RuntimeError("restored_file_bytes_mismatch")
 
         second = agent.restore(clean_runtime, sandbox_store, max_items=1)
         if second.get("restored") != 0 or second.get("already_present") != 1:
             raise RuntimeError("restore_idempotence_failed")
         # Corrupt only the disposable archive COPY, not any real Drive receipt.
-        (copy_target / "result.json").write_bytes(b"{\"altered\":true}")
+        (copy_target / "result.json").write_bytes(b'{"altered":true}')
         tampered_runtime = isolation / "tampered_runtime"
         tampered_runtime.mkdir()
         rejected = agent.restore(tampered_runtime, sandbox_store, max_items=1)
@@ -103,4 +112,6 @@ def prove_isolated_restore(agent: Any, store_dir: Path, *, temp_base: Path) -> d
 
 
 def proof_json(report: dict[str, Any]) -> bytes:
-    return (json.dumps(report, sort_keys=True, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+    return (
+        json.dumps(report, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
+    ).encode("utf-8")
