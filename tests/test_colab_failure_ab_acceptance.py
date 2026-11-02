@@ -8,8 +8,10 @@ from pathlib import Path
 
 import pytest
 
-MODULE_PATH = Path(__file__).resolve().parents[1] / "tools" / (
-    "triade_colab_failure_ab_acceptance.py"
+MODULE_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "tools"
+    / ("triade_colab_failure_ab_acceptance.py")
 )
 spec = importlib.util.spec_from_file_location("triade_colab_acceptance", MODULE_PATH)
 assert spec is not None and spec.loader is not None
@@ -57,16 +59,22 @@ def test_wrong_commit_fails_before_accessing_bodega(tmp_path):
     subprocess.run(["git", "-C", str(repo), "add", "proof"], check=True)
     subprocess.run(
         [
-            "git", "-C", str(repo), "-c", "user.name=Triade Test",
-            "-c", "user.email=triade@example.invalid", "commit", "-qm", "baseline",
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "user.name=Triade Test",
+            "-c",
+            "user.email=triade@example.invalid",
+            "commit",
+            "-qm",
+            "baseline",
         ],
         check=True,
     )
     bodega = tmp_path / "bodega.sqlite3"
     with pytest.raises(RuntimeError, match="commit autorizado"):
-        audit.acceptance(
-            bodega, repo, "a" * 40, tmp_path / "read_only_evidence.json"
-        )
+        audit.acceptance(bodega, repo, "a" * 40, tmp_path / "read_only_evidence.json")
     assert not bodega.exists()
 
 
@@ -78,8 +86,16 @@ def test_report_is_outside_database_and_never_certifies(tmp_path, monkeypatch):
     subprocess.run(["git", "-C", str(repo), "add", "proof"], check=True)
     subprocess.run(
         [
-            "git", "-C", str(repo), "-c", "user.name=Triade Test",
-            "-c", "user.email=triade@example.invalid", "commit", "-qm", "baseline",
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "user.name=Triade Test",
+            "-c",
+            "user.email=triade@example.invalid",
+            "commit",
+            "-qm",
+            "baseline",
         ],
         check=True,
     )
@@ -98,7 +114,9 @@ def test_report_is_outside_database_and_never_certifies(tmp_path, monkeypatch):
 
     monkeypatch.setattr(audit, "inspect_copy", mocked_probe)
     with pytest.raises(RuntimeError, match="fuera de Drive"):
-        audit.acceptance(bodega, repo, audit.checked_head(repo), bodega.parent / "e.json")
+        audit.acceptance(
+            bodega, repo, audit.checked_head(repo), bodega.parent / "e.json"
+        )
     evidence = audit.acceptance(
         bodega, repo, audit.checked_head(repo), tmp_path / "reports" / "e.json"
     )

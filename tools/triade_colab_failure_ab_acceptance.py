@@ -180,8 +180,16 @@ def main() -> int:
     try:
         result = acceptance(args.db, args.repo, args.expected_commit, args.report)
     except Exception as exc:  # noqa: BLE001 - CLI boundary reports all failed probes
-        print(json.dumps({"decision": "blocked", "error": type(exc).__name__,
-                          "detail": str(exc)[:300]}, ensure_ascii=False))
+        print(
+            json.dumps(
+                {
+                    "decision": "blocked",
+                    "error": type(exc).__name__,
+                    "detail": str(exc)[:300],
+                },
+                ensure_ascii=False,
+            )
+        )
         return 2
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
