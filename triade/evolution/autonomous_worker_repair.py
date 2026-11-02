@@ -59,6 +59,7 @@ class AutonomousWorkerRepair:
         engine_factory: Callable[..., EngineeringEvolutionWorker] = (
             EngineeringEvolutionWorker
         ),
+        artifact_root: str | Path | None = None,
     ) -> None:
         self.db_path = Path(db_path)
         self.repo = (
@@ -67,13 +68,16 @@ class AutonomousWorkerRepair:
             else Path(__file__).resolve().parents[2]
         )
         self.engine_factory = engine_factory
+        self.artifact_root = artifact_root
 
     def _observed(self) -> list[dict[str, Any]]:
         from triade.self_improvement.worker_failure_ab import WorkerFailureABRunner
 
         return [
             row
-            for row in WorkerFailureABRunner(self.db_path)._load_observations()
+            for row in WorkerFailureABRunner(
+                self.db_path, artifact_root=self.artifact_root
+            )._load_observations()
             if _is_repairable_incident(row)
         ]
 
