@@ -1,4 +1,5 @@
 """Session-bound restore certification: synthetic fixtures only, no Colab DB writes."""
+
 from __future__ import annotations
 
 import hashlib
@@ -16,6 +17,7 @@ def _load(path: Path, name: str):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
 
 ROOT = Path(__file__).parent
 agent = _load(ROOT / "triade_colab_evidence_continuity.py", "evidence_v1")
@@ -35,11 +37,36 @@ def _fixture(tmp_path):
     raw = b'{"status":"failed","message":"fixture_only"}'
     sha = hashlib.sha256(raw).hexdigest()
     (p / "result.json").write_bytes(raw)
-    (p / "manifest.json").write_text(json.dumps({"task_id": "task-1", "task_type": "unit_fixture", "status": "failed", "worker_id": "worker-test", "lease_generation": 1, "result_hash": sha, "artifact_hashes": {"result.json": sha}}))
+    (p / "manifest.json").write_text(
+        json.dumps(
+            {
+                "task_id": "task-1",
+                "task_type": "unit_fixture",
+                "status": "failed",
+                "worker_id": "worker-test",
+                "lease_generation": 1,
+                "result_hash": sha,
+                "artifact_hashes": {"result.json": sha},
+            }
+        )
+    )
     db = tmp_path / "snapshot.sqlite3"
     with sqlite3.connect(db) as cx:
-        cx.execute("CREATE TABLE autonomous_tasks(task_id TEXT, task_type TEXT, status TEXT, worker_id TEXT, lease_generation INTEGER, result_ref TEXT, updated_at TEXT)")
-        cx.execute("INSERT INTO autonomous_tasks VALUES(?,?,?,?,?,?,?)", ("task-1", "unit_fixture", "failed", "worker-test", 1, rel.as_posix(), "2026-11-02"))
+        cx.execute(
+            "CREATE TABLE autonomous_tasks(task_id TEXT, task_type TEXT, status TEXT, worker_id TEXT, lease_generation INTEGER, result_ref TEXT, updated_at TEXT)"
+        )
+        cx.execute(
+            "INSERT INTO autonomous_tasks VALUES(?,?,?,?,?,?,?)",
+            (
+                "task-1",
+                "unit_fixture",
+                "failed",
+                "worker-test",
+                1,
+                rel.as_posix(),
+                "2026-11-02",
+            ),
+        )
     assert agent.archive(db, runtime, store)["archived"] == 1
     return runtime, store, rel, db
 
@@ -47,7 +74,9 @@ def _fixture(tmp_path):
 def test_no_prior_marker_keeps_gate_closed(tmp_path):
     runtime, store, _ref, _db = _fixture(tmp_path)
     pre = cert.prepare(agent, runtime, store, A)
-    result = cert.complete(agent, runtime, store, A, pre, {"status": "ok", "restored": 0})
+    result = cert.complete(
+        agent, runtime, store, A, pre, {"status": "ok", "restored": 0}
+    )
     assert result["status"] == "same_session_or_no_prior_baseline"
     assert result["anchor_saved"]
     assert not result["cross_session_restoration_certified"]
@@ -56,7 +85,14 @@ def test_no_prior_marker_keeps_gate_closed(tmp_path):
 def test_new_runtime_restores_genuine_saved_fixture(tmp_path):
     runtime, store, rel, db = _fixture(tmp_path)
     original = db.read_bytes()
-    cert.complete(agent, runtime, store, A, cert.prepare(agent, runtime, store, A), {"status": "ok", "restored": 0})
+    cert.complete(
+        agent,
+        runtime,
+        store,
+        A,
+        cert.prepare(agent, runtime, store, A),
+        {"status": "ok", "restored": 0},
+    )
     new = tmp_path / "runtimeB"
     new.mkdir()
     before = cert.prepare(agent, new, store, B)
@@ -74,7 +110,14 @@ def test_new_runtime_restores_genuine_saved_fixture(tmp_path):
 
 def test_same_runtime_never_certified(tmp_path):
     runtime, store, _rel, _db = _fixture(tmp_path)
-    cert.complete(agent, runtime, store, A, cert.prepare(agent, runtime, store, A), {"status": "ok", "restored": 0})
+    cert.complete(
+        agent,
+        runtime,
+        store,
+        A,
+        cert.prepare(agent, runtime, store, A),
+        {"status": "ok", "restored": 0},
+    )
     pre = cert.prepare(agent, runtime, store, A)
     assert pre["prior_session"] is None
     o = cert.complete(agent, runtime, store, A, pre, {"status": "ok", "restored": 1})
@@ -83,7 +126,14 @@ def test_same_runtime_never_certified(tmp_path):
 
 def test_no_actual_restoration_cannot_certify(tmp_path):
     runtime, store, _rel, _db = _fixture(tmp_path)
-    cert.complete(agent, runtime, store, A, cert.prepare(agent, runtime, store, A), {"status": "ok", "restored": 0})
+    cert.complete(
+        agent,
+        runtime,
+        store,
+        A,
+        cert.prepare(agent, runtime, store, A),
+        {"status": "ok", "restored": 0},
+    )
     fresh = tmp_path / "fresh"
     fresh.mkdir()
     before = cert.prepare(agent, fresh, store, B)
@@ -94,7 +144,14 @@ def test_no_actual_restoration_cannot_certify(tmp_path):
 
 def test_corruption_in_private_receipt_does_not_certify(tmp_path):
     runtime, store, _rel, _db = _fixture(tmp_path)
-    cert.complete(agent, runtime, store, A, cert.prepare(agent, runtime, store, A), {"status": "ok", "restored": 0})
+    cert.complete(
+        agent,
+        runtime,
+        store,
+        A,
+        cert.prepare(agent, runtime, store, A),
+        {"status": "ok", "restored": 0},
+    )
     (next((store / "items").glob("*/*")) / "result.json").write_bytes(b"forged")
     fresh = tmp_path / "fresh"
     fresh.mkdir()
