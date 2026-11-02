@@ -228,9 +228,9 @@ def test_diagnostic_resolves_relative_canonical_results(tmp_path):
             ("task-1", "failed", "worker-1", 1, ref),
         )
     without_root = audit.diagnose_evidence_sources(db)
-    assert "relative_result_refs_require_artifact_root" in without_root[
-        "diagnostic_codes"
-    ]
+    assert (
+        "relative_result_refs_require_artifact_root" in without_root["diagnostic_codes"]
+    )
     with_root = audit.diagnose_evidence_sources(db, artifact_root=root)
     assert with_root["canonical_terminal_transitions"] == 1
     assert with_root["canonical_artifact_sample"]["accessible_result_json"] == 1
