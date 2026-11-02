@@ -81,11 +81,9 @@ class WorkerFailureABRunner:
         # Historical task receipts may use paths relative to the runtime
         # repository, not the working directory of the audit subprocess.
         root = Path(artifact_root) if artifact_root is not None else None
-        self.artifact_root = root.resolve(strict=True) if root else None
-        if root is not None and (
-            root.is_symlink() or not self.artifact_root.is_dir()
-        ):
+        if root is not None and (root.is_symlink() or not root.is_dir()):
             raise ValueError("artifact_root_must_be_a_real_directory")
+        self.artifact_root = root.resolve(strict=True) if root else None
 
     def _artifact_path(self, reference: str) -> Path | None:
         candidate = Path(reference)
