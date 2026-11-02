@@ -4,7 +4,6 @@ import json
 import sqlite3
 from pathlib import Path
 
-
 PATH = Path(__file__).resolve().parents[1] / 'tools' / 'triade_colab_evidence_continuity.py'
 spec = importlib.util.spec_from_file_location('evidence_continuity', PATH)
 assert spec and spec.loader
@@ -55,7 +54,7 @@ def test_tampered_manifest_refused(tmp_path):
 
 
 def test_root_cannot_escape_or_follow_symlink(tmp_path):
-    rt,drive,db,ref=fixture(tmp_path)
+    rt,drive,db,_ref=fixture(tmp_path)
     with sqlite3.connect(db) as cx:
         cx.execute('UPDATE autonomous_tasks SET result_ref=?', ('../out/result.json',))
     assert m.archive(db,rt,drive)['archived'] == 0
@@ -97,14 +96,14 @@ def test_false_observation_missing_files_is_not_archived(tmp_path):
 
 
 def test_mismatched_sqlite_identity_refused(tmp_path):
-    rt,drive,db,ref=fixture(tmp_path)
+    rt,drive,db,_ref=fixture(tmp_path)
     with sqlite3.connect(db) as cx:
         cx.execute('UPDATE autonomous_tasks SET status=?', ('completed',))
     assert m.archive(db,rt,drive)['archived']==0
 
 
 def test_readonly_no_db_side_effects(tmp_path):
-    rt,drive,db,ref=fixture(tmp_path)
+    rt,drive,db,_ref=fixture(tmp_path)
     with sqlite3.connect(db) as cx:
         cx.execute('PRAGMA journal_mode=DELETE')
     before = hashlib.sha256(db.read_bytes()).hexdigest()
