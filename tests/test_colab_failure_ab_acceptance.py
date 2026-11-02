@@ -125,3 +125,65 @@ def test_report_is_outside_database_and_never_certifies(tmp_path, monkeypatch):
     assert evidence["colab_rollback_certified"] is False
     assert evidence["promotion_authorized"] is False
     assert hashlib.sha256(bodega.read_bytes()).hexdigest() == checksum
+
+
+
+def test_diagnostic_explains_tasks_without_terminal_transitions(tmp_path):
+    db = tmp_path / "copy.sqlite3"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE TABLE autonomous_tasks (task_id TEXT, status TEXT, "
+            "worker_id TEXT, result_ref TEXT, lease_generation INTEGER)"
+        )
+        conn.executemany(
+            "INSERT INTO autonomous_tasks VALUES (?, ?, ?, ?, ?)",
+            [
+                (str(i), "pending", "worker", None, 1)
+                for i in range(5)
+            ],
+        )
+        conn.execute(
+            "CREATE TABLE autonomous_task_transitions "
+            "(task_id TEXT, to_status TEXT, worker_id TEXT, "
+            "result_ref TEXT, lease_generation INTEGER)"
+        )
+    before = hashlib.sha256(db.read_bytes()).hexdigest()
+    report = audit.diagnose_evidence_sources(db)
+    assert report["table_counts"]["autonomous_tasks"] == 5
+    assert report["autonomous_task_status_counts"] == {"pending": 5}
+    assert report["canonical_terminal_transitions"] == 0
+    assert "no_terminal_canonical_transitions" in report["diagnostic_codes"]
+    assert report["production_modified"] is False
+    assert hashlib.sha256(db.read_bytes()).hexdigest() == before
+
+
+def test_diagnostic_separates_terminal_events_from_missing_artifacts(tmp_path):
+    db = tmp_path / "copy.sqlite3"
+    missing_result = tmp_path / "gone" / "result.json"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE TABLE autonomous_tasks (task_id TEXT, status TEXT, "
+            "worker_id TEXT, result_ref TEXT, lease_generation INTEGER)"
+        )
+        conn.execute(
+            "CREATE TABLE autonomous_task_transitions "
+            "(task_id TEXT, to_status TEXT, worker_id TEXT, "
+            "result_ref TEXT, lease_generation INTEGER)"
+        )
+        conn.execute(
+            "INSERT INTO autonomous_tasks VALUES (?, ?, ?, ?, ?)",
+            ("real-1", "failed", "worker", str(missing_result), 1),
+        )
+        conn.execute(
+            "INSERT INTO autonomous_task_transitions VALUES (?, ?, ?, ?, ?)",
+            ("real-1", "failed", "worker", str(missing_result), 1),
+        )
+    report = audit.diagnose_evidence_sources(db)
+    assert report["canonical_terminal_transitions"] == 1
+    assert report["canonical_artifact_sample"]["nonempty_result_refs"] == 1
+    assert report["canonical_artifact_sample"]["accessible_result_json"] == 0
+    assert "result_artifacts_not_accessible_in_this_colab" in report[
+        "diagnostic_codes"
+    ]
+    assert report["canonical_artifacts_fully_verified"] is False
+    assert report["production_modified"] is False
