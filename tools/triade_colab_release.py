@@ -591,7 +591,10 @@ def failure_ab_status(context):
         env=environment,
     )
     result = json.loads(destination.read_text(encoding="utf-8"))
-    if result.get("commit") != commit or result.get("promotion_authorized") is not False:
+    if (
+        result.get("commit") != commit
+        or result.get("promotion_authorized") is not False
+    ):
         raise RuntimeError("Auditoría de evidencia sin contrato de seguridad")
     return {
         "status": "evidence_collected_readonly",
