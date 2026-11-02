@@ -581,6 +581,7 @@ def render(r5, *, watch=True):
         button("Guardar memoria", lambda: client.action("save")),
         button("Auditar actividad (30 s)", lambda: client.action("audit")),
         button("Ver circuito de aprendizaje", lambda: client.action("learning_status")),
+        button("Auditar evidencia A/B", lambda: client.action("failure_ab_status")),
     ]
     client.set_busy = lambda value: [
         setattr(control, "disabled", value) for control in buttons
