@@ -509,7 +509,10 @@ def failure_ab_status(context):
     if not re.fullmatch(r"[a-f0-9]{40}", commit):
         raise RuntimeError("Commit de auditoría inválido")
     r5 = context["r5"]
-    database = Path(r5.DB).resolve(strict=True)
+    database_source = Path(r5.DB)
+    if database_source.is_symlink() or not database_source.is_file():
+        raise RuntimeError("Ruta de Bodega simbólica o ausente")
+    database = database_source.resolve(strict=True)
     artifact_root = Path(r5.ROOT)
     if artifact_root.is_symlink() or not artifact_root.is_dir():
         raise RuntimeError("Directorio de ejecución no verificado")
