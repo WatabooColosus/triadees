@@ -74,8 +74,44 @@ def _variant_strict_terminal(payload: Mapping[str, Any]) -> bool:
 class WorkerFailureABRunner:
     """Lee eventos reales, compara variantes confiables y devuelve un dict."""
 
-    def __init__(self, db_path: str | Path) -> None:
+    def __init__(
+        self, db_path: str | Path, *, artifact_root: str | Path | None = None
+    ) -> None:
         self.db_path = Path(db_path)
+        # Historical task receipts may use paths relative to the runtime
+        # repository, not the working directory of the audit subprocess.
+        root = Path(artifact_root) if artifact_root is not None else None
+        self.artifact_root = root.resolve(strict=True) if root else None
+        if root is not None and (
+            root.is_symlink() or not self.artifact_root.is_dir()
+        ):
+            raise ValueError("artifact_root_must_be_a_real_directory")
+
+    def _artifact_path(self, reference: str) -> Path | None:
+        candidate = Path(reference)
+        if self.artifact_root is None:
+            # Backwards-compatible runtime behavior when no root is supplied.
+            return candidate
+        if ".." in candidate.parts:
+            return None
+        if not candidate.is_absolute():
+            candidate = self.artifact_root / candidate
+        try:
+            relative = candidate.relative_to(self.artifact_root)
+        except ValueError:
+            return None
+        current = self.artifact_root
+        for part in relative.parts:
+            current = current / part
+            if current.is_symlink():
+                return None
+        try:
+            resolved = candidate.resolve(strict=True)
+        except (OSError, RuntimeError):
+            return None
+        if not resolved.is_relative_to(self.artifact_root):
+            return None
+        return resolved
 
     def _load_observations(self) -> list[dict[str, Any]]:
         with sqlite3.connect(
@@ -189,7 +225,9 @@ class WorkerFailureABRunner:
                 or row["lease_generation"] != row["event_generation"]
             ):
                 continue
-            artifact = Path(reference)
+            artifact = self._artifact_path(reference)
+            if artifact is None:
+                continue
             manifest_file = artifact.parent / "manifest.json"
             try:
                 if (
