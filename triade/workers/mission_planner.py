@@ -81,6 +81,7 @@ class MissionPlanner:
 
         tasks.extend(self._plan_baseline())
         tasks.extend(self._plan_unharvested_regressions())
+        tasks.extend(self._plan_failure_ab_evaluation())
         tasks.extend(self._plan_pending_learning())
         tasks.extend(self._plan_failed_recent())
         tasks.extend(self._plan_memory_consolidation())
@@ -1054,6 +1055,59 @@ class MissionPlanner:
 
         return tasks
 
+    def _plan_failure_ab_evaluation(self) -> list[PlannedTask]:
+        """Programa solo regresiones observadas, sin escribir ni repetir pruebas."""
+        try:
+            from triade.self_improvement.worker_failure_ab import WorkerFailureABRunner
+
+            if WorkerFailureABRunner(self.db_path).pending_auto_measurement():
+                return [
+                    PlannedTask(
+                        task_type="failure_ab_evaluation",
+                        priority=7,
+                        reason="Regresión de clasificación medida en eventos reales",
+                        source="verified_worker_observation",
+                        payload={"mode": "auto_measure"},
+                    )
+                ]
+            from triade.self_improvement.worker_failure_canary import (
+                WorkerFailureShadowCanary,
+            )
+
+            if WorkerFailureShadowCanary(self.db_path).ready():
+                return [
+                    PlannedTask(
+                        task_type="failure_ab_evaluation",
+                        priority=6,
+                        reason="Canary en sombra con incidentes nuevos verificables",
+                        source="worker_failure_shadow",
+                        payload={"mode": "shadow_canary"},
+                    )
+                ]
+            from triade.evolution.autonomous_worker_repair import (
+                AutonomousWorkerRepair,
+            )
+
+            incident = AutonomousWorkerRepair(self.db_path).pending_incident()
+            if incident:
+                return [
+                    PlannedTask(
+                        task_type="failure_ab_evaluation",
+                        priority=5,
+                        reason="Fallo real verificable con receta de reparación funcional",
+                        source="verified_worker_failure",
+                        payload={
+                            "mode": "functional_repair",
+                            "evidence_ref": incident,
+                        },
+                    )
+                ]
+        except MISSION_PLANNER_ERRORS as exc:
+            record_internal_error(
+                "mission_planner.failure_ab", exc, db_path=self.db_path
+            )
+        return []
+
     def _plan_unharvested_regressions(self) -> list[PlannedTask]:
         """Despierta la cosecha de regresiones sin depender de learning_queue.
 
@@ -1560,7 +1614,9 @@ class MissionPlanner:
         return int(report.get("debt_items_total") or 0), resumen or "sin categorías"
 
     def _plan_neuron_formation(self) -> list[PlannedTask]:
-        """Evalúa si hay candidatos neuronales sin training."""
+        """Reintenta un bloqueo sólo si existe una versión NUEVA del evaluador."""
+        from triade.neurons.curriculum import ADMISSION_CURRICULUM_VERSION
+
         tasks: list[PlannedTask] = []
         try:
             with closing(self._connect()) as conn, conn:
@@ -1604,8 +1660,11 @@ class MissionPlanner:
                     WHERE a.event_type='domain_admission_requested'
                       AND NOT EXISTS (SELECT 1 FROM neuron_education_events t
                         WHERE t.event_type='domain_training_completed'
-                          AND json_extract(t.payload_json,'$.admission_event_id')=a.id)
-                    ORDER BY a.id LIMIT 10"""
+                          AND json_extract(t.payload_json,'$.admission_event_id')=a.id
+                          AND (json_extract(t.payload_json,'$.status') != 'training_blocked'
+                            OR COALESCE(json_extract(t.payload_json,'$.curriculum_version'),1) >= ?))
+                    ORDER BY a.id LIMIT 10""",
+                    (ADMISSION_CURRICULUM_VERSION,),
                 ).fetchall()
                 for admission in formed:
                     payload = json.loads(admission["payload_json"])

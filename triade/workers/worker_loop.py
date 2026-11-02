@@ -83,6 +83,13 @@ def _timeout_for_task(task: WorkerTask, base_seconds: float, attempt: int) -> fl
     handlers conservan exactamente la escalada general 30→60→120.
     """
     standard = timeout_for_attempt(base_seconds, attempt)
+    # Los ensayos Git/pytest son CPU-only y reversibles, pero no caben en
+    # los 30 s interactivos. Solo esta operación obtiene 10 minutos.
+    if (
+        task.task_type == "failure_ab_evaluation"
+        and task.payload.get("mode") == "functional_repair"
+    ):
+        return max(standard, 600.0)
     if task.task_type != "goal_lora_train":
         return standard
     try:
@@ -224,6 +231,25 @@ _STATUSES_WORTH_LEARNING = frozenset(
 )
 
 
+def _should_learn_from_worker_outcome(status: str, result: dict[str, Any]) -> bool:
+    """Una cancelación solicitada no demuestra un fallo a corregir.
+
+    La telemetría y el estado terminal se conservan. Solo se evita
+    transformar 'cancellation_requested' en una supuesta lección de error.
+    Las cancelaciones anómalas siguen siendo candidatas de investigación.
+    """
+    if status not in _STATUSES_WORTH_LEARNING:
+        return False
+    if status == "cancelled":
+        reasons = [
+            str(result.get(key) or "").strip().lower()
+            for key in ("error", "reason", "message", "skipped_reason")
+        ]
+        if "cancellation_requested" in reasons:
+            return False
+    return True
+
+
 class WorkerLoop:
     READ_ONLY_TASKS_WITHOUT_BLOOD = frozenset(
         {
@@ -251,6 +277,7 @@ class WorkerLoop:
         # el handler comprueba Ollama y devuelve deferred sin gastar intentos.
         "learning_evidence_generation",
         "neural_learning_distribution",
+        "failure_ab_evaluation",
         "neuron_education_cycle",
     }
     # Estas tareas representan un evento concreto y traen una clave de
@@ -1626,6 +1653,7 @@ class WorkerLoop:
                     "neural_learning_distribution": (
                         self._neural_learning_distribution
                     ),
+                    "failure_ab_evaluation": self._failure_ab_evaluation,
                     "peft_canary_observation": self._peft_canary_observation,
                 }
                 # El plazo crece con el intento: un timeout dice "no le dio
@@ -1732,7 +1760,7 @@ class WorkerLoop:
                     task_type=task.task_type,
                     payload=result,
                 )
-                if persisted_status in _STATUSES_WORTH_LEARNING:
+                if _should_learn_from_worker_outcome(persisted_status, result):
                     self._learn_from_failure(run_ref, task, persisted_status, result)
                 if task.payload.get("goal_id"):
                     from triade.core.goal_orchestrator import GoalOrchestrator
@@ -3219,6 +3247,53 @@ class WorkerLoop:
             "stable_memory_written": False,
             "effect_receipt": receipt.model_dump(mode="json"),
         }
+
+    def _failure_ab_evaluation(
+        self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
+    ) -> dict[str, Any]:
+        """Ejecuta pruebas A/B aisladas sin tocar producción ni memoria estable."""
+        from triade.self_improvement.worker_failure_ab import WorkerFailureABRunner
+
+        report_id = str(task.payload.get("regression_report_id") or "")
+        metric_id = str(task.payload.get("metric_id") or "")
+        runner = WorkerFailureABRunner(self.db_path)
+        if task.payload.get("mode") == "functional_repair":
+            from triade.evolution.autonomous_worker_repair import (
+                AutonomousWorkerRepair,
+            )
+
+            evidence_ref = str(task.payload.get("evidence_ref") or "")
+            result = AutonomousWorkerRepair(self.db_path).evaluate(evidence_ref)
+            (task_dir / "functional-repair-evidence.json").write_text(
+                json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            # El resultado de A/B no es una autorización de despliegue.
+            verdict = str(result.get("status") or "no_evidence")
+            return {
+                **result,
+                "repair_verdict": verdict,
+                "status": "completed"
+                if verdict == "candidate_certified_in_sandbox"
+                else "observed",
+            }
+        if task.payload.get("mode") == "shadow_canary":
+            from triade.self_improvement.worker_failure_canary import (
+                WorkerFailureShadowCanary,
+            )
+
+            result = WorkerFailureShadowCanary(self.db_path).observe()
+        elif task.payload.get("mode") == "auto_measure":
+            result = runner.evaluate_auto()
+        elif report_id and metric_id:
+            result = runner.evaluate(report_id, metric_id)
+        else:
+            return {"status": "observed", "reason": "missing_regression_identity"}
+        (task_dir / "failure-ab-result.json").write_text(
+            json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        if result.get("status") == "no_evidence":
+            return {**result, "status": "observed"}
+        return result
 
     def _learning_evidence_generation(
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig

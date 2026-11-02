@@ -587,3 +587,8 @@ def audit(r5, seconds, *, emit=True):
     }
     assert client.r5.events == [("install", "release-one")]
     assert client.installed()["manifest"]["version"] == "fixture-panel-audit"
+
+
+def test_failure_ab_readonly_action_is_not_available_without_published_script():
+    with pytest.raises(RuntimeError, match="no incluye auditoría A/B"):
+        adapter.failure_ab_status({"files": {}, "manifest": {}})

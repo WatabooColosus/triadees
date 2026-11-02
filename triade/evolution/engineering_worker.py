@@ -6,8 +6,10 @@ import hashlib
 import json
 import os
 import subprocess
+import tempfile
 import time
 import uuid
+import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -105,12 +107,25 @@ class EngineeringEvolutionWorker:
         patch: str,
         *,
         budget: EvolutionBudget | None = None,
+        regression_test: str | None = None,
     ) -> dict[str, Any]:
         budget = budget or EvolutionBudget()
         eid = "evo-" + uuid.uuid4().hex[:12]
         started = time.monotonic()
         if len(patch.encode()) > budget.max_patch_bytes:
             return {"status": "blocked", "reason": "patch_budget_exceeded"}
+        if regression_test is None:
+            return {
+                "status": "blocked",
+                "reason": "independent_functional_regression_test_required",
+            }
+        # El oráculo es una prueba existente en el commit base, no código
+        # que la variante o un prompt puedan introducir o reescribir.
+        if regression_test is not None:
+            try:
+                self._require_trusted_regression_test(regression_test)
+            except (ValueError, RuntimeError) as exc:
+                return {"status": "blocked", "reason": str(exc)}
         baseline = self._git(["rev-parse", "HEAD"], self.repo).strip()
         worktree = self.root / eid
         with sqlite3.connect(self.db_path) as c:
@@ -144,7 +159,19 @@ class EngineeringEvolutionWorker:
                 baseline, eid + "-baseline", budget, started
             )
             candidate_result = self._eval_worktree(worktree, budget, started)
-            review = self._review(baseline_result, candidate_result, changed)
+            repair_evidence = (
+                self._certify_repair_in_worktrees(
+                    baseline, worktree, regression_test, patch, budget, started, eid
+                )
+                if regression_test is not None
+                else None
+            )
+            review = self._review(
+                baseline_result,
+                candidate_result,
+                changed,
+                repair_evidence=repair_evidence,
+            )
             status = (
                 "awaiting_approval"
                 if review["decision"] == "accept_candidate"
@@ -171,6 +198,7 @@ class EngineeringEvolutionWorker:
                 "baseline_commit": baseline,
                 "changed_files": changed,
                 "review": review,
+                "repair_evidence": repair_evidence,
                 "worktree": str(worktree),
             }
         except ENGINEERING_ERRORS as exc:
@@ -191,8 +219,42 @@ class EngineeringEvolutionWorker:
         row = self._get(evolution_id)
         if not row or row["status"] != "awaiting_approval":
             return {"status": "blocked", "reason": "candidate_not_awaiting_approval"}
+        try:
+            review = json.loads(row["review_json"] or "{}")
+        except (TypeError, ValueError):
+            return {"status": "blocked", "reason": "invalid_certification_receipt"}
+        if (
+            review.get("decision") != "accept_candidate"
+            or review.get("measured_functional_repair") is not True
+            or review.get("rollback_verified") is not True
+        ):
+            return {"status": "blocked", "reason": "functional_certification_required"}
         wt = Path(row["worktree_path"])
-        self._run(["git", "add", "-A"], wt, 30)
+        changed = json.loads(row["changed_files_json"] or "[]")
+        budget = EvolutionBudget(**json.loads(row["budget_json"]))
+        if not isinstance(changed, list) or not changed:
+            return {"status": "blocked", "reason": "approved_patch_file_list_required"}
+        try:
+            self._validate_files(changed, budget)
+            certified_digest = review.get("candidate_tree_digest")
+            if (
+                not isinstance(certified_digest, str)
+                or len(certified_digest) != 64
+                or self._files_digest(wt, changed) != certified_digest
+            ):
+                return {"status": "blocked", "reason": "certified_patch_mutated"}
+            self._run(["git", "add", "--", *changed], wt, 30)
+            staged = set(
+                self._git(["diff", "--cached", "--name-only"], wt).splitlines()
+            )
+            if staged != set(changed):
+                return {"status": "blocked", "reason": "staged_patch_mismatch"}
+        except ENGINEERING_ERRORS as exc:
+            return {
+                "status": "blocked",
+                "reason": "candidate_contents_invalid",
+                "error": str(exc),
+            }
         try:
             self._run(
                 ["git", "commit", "-S", "-m", f"evolution: {row['objective'][:60]}"],
@@ -228,9 +290,29 @@ class EngineeringEvolutionWorker:
         row = self._get(evolution_id)
         if not row or row["status"] != "approved_commit" or not approved_by:
             return {"status": "blocked", "reason": "approved_signed_commit_required"}
+        try:
+            review = json.loads(row["review_json"] or "{}")
+        except (TypeError, ValueError):
+            return {"status": "blocked", "reason": "invalid_certification_receipt"}
+        if (
+            review.get("decision") != "accept_candidate"
+            or review.get("measured_functional_repair") is not True
+            or review.get("rollback_verified") is not True
+        ):
+            return {"status": "blocked", "reason": "functional_certification_required"}
         if self._git(["status", "--porcelain"], self.repo).strip():
             return {"status": "blocked", "reason": "production_worktree_not_clean"}
         before = self._git(["rev-parse", "HEAD"], self.repo).strip()
+        if before != row["baseline_commit"]:
+            return {"status": "blocked", "reason": "deployment_baseline_changed"}
+        try:
+            parent = self._git(
+                ["rev-parse", row["commit_hash"] + "^"], self.repo
+            ).strip()
+        except subprocess.CalledProcessError:
+            return {"status": "blocked", "reason": "signed_commit_missing"}
+        if parent != before:
+            return {"status": "blocked", "reason": "signed_commit_parent_mismatch"}
         self._run(["git", "cherry-pick", row["commit_hash"]], self.repo, 120)
         rollback = {
             "action": "git_revert",
@@ -253,11 +335,23 @@ class EngineeringEvolutionWorker:
         if not row or not approved_by:
             return {"status": "blocked", "reason": "approval_or_run_missing"}
         rb = json.loads(row["rollback_json"] or "{}")
-        if row["status"] == "deployed_canary" and rb.get("commit"):
-            self._run(["git", "revert", "--no-edit", rb["commit"]], self.repo, 120)
+        if row["status"] != "deployed_canary" or not rb.get("commit"):
+            return {"status": "blocked", "reason": "no_deployed_canary_to_rollback"}
+        self._run(["git", "revert", "--no-edit", rb["commit"]], self.repo, 120)
+        restored = self._git(["rev-parse", "HEAD^{tree}"], self.repo).strip()
+        expected = self._git(
+            ["rev-parse", str(rb.get("previous")) + "^{tree}"], self.repo
+        ).strip()
+        if restored != expected:
+            return {"status": "failed", "reason": "rollback_tree_not_restored"}
         self._cleanup(Path(row["worktree_path"]))
         self._status(evolution_id, "rolled_back")
-        return {"status": "rolled_back", "evolution_id": evolution_id}
+        return {
+            "status": "rolled_back",
+            "evolution_id": evolution_id,
+            "restored_tree": restored,
+            "rollback_verified": True,
+        }
 
     def watchdog(self) -> dict[str, Any]:
         marcadores = ",".join("?" * len(EVOLUTION_IN_FLIGHT))
@@ -319,14 +413,215 @@ class EngineeringEvolutionWorker:
             "commands": results,
         }
 
+    def _require_trusted_regression_test(self, test_path: str) -> None:
+        """Solo un oráculo existente y rastreado en git, fuera del parche."""
+        from pathlib import PurePosixPath
+
+        path = PurePosixPath(test_path)
+        if (
+            not test_path
+            or path.is_absolute()
+            or ".." in path.parts
+            or len(path.parts) != 2
+            or path.parts[0] != "tests"
+            or not path.name.startswith("test_")
+            or path.suffix != ".py"
+            or not (self.repo / test_path).is_file()
+            or (self.repo / test_path).is_symlink()
+        ):
+            raise ValueError("trusted_regression_test_required")
+        try:
+            self._git(["ls-files", "--error-unmatch", "--", test_path], self.repo)
+        except subprocess.CalledProcessError as exc:
+            raise ValueError("tracked_regression_test_required") from exc
+
     @staticmethod
-    def _review(base: dict, candidate: dict, changed: list[str]) -> dict:
-        accept = base.get("passed") and candidate.get("passed")
+    def _run_trusted_regression(
+        root: Path, test_path: str, remaining_seconds: int
+    ) -> dict[str, Any]:
+        with tempfile.TemporaryDirectory(prefix="triade-oracle-") as evidence_dir:
+            junit = Path(evidence_dir) / "results.xml"
+            cmd = [
+                "python",
+                "-m",
+                "pytest",
+                "-q",
+                "-p",
+                "no:cacheprovider",
+                f"--junitxml={junit}",
+                "--",
+                test_path,
+            ]
+            completed = subprocess.run(
+                cmd,
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=max(1, remaining_seconds),
+                env={
+                    **os.environ,
+                    "PYTHONDONTWRITEBYTECODE": "1",
+                    # La prueba preexistente se despierta solo para esta receta;
+                    # CI ordinario no debe tratar un fallo intencional como rojo.
+                    "TRIADE_FUNCTIONAL_REPAIR_PROBE": (
+                        "requested_cancellation_marked_failed"
+                        if test_path == "tests/test_worker_failure_repair_oracle.py"
+                        else ""
+                    ),
+                    "TRIADE_RUNTIME_SCOPE": "test",
+                    "TRIADE_DISABLE_BACKGROUND": "1",
+                },
+            )
+            try:
+                root_xml = ET.parse(junit).getroot()
+                suites = (
+                    [root_xml]
+                    if root_xml.tag == "testsuite"
+                    else list(root_xml.iter("testsuite"))
+                )
+                tests = sum(int(item.get("tests", "0")) for item in suites)
+                failures = sum(int(item.get("failures", "0")) for item in suites)
+                errors = sum(int(item.get("errors", "0")) for item in suites)
+                skipped = sum(int(item.get("skipped", "0")) for item in suites)
+            except (ET.ParseError, OSError, ValueError):
+                tests, failures, errors, skipped = 0, 0, 1, 0
         return {
-            "reviewer": "deterministic_independent_gate",
+            "passed": completed.returncode == 0
+            and tests >= 2
+            and failures == 0
+            and errors == 0
+            and skipped == 0,
+            "assertion_failure_verified": completed.returncode == 1
+            and tests >= 2
+            and failures >= 1
+            and errors == 0,
+            "tests": tests,
+            "failures": failures,
+            "errors": errors,
+            "skipped": skipped,
+            "returncode": completed.returncode,
+            "output_sha256": hashlib.sha256(
+                (completed.stdout + completed.stderr).encode()
+            ).hexdigest(),
+        }
+
+    def _certify_repair_in_worktrees(
+        self,
+        baseline_commit: str,
+        candidate_tree: Path,
+        test_path: str,
+        patch: str,
+        budget: EvolutionBudget,
+        started: float,
+        evolution_id: str,
+    ) -> dict[str, Any]:
+        """Prueba regresión A roja, B verde y rollback en otro worktree.
+
+        Nunca modifica el checkout de producción ni toca Bodega.
+        Una regresión normal del suite completo se evalúa por separado.
+        """
+        self._require_trusted_regression_test(test_path)
+        test_bytes = (self.repo / test_path).read_bytes()
+        if (candidate_tree / test_path).read_bytes() != test_bytes:
+            raise ValueError("independent_oracle_changed")
+        baseline_tree = self.root / (evolution_id + "-repair-baseline")
+        rollback_tree = self.root / (evolution_id + "-rollback-probe")
+        self._run(
+            ["git", "worktree", "add", "--detach", str(baseline_tree), baseline_commit],
+            self.repo,
+            120,
+        )
+        try:
+            if (baseline_tree / test_path).read_bytes() != test_bytes:
+                raise ValueError("independent_oracle_changed")
+            remaining = max(
+                1, int(budget.max_minutes * 60 - (time.monotonic() - started))
+            )
+            baseline = self._run_trusted_regression(baseline_tree, test_path, remaining)
+            remaining = max(
+                1, int(budget.max_minutes * 60 - (time.monotonic() - started))
+            )
+            treatment = self._run_trusted_regression(
+                candidate_tree, test_path, remaining
+            )
+            rollback_verified = self._rollback_probe(
+                baseline_commit, patch, rollback_tree
+            )
+            return {
+                "regression_test": test_path,
+                "oracle_sha256": hashlib.sha256(test_bytes).hexdigest(),
+                "candidate_tree_digest": self._files_digest(
+                    candidate_tree, self._changed_files(candidate_tree)
+                ),
+                "oracle_unchanged": True,
+                "baseline_regression_failed": baseline["assertion_failure_verified"],
+                "candidate_regression_passed": treatment["passed"],
+                "rollback_verified": rollback_verified,
+                "baseline_receipt": baseline,
+                "candidate_receipt": treatment,
+                "scope": "isolated_functional_regression_only",
+                "production_causality_proven": False,
+                "production_deployed": False,
+            }
+        finally:
+            self._cleanup(baseline_tree)
+
+    def _rollback_probe(
+        self, baseline_commit: str, patch: str, rollback_tree: Path
+    ) -> bool:
+        self._run(
+            ["git", "worktree", "add", "--detach", str(rollback_tree), baseline_commit],
+            self.repo,
+            120,
+        )
+        # El parche vive fuera de ese worktree para que 'git status' sea exacto.
+        patch_file = self.root / (rollback_tree.name + ".patch")
+        try:
+            patch_file.write_text(patch, encoding="utf-8")
+            self._run(["git", "apply", "--check", str(patch_file)], rollback_tree, 30)
+            self._run(["git", "apply", str(patch_file)], rollback_tree, 30)
+            if not self._git(["status", "--porcelain"], rollback_tree).strip():
+                raise ValueError("rollback_probe_no_effect")
+            self._run(["git", "apply", "-R", str(patch_file)], rollback_tree, 30)
+            return not self._git(["status", "--porcelain"], rollback_tree).strip()
+        finally:
+            patch_file.unlink(missing_ok=True)
+            self._cleanup(rollback_tree)
+
+    @staticmethod
+    def _review(
+        base: dict,
+        candidate: dict,
+        changed: list[str],
+        *,
+        repair_evidence: dict[str, Any] | None = None,
+    ) -> dict:
+        # Un suite verde sin caso roto ANTES del cambio no demuestra reparación.
+        verified_repair = bool(
+            repair_evidence
+            and repair_evidence.get("baseline_regression_failed") is True
+            and repair_evidence.get("candidate_regression_passed") is True
+            and repair_evidence.get("oracle_unchanged") is True
+            and repair_evidence.get("rollback_verified") is True
+        )
+        accept = bool(
+            base.get("passed") and candidate.get("passed") and verified_repair
+        )
+        return {
+            "reviewer": "deterministic_independent_repair_gate",
             "independent_tests": True,
             "baseline_passed": base.get("passed"),
             "candidate_passed": candidate.get("passed"),
+            "measured_functional_repair": verified_repair,
+            "rollback_verified": bool(
+                repair_evidence and repair_evidence.get("rollback_verified")
+            ),
+            "candidate_tree_digest": (
+                repair_evidence.get("candidate_tree_digest")
+                if repair_evidence
+                else None
+            ),
             "changed_files": changed,
             "decision": "accept_candidate" if accept else "reject_candidate",
         }
@@ -340,6 +635,28 @@ class EngineeringEvolutionWorker:
                 x in f for x in ("secret", "private_key")
             ):
                 raise ValueError(f"protected_path:{f}")
+
+    @staticmethod
+    def _files_digest(worktree: Path, paths: list[str]) -> str:
+        """Vincula el certificado al contenido exacto antes del commit."""
+        from pathlib import PurePosixPath
+
+        root = worktree.resolve()
+        digest = hashlib.sha256()
+        for relative in sorted(paths):
+            path = PurePosixPath(relative)
+            if path.is_absolute() or ".." in path.parts or not relative:
+                raise ValueError("candidate_path_invalid")
+            target = worktree / relative
+            if target.is_symlink() or not target.resolve().is_relative_to(root):
+                raise ValueError("candidate_path_escapes_worktree")
+            if target.exists() and not target.is_file():
+                raise ValueError("candidate_path_not_file")
+            content = target.read_bytes() if target.is_file() else b""
+            digest.update(relative.encode("utf-8") + b"\0")
+            digest.update(b"present" if target.is_file() else b"deleted")
+            digest.update(hashlib.sha256(content).digest())
+        return digest.hexdigest()
 
     def _changed_files(self, worktree: Path) -> list[str]:
         lines = self._git(["status", "--porcelain"], worktree).splitlines()

@@ -51,6 +51,8 @@ class EvolutionRequest(BaseModel):
     objective: str = Field(min_length=5, max_length=500)
     hypothesis: str = Field(min_length=5, max_length=2000)
     patch: str = Field(min_length=10, max_length=100_000)
+    # Debe ser una prueba ya existente y rastreada en el commit base.
+    regression_test: str | None = Field(default=None, max_length=256)
 
 
 class EvolutionApproval(BaseModel):
@@ -321,7 +323,10 @@ def engineering_propose(
     from triade.evolution.engineering_worker import EngineeringEvolutionWorker
 
     return EngineeringEvolutionWorker().propose(
-        request.objective, request.hypothesis, request.patch
+        request.objective,
+        request.hypothesis,
+        request.patch,
+        regression_test=request.regression_test,
     )
 
 
