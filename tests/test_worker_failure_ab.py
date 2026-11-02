@@ -371,17 +371,14 @@ def test_v2_relative_receipts_require_authorized_root(tmp_path, monkeypatch):
             (relative,),
         )
         conn.execute(
-            "UPDATE autonomous_task_transitions SET result_ref=? "
-            "WHERE task_id='950'",
+            "UPDATE autonomous_task_transitions SET result_ref=? WHERE task_id='950'",
             (relative,),
         )
     unrelated = tmp_path / "different_cwd"
     unrelated.mkdir()
     monkeypatch.chdir(unrelated)
     assert WorkerFailureABRunner(db)._load_observations() == []
-    loaded = WorkerFailureABRunner(
-        db, artifact_root=tmp_path
-    )._load_observations()
+    loaded = WorkerFailureABRunner(db, artifact_root=tmp_path)._load_observations()
     assert len(loaded) == 1
     assert loaded[0]["status"] == "failed"
     # Reject traversal, even if a path outside the authorized root exists.
@@ -391,13 +388,10 @@ def test_v2_relative_receipts_require_authorized_root(tmp_path, monkeypatch):
             ("../runs/task-950/result.json",),
         )
         conn.execute(
-            "UPDATE autonomous_task_transitions SET result_ref=? "
-            "WHERE task_id='950'",
+            "UPDATE autonomous_task_transitions SET result_ref=? WHERE task_id='950'",
             ("../runs/task-950/result.json",),
         )
-    assert WorkerFailureABRunner(
-        db, artifact_root=tmp_path
-    )._load_observations() == []
+    assert WorkerFailureABRunner(db, artifact_root=tmp_path)._load_observations() == []
 
 
 def test_v2_relative_receipts_reject_symlink_outside_root(tmp_path):
@@ -429,8 +423,7 @@ def test_v2_relative_receipts_reject_symlink_outside_root(tmp_path):
             (reference,),
         )
         conn.execute(
-            "UPDATE autonomous_task_transitions SET result_ref=? "
-            "WHERE task_id='951'",
+            "UPDATE autonomous_task_transitions SET result_ref=? WHERE task_id='951'",
             (reference,),
         )
     assert WorkerFailureABRunner(db, artifact_root=root)._load_observations() == []
