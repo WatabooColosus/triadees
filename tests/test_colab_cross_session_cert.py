@@ -19,7 +19,7 @@ def _load(path: Path, name: str):
     return module
 
 
-ROOT = Path(__file__).parent
+ROOT = Path(__file__).resolve().parents[1] / "tools"
 agent = _load(ROOT / "triade_colab_evidence_continuity.py", "evidence_v1")
 cert = _load(ROOT / "triade_colab_cross_session_cert.py", "cross_cert_v1")
 A = "1" * 32
