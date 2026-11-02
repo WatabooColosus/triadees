@@ -59,25 +59,27 @@ def snapshot_sqlite(source: Path, target: Path) -> dict[str, Any]:
         raise RuntimeError("La copia de destino ya existe")
     target.parent.mkdir(parents=True, exist_ok=True)
     try:
-        with sqlite3.connect(source.as_uri() + "?mode=ro", uri=True, timeout=10) as live:
-            with sqlite3.connect(target, timeout=10) as copy:
-                live.backup(copy, pages=128, sleep=0.05)
-                check = copy.execute("PRAGMA quick_check").fetchone()
-                if check is None or check[0] != "ok":
-                    raise RuntimeError("Copia SQLite no íntegra")
-                names = {
-                    row[0]
-                    for row in copy.execute(
-                        "SELECT name FROM sqlite_master WHERE type='table'"
-                    )
-                }
-                counts = {
-                    table: int(
-                        copy.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
-                    )
-                    for table in COUNT_TABLES
-                    if table in names
-                }
+        with (
+            sqlite3.connect(source.as_uri() + "?mode=ro", uri=True, timeout=10) as live,
+            sqlite3.connect(target, timeout=10) as copy,
+        ):
+            live.backup(copy, pages=128, sleep=0.05)
+            check = copy.execute("PRAGMA quick_check").fetchone()
+            if check is None or check[0] != "ok":
+                raise RuntimeError("Copia SQLite no íntegra")
+            names = {
+                row[0]
+                for row in copy.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
+            }
+            counts = {
+                table: int(
+                    copy.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
+                )
+                for table in COUNT_TABLES
+                if table in names
+            }
     except BaseException:
         target.unlink(missing_ok=True)
         raise
@@ -177,7 +179,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         result = acceptance(args.db, args.repo, args.expected_commit, args.report)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - CLI boundary reports all failed probes
         print(json.dumps({"decision": "blocked", "error": type(exc).__name__,
                           "detail": str(exc)[:300]}, ensure_ascii=False))
         return 2
