@@ -54,7 +54,7 @@ def test_tampered_manifest_refused(tmp_path):
 
 
 def test_root_cannot_escape_or_follow_symlink(tmp_path):
-    rt,drive,db,_ref=fixture(tmp_path)
+    rt,drive,db,ref=fixture(tmp_path)
     with sqlite3.connect(db) as cx:
         cx.execute('UPDATE autonomous_tasks SET result_ref=?', ('../out/result.json',))
     assert m.archive(db,rt,drive)['archived'] == 0
