@@ -73,7 +73,7 @@ def test_new_runtime_restores_genuine_saved_fixture(tmp_path):
 
 
 def test_same_runtime_never_certified(tmp_path):
-    runtime, store, rel, _db = _fixture(tmp_path)
+    runtime, store, _rel, _db = _fixture(tmp_path)
     cert.complete(agent, runtime, store, A, cert.prepare(agent, runtime, store, A), {"status": "ok", "restored": 0})
     pre = cert.prepare(agent, runtime, store, A)
     assert pre["prior_session"] is None
