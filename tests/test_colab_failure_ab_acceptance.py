@@ -181,3 +181,59 @@ def test_diagnostic_separates_terminal_events_from_missing_artifacts(tmp_path):
     assert "result_artifacts_not_accessible_in_this_colab" in report["diagnostic_codes"]
     assert report["canonical_artifacts_fully_verified"] is False
     assert report["production_modified"] is False
+
+
+def test_diagnostic_resolves_relative_canonical_results(tmp_path):
+    import json
+
+    root = tmp_path / "runtime"
+    run_dir = root / "runs" / "background" / "test" / "tasks" / "task-1"
+    run_dir.mkdir(parents=True)
+    payload = b'{"error":"actual_failure"}'
+    (run_dir / "result.json").write_bytes(payload)
+    digest = hashlib.sha256(payload).hexdigest()
+    (run_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "task_id": "task-1",
+                "task_type": "real_task",
+                "worker_id": "worker-1",
+                "status": "failed",
+                "lease_generation": 1,
+                "result_hash": digest,
+                "artifact_hashes": {"result.json": digest},
+            }
+        ),
+        encoding="utf-8",
+    )
+    ref = "runs/background/test/tasks/task-1/result.json"
+    db = tmp_path / "snapshot.sqlite3"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE TABLE autonomous_tasks "
+            "(task_id TEXT, task_type TEXT, worker_id TEXT, "
+            "status TEXT, lease_generation INTEGER, result_ref TEXT)"
+        )
+        conn.execute(
+            "CREATE TABLE autonomous_task_transitions "
+            "(transition_id INTEGER PRIMARY KEY, task_id TEXT, to_status TEXT, "
+            "worker_id TEXT, lease_generation INTEGER, result_ref TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO autonomous_tasks VALUES (?,?,?,?,?,?)",
+            ("task-1", "real_task", "worker-1", "failed", 1, ref),
+        )
+        conn.execute(
+            "INSERT INTO autonomous_task_transitions VALUES (?,?,?,?,?,?)",
+            ("task-1", "failed", "worker-1", 1, ref),
+        )
+    without_root = audit.diagnose_evidence_sources(db)
+    assert "relative_result_refs_require_artifact_root" in without_root[
+        "diagnostic_codes"
+    ]
+    with_root = audit.diagnose_evidence_sources(db, artifact_root=root)
+    assert with_root["canonical_terminal_transitions"] == 1
+    assert with_root["canonical_artifact_sample"]["accessible_result_json"] == 1
+    assert with_root["canonical_artifact_sample"]["accessible_manifest_json"] == 1
+    assert with_root["artifact_root_configured"] is True
+    assert with_root["production_modified"] is False
