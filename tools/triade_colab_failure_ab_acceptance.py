@@ -90,7 +90,6 @@ def snapshot_sqlite(source: Path, target: Path) -> dict[str, Any]:
     return {"sha256": digest.hexdigest(), "quick_check": "ok", "counts": counts}
 
 
-
 def diagnose_evidence_sources(snapshot: Path) -> dict[str, Any]:
     """Indica por qué 3.000 tareas pueden dar cero observaciones válidas.
 
@@ -98,12 +97,16 @@ def diagnose_evidence_sources(snapshot: Path) -> dict[str, Any]:
     atribuye causalidad a archivos cuyo hash todavía no se haya validado.
     """
     terminal = (
-        "completed", "observed", "cancelled", "blocked",
-        "failed", "dead_letter", "timeout", "lease_lost",
+        "completed",
+        "observed",
+        "cancelled",
+        "blocked",
+        "failed",
+        "dead_letter",
+        "timeout",
+        "lease_lost",
     )
-    with sqlite3.connect(
-        snapshot.resolve().as_uri() + "?mode=ro", uri=True
-    ) as conn:
+    with sqlite3.connect(snapshot.resolve().as_uri() + "?mode=ro", uri=True) as conn:
         conn.row_factory = sqlite3.Row
         tables = {
             str(row[0])
@@ -114,8 +117,7 @@ def diagnose_evidence_sources(snapshot: Path) -> dict[str, Any]:
             if table not in tables:
                 return set()
             return {
-                str(row[1])
-                for row in conn.execute(f'PRAGMA table_info("{table}")')
+                str(row[1]) for row in conn.execute(f'PRAGMA table_info("{table}")')
             }
 
         def count(table: str) -> int | None:
@@ -136,15 +138,27 @@ def diagnose_evidence_sources(snapshot: Path) -> dict[str, Any]:
         legacy_required = {
             "worker_tasks": {"id", "run_ref", "status", "task_type", "result_json"},
             "worker_events": {
-                "task_id", "event_type", "run_ref", "task_type", "payload_json"
+                "task_id",
+                "event_type",
+                "run_ref",
+                "task_type",
+                "payload_json",
             },
         }
         canonical_required = {
             "autonomous_tasks": {
-                "task_id", "status", "worker_id", "result_ref", "lease_generation"
+                "task_id",
+                "status",
+                "worker_id",
+                "result_ref",
+                "lease_generation",
             },
             "autonomous_task_transitions": {
-                "task_id", "to_status", "worker_id", "result_ref", "lease_generation"
+                "task_id",
+                "to_status",
+                "worker_id",
+                "result_ref",
+                "lease_generation",
             },
         }
         missing_legacy = {
@@ -232,8 +246,10 @@ def diagnose_evidence_sources(snapshot: Path) -> dict[str, Any]:
         "table_counts": {
             table: count(table)
             for table in (
-                "autonomous_tasks", "autonomous_task_transitions",
-                "worker_tasks", "worker_events",
+                "autonomous_tasks",
+                "autonomous_task_transitions",
+                "worker_tasks",
+                "worker_events",
             )
         },
         "autonomous_task_status_counts": statuses,
