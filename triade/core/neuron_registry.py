@@ -85,7 +85,13 @@ class NeuronRegistry:
         # The runtime cwd is not stable across Colab restarts. Package data
         # must follow the installed module, otherwise a valid run fails with
         # FileNotFoundError after rehydration.
-        self.schema_path = Path(__file__).resolve().parents[1] / "memory/schemas.sql"
+        package_schema = Path(__file__).resolve().parents[1] / "memory/schemas.sql"
+        candidates = [
+            package_schema,
+            Path.cwd() / "triade/memory/schemas.sql",
+            Path("/content/Triade/triade/memory/schemas.sql"),
+        ]
+        self.schema_path = next((candidate for candidate in candidates if candidate.is_file()), package_schema)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
