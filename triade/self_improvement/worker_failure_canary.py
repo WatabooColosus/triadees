@@ -28,8 +28,11 @@ _VARIANTS = {
 class WorkerFailureShadowCanary:
     """Mide contra incidentes POSTERIORES a la evaluación offline."""
 
-    def __init__(self, db_path: str | Path) -> None:
+    def __init__(
+        self, db_path: str | Path, *, artifact_root: str | Path | None = None
+    ) -> None:
         self.db_path = Path(db_path)
+        self.artifact_root = artifact_root
 
     def _experiment(self) -> dict[str, Any] | None:
         with sqlite3.connect(
@@ -92,7 +95,9 @@ class WorkerFailureShadowCanary:
         return used
 
     def _recent_cases(self, experiment: dict[str, Any]) -> list[dict[str, Any]]:
-        observations = WorkerFailureABRunner(self.db_path)._load_observations()
+        observations = WorkerFailureABRunner(
+            self.db_path, artifact_root=self.artifact_root
+        )._load_observations()
         used = self._used_case_ids(experiment["result"])
         with sqlite3.connect(
             self.db_path.resolve().as_uri() + "?mode=ro", uri=True
