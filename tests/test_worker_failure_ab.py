@@ -343,3 +343,94 @@ def test_shadow_canary_cannot_reuse_training_cases(tmp_path):
     canary = WorkerFailureShadowCanary(db)
     assert canary.ready() is False
     assert canary.observe()["status"] == "no_evidence"
+
+
+def test_v2_relative_receipts_require_authorized_root(tmp_path, monkeypatch):
+    db = _database(tmp_path)
+    with sqlite3.connect(db) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE autonomous_tasks (
+                task_id TEXT, task_type TEXT, status TEXT, worker_id TEXT,
+                result_ref TEXT, lease_generation INTEGER, payload_json TEXT
+            );
+            CREATE TABLE autonomous_task_transitions (
+                transition_id INTEGER PRIMARY KEY, task_id TEXT,
+                to_status TEXT, result_ref TEXT, worker_id TEXT,
+                lease_generation INTEGER
+            );
+            """
+        )
+    path = _add_v2_outcome(
+        db, tmp_path, 950, "failed", {"error": "genuine_worker_failure"}
+    )
+    relative = path.relative_to(tmp_path).as_posix()
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "UPDATE autonomous_tasks SET result_ref=? WHERE task_id='950'",
+            (relative,),
+        )
+        conn.execute(
+            "UPDATE autonomous_task_transitions SET result_ref=? "
+            "WHERE task_id='950'",
+            (relative,),
+        )
+    unrelated = tmp_path / "different_cwd"
+    unrelated.mkdir()
+    monkeypatch.chdir(unrelated)
+    assert WorkerFailureABRunner(db)._load_observations() == []
+    loaded = WorkerFailureABRunner(
+        db, artifact_root=tmp_path
+    )._load_observations()
+    assert len(loaded) == 1
+    assert loaded[0]["status"] == "failed"
+    # Reject traversal, even if a path outside the authorized root exists.
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "UPDATE autonomous_tasks SET result_ref=? WHERE task_id='950'",
+            ("../runs/task-950/result.json",),
+        )
+        conn.execute(
+            "UPDATE autonomous_task_transitions SET result_ref=? "
+            "WHERE task_id='950'",
+            ("../runs/task-950/result.json",),
+        )
+    assert WorkerFailureABRunner(
+        db, artifact_root=tmp_path
+    )._load_observations() == []
+
+
+def test_v2_relative_receipts_reject_symlink_outside_root(tmp_path):
+    db = _database(tmp_path)
+    with sqlite3.connect(db) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE autonomous_tasks (
+                task_id TEXT, task_type TEXT, status TEXT, worker_id TEXT,
+                result_ref TEXT, lease_generation INTEGER, payload_json TEXT
+            );
+            CREATE TABLE autonomous_task_transitions (
+                transition_id INTEGER PRIMARY KEY, task_id TEXT,
+                to_status TEXT, result_ref TEXT, worker_id TEXT,
+                lease_generation INTEGER
+            );
+            """
+        )
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    _add_v2_outcome(db, outside, 951, "failed", {"error": "real"})
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / "link").symlink_to(outside / "runs", target_is_directory=True)
+    reference = "link/task-951/result.json"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "UPDATE autonomous_tasks SET result_ref=? WHERE task_id='951'",
+            (reference,),
+        )
+        conn.execute(
+            "UPDATE autonomous_task_transitions SET result_ref=? "
+            "WHERE task_id='951'",
+            (reference,),
+        )
+    assert WorkerFailureABRunner(db, artifact_root=root)._load_observations() == []
