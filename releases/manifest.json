@@ -3,8 +3,8 @@
   "latest_version": "7.17.0",
   "channel": "stable",
   "branch": "main",
-  "commit": "c2ee1d3fed04a186619b531a87c3ff6476f1a77e",
+  "commit": "8c76dab14512827d01218dc42476355235209580",
   "release_path": "releases/7.17.0/README.md",
-  "updated_at": "2026-11-01T09:54:06Z",
+  "updated_at": "2026-11-03T00:42:00Z",
   "requires_review": false
 }
