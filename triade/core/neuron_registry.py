@@ -91,7 +91,10 @@ class NeuronRegistry:
             Path.cwd() / "triade/memory/schemas.sql",
             Path("/content/Triade/triade/memory/schemas.sql"),
         ]
-        self.schema_path = next((candidate for candidate in candidates if candidate.is_file()), package_schema)
+        self.schema_path = next(
+            (candidate for candidate in candidates if candidate.is_file()),
+            package_schema,
+        )
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
