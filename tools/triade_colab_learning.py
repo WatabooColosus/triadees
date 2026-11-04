@@ -13,6 +13,7 @@ import json
 import math
 import statistics
 import sys
+import time
 import threading
 import traceback
 import uuid
@@ -260,6 +261,30 @@ def inspect(r5):
     return report
 
 
+def _embedding_failure_code(result):
+    """Safe Ollama embedding failure categories: no raw backend errors or vectors."""
+    error = str(getattr(result, "error", "") or "").lower()
+    if not result.ok:
+        if "timed out" in error or "timeout" in error:
+            return "timeout"
+        if "http error 404" in error:
+            return "model_or_endpoint_not_found"
+        if any(f"http error {code}" in error for code in (429, 502, 503, 504)):
+            return "backend_transient"
+        if "http error 500" in error:
+            return "backend_internal_error"
+        if "connection refused" in error or "remote end closed" in error:
+            return "connection_unavailable"
+        if "valid" in error and "embedding" in error:
+            return "invalid_embedding_response"
+        return "inference_unspecified"
+    if result.dimensions <= 0 or not result.embeddings:
+        return "empty_embedding_response"
+    if not all(math.isfinite(value) for vector in result.embeddings for value in vector):
+        return "nonfinite_embedding_values"
+    return None
+
+
 def prepare_models(context):
     import shutil
 
@@ -290,22 +315,38 @@ def prepare_models(context):
         blood = check_ollama_blood()
     if not blood.get("can_embed"):
         raise NotReady("embedding_model_not_available_after_setup")
-    embedding = _measured(
-        r5,
-        "light",
-        lambda: OllamaClient(db_path=r5.DB).embed(
+    context.pop("embedding_probe", None)
+    failure = None
+    # /api/tags confirms model installation, not /api/embed inference. Make a
+    # bounded, ledger-accounted retry only for transient Ollama failures.
+    for attempt in (1, 2):
+        embedding = _measured(
+            r5,
+            "light",
+            lambda: OllamaClient(db_path=r5.DB, timeout=120).embed(
+                blood["embedding_model"],
+                "Comprobación de recuperación semántica de Tríade.",
+            ),
             blood["embedding_model"],
-            "Comprobación de recuperación semántica de Tríade.",
-        ),
-        blood["embedding_model"],
-    )
-    if (
-        not embedding.ok
-        or embedding.dimensions <= 0
-        or not all(
-            math.isfinite(value) for vector in embedding.embeddings for value in vector
         )
-    ):
+        failure = _embedding_failure_code(embedding)
+        context["embedding_probe"] = {
+            "status": "passed" if failure is None else "failed",
+            "failure_code": failure,
+            "dimensions": embedding.dimensions,
+            "vector_count": len(embedding.embeddings),
+            "attempts": attempt,
+        }
+        if failure is None:
+            break
+        if attempt == 2 or failure not in {
+            "timeout",
+            "backend_transient",
+            "connection_unavailable",
+        }:
+            break
+        time.sleep(2)
+    if failure is not None:
         raise NotReady("embedding_inference_failed")
     return {
         "status": "models_ready",
