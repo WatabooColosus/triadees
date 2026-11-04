@@ -174,8 +174,18 @@ class DomainAdmissionCoordinator:
             raise ValueError("SPEC_INCOMPLETE_OR_INVALID_LINEAGE")
         if formation.get("correlation_id") != correlation_id:
             raise ValueError("formation_lineage_mismatch")
+        from triade.neurons.curriculum import ADMISSION_CURRICULUM_VERSION
+
         if prior is not None:
-            return json.loads(prior[0])
+            previous = json.loads(prior[0])
+            # Idempotencia con reanudación solo cuando cambia el evaluador.
+            # Las admisiones sin versión anterior se consideran versión 1.
+            if (
+                previous.get("status") != "training_blocked"
+                or int(previous.get("curriculum_version", 1))
+                >= ADMISSION_CURRICULUM_VERSION
+            ):
+                return previous
         candidate_id = admission["candidate_id"]
         self.router._verified_candidate(candidate_id)
         try:
@@ -189,6 +199,7 @@ class DomainAdmissionCoordinator:
                 "candidate_id": candidate_id,
                 "correlation_id": correlation_id,
                 "status": "training_blocked",
+                "curriculum_version": ADMISSION_CURRICULUM_VERSION,
                 "reason": str(exc),
                 "activated": False,
                 "competence_certified": False,
@@ -205,6 +216,7 @@ class DomainAdmissionCoordinator:
             "candidate_id": candidate_id,
             "correlation_id": correlation_id,
             "curriculum": curriculum,
+            "curriculum_version": ADMISSION_CURRICULUM_VERSION,
             "activated": False,
             "competence_certified": False,
         }

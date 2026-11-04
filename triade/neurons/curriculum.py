@@ -11,6 +11,10 @@ from typing import Any
 
 from triade.core.guarded_web import TRUSTED_RESEARCH_HOSTS
 
+# Subir sólo al introducir un evaluador independiente NUEVO.
+# El cambio de versión permite reintentar admisiones bloqueadas, no aprobarlas.
+ADMISSION_CURRICULUM_VERSION = 1
+
 
 def admission_curriculum(
     db_path: str | Path, candidate_id: str, specification: dict[str, Any]
@@ -41,7 +45,7 @@ def admission_curriculum(
                 }
             )
     manifest = {
-        "version": 1,
+        "version": ADMISSION_CURRICULUM_VERSION,
         "candidate_id": candidate_id,
         "cases": cases,
         "success_rate_min": float(threshold),

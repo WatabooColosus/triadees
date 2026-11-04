@@ -95,6 +95,7 @@ WorkerTaskType = Literal[
     "learning_claim_distillation",
     "learning_evidence_generation",
     "neural_learning_distribution",
+    "failure_ab_evaluation",
 ]
 
 #: Se deriva del `Literal`, no se reescribe. Las dos listas se venían
@@ -111,6 +112,7 @@ EVENT_DRIVEN_TASK_TYPES: frozenset[str] = frozenset(
         "learning_candidate_generation",
         "learning_evidence_generation",
         "neural_learning_distribution",
+        "failure_ab_evaluation",
     }
 )
 

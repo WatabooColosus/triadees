@@ -109,3 +109,382 @@ def test_el_vocabulario_declarado_cubre_todo_lo_que_se_escribe():
         f"declarados y no escritos: {sorted(EVOLUTION_STATES - escritos)}"
     )
     assert EVOLUTION_IN_FLIGHT <= EVOLUTION_STATES
+
+
+def test_passing_a_and_b_is_not_proof_of_a_repair():
+    """CI verde en ambas versiones no demuestra mejora funcional."""
+    review = EngineeringEvolutionWorker._review(
+        {"passed": True}, {"passed": True}, ["triade/worker_policy.py"]
+    )
+    assert review["decision"] == "reject_candidate"
+    assert review["measured_functional_repair"] is False
+
+
+def test_repair_gate_rejects_missing_independent_oracle_or_rollback():
+    proof = {
+        "baseline_regression_failed": True,
+        "candidate_regression_passed": True,
+        "oracle_unchanged": True,
+        "rollback_verified": False,
+    }
+    blocked = EngineeringEvolutionWorker._review(
+        {"passed": True},
+        {"passed": True},
+        ["triade/worker_policy.py"],
+        repair_evidence=proof,
+    )
+    assert blocked["decision"] == "reject_candidate"
+    proof["rollback_verified"] = True
+    approved_for_review = EngineeringEvolutionWorker._review(
+        {"passed": True},
+        {"passed": True},
+        ["triade/worker_policy.py"],
+        repair_evidence=proof,
+    )
+    assert approved_for_review["decision"] == "accept_candidate"
+    assert approved_for_review["rollback_verified"] is True
+
+
+def test_functional_certification_with_real_isolated_git_worktrees(tmp_path):
+    """Una prueba existente falla en A, pasa en B y el parche revierte exactamente."""
+    import subprocess
+    import time
+
+    repo = tmp_path / "repo"
+    (repo / "triade").mkdir(parents=True)
+    (repo / "tests").mkdir()
+    (repo / "triade" / "__init__.py").write_text("", encoding="utf-8")
+    old = "def report_failed(reason: str) -> bool:\n    return True\n"
+    new = (
+        "def report_failed(reason: str) -> bool:\n"
+        '    return reason != "cancellation_requested"\n'
+    )
+    (repo / "triade" / "worker_policy.py").write_text(old, encoding="utf-8")
+    (repo / "tests" / "test_worker_policy.py").write_text(
+        "from triade.worker_policy import report_failed\n"
+        "\n"
+        "def test_requested_cancel_is_not_failure():\n"
+        '    assert report_failed("cancellation_requested") is False\n'
+        "\n"
+        "def test_unexpected_failure_stays_failure():\n"
+        '    assert report_failed("runtime_exception") is True\n',
+        encoding="utf-8",
+    )
+    for command in (
+        ["git", "init"],
+        ["git", "config", "user.name", "Tríade test"],
+        ["git", "config", "user.email", "test@example.invalid"],
+        ["git", "add", "."],
+        ["git", "commit", "-m", "trusted-oracle-baseline"],
+    ):
+        subprocess.run(command, cwd=repo, check=True, capture_output=True)
+    worker = EngineeringEvolutionWorker(repo, tmp_path / "trial.sqlite")
+    baseline_commit = worker._git(["rev-parse", "HEAD"], repo).strip()
+    worktree = worker.root / "treatment-test"
+    worker._run(
+        ["git", "worktree", "add", "--detach", str(worktree), baseline_commit],
+        repo,
+        30,
+    )
+    try:
+        import difflib
+
+        patch = "".join(
+            difflib.unified_diff(
+                old.splitlines(keepends=True),
+                new.splitlines(keepends=True),
+                fromfile="a/triade/worker_policy.py",
+                tofile="b/triade/worker_policy.py",
+            )
+        )
+        (worktree / "triade" / "worker_policy.py").write_text(new, encoding="utf-8")
+        evidence = worker._certify_repair_in_worktrees(
+            baseline_commit,
+            worktree,
+            "tests/test_worker_policy.py",
+            patch,
+            EvolutionBudget(max_minutes=2),
+            time.monotonic(),
+            "isolated-trial",
+        )
+        assert evidence["baseline_regression_failed"] is True
+        assert evidence["candidate_regression_passed"] is True
+        assert evidence["oracle_unchanged"] is True
+        assert evidence["rollback_verified"] is True
+        assert evidence["production_causality_proven"] is False
+        review = worker._review(
+            {"passed": True},
+            {"passed": True},
+            ["triade/worker_policy.py"],
+            repair_evidence=evidence,
+        )
+        assert review["decision"] == "accept_candidate"
+        # La prueba del rollback NO deshace el candidato en evaluación.
+        assert (worktree / "triade" / "worker_policy.py").read_text() == new
+    finally:
+        worker._cleanup(worktree)
+
+
+def test_functional_certification_rejects_modified_independent_oracle(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / "tests").mkdir(parents=True)
+    path = repo / "tests" / "test_worker_behavior.py"
+    path.write_text("def test_safety(): assert True\n", encoding="utf-8")
+    worker = EngineeringEvolutionWorker(repo, tmp_path / "audit.sqlite")
+    import subprocess
+
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True)
+    worker._require_trusted_regression_test("tests/test_worker_behavior.py")
+    with pytest.raises(ValueError, match="trusted_regression_test_required"):
+        worker._require_trusted_regression_test("../tests/test_worker_behavior.py")
+    (repo / "tests" / "test_untracked.py").write_text(
+        "def test_untracked(): assert True\n", encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="tracked_regression_test_required"):
+        worker._require_trusted_regression_test("tests/test_untracked.py")
+
+
+def test_old_approvals_cannot_bypass_independent_functional_certificate(tmp_path):
+    """No se puede firmar o desplegar aprobaciones heredadas sin evidencia."""
+    import json
+    import sqlite3
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    worker = EngineeringEvolutionWorker(repo, tmp_path / "runs.sqlite")
+    with sqlite3.connect(worker.db_path) as conn:
+        for evolution_id, status in (
+            ("legacy-awaiting", "awaiting_approval"),
+            ("legacy-approved", "approved_commit"),
+        ):
+            conn.execute(
+                "INSERT INTO engineering_evolution_runs "
+                "(evolution_id,objective,hypothesis,baseline_commit,"
+                "worktree_path,status,budget_json,changed_files_json,review_json) "
+                "VALUES(?,?,?,?,?,?,?,?,?)",
+                (
+                    evolution_id,
+                    "fix broken worker",
+                    "retry cancel handling",
+                    "baseline",
+                    str(repo / "missing-worktree"),
+                    status,
+                    json.dumps({}),
+                    json.dumps(["triade/fix.py"]),
+                    json.dumps(
+                        {
+                            "decision": "accept_candidate",
+                            "independent_tests": True,
+                        }
+                    ),
+                ),
+            )
+    commit = worker.approve_and_commit("legacy-awaiting", approved_by="operator")
+    assert commit == {
+        "status": "blocked",
+        "reason": "functional_certification_required",
+    }
+    deployment = worker.deploy("legacy-approved", approved_by="operator")
+    assert deployment == {
+        "status": "blocked",
+        "reason": "functional_certification_required",
+    }
+
+
+def test_certification_rejects_broken_test_runner_as_fake_repair(tmp_path):
+    """Un error de importación no es prueba de un defecto funcional reparable."""
+    test_file = tmp_path / "test_broken_oracle.py"
+    test_file.write_text(
+        "from nonexisting_certification_module import missing\n"
+        "\n"
+        "def test_regression():\n"
+        "    assert missing is True\n",
+        encoding="utf-8",
+    )
+    receipt = EngineeringEvolutionWorker._run_trusted_regression(
+        tmp_path, test_file.name, 35
+    )
+    assert receipt["returncode"] != 0
+    assert receipt["assertion_failure_verified"] is False
+    assert receipt["passed"] is False
+    assert receipt["errors"] >= 1
+
+
+def test_certification_rejects_zero_collected_cases(tmp_path):
+    test_file = tmp_path / "test_no_tests.py"
+    test_file.write_text("ANSWER = 42\n", encoding="utf-8")
+    receipt = EngineeringEvolutionWorker._run_trusted_regression(
+        tmp_path, test_file.name, 35
+    )
+    assert receipt["tests"] == 0
+    assert receipt["assertion_failure_verified"] is False
+    assert receipt["passed"] is False
+
+
+def test_certified_patch_mutation_blocks_approval(tmp_path):
+    import json
+    import sqlite3
+
+    repo = tmp_path / "repo"
+    (repo / "triade").mkdir(parents=True)
+    candidate = repo / "triade" / "worker_policy.py"
+    candidate.write_text("BUG_FIXED = True\n", encoding="utf-8")
+    worker = EngineeringEvolutionWorker(repo, tmp_path / "audit.sqlite")
+    original_digest = worker._files_digest(repo, ["triade/worker_policy.py"])
+    with sqlite3.connect(worker.db_path) as conn:
+        conn.execute(
+            "INSERT INTO engineering_evolution_runs "
+            "(evolution_id,objective,hypothesis,baseline_commit,"
+            "worktree_path,status,budget_json,changed_files_json,review_json) "
+            "VALUES(?,?,?,?,?,?,?,?,?)",
+            (
+                "candidate-a",
+                "repair",
+                "replay",
+                "BASE",
+                str(repo),
+                "awaiting_approval",
+                json.dumps({}),
+                json.dumps(["triade/worker_policy.py"]),
+                json.dumps(
+                    {
+                        "decision": "accept_candidate",
+                        "measured_functional_repair": True,
+                        "rollback_verified": True,
+                        "candidate_tree_digest": original_digest,
+                    }
+                ),
+            ),
+        )
+    candidate.write_text("BUG_FIXED = False\n", encoding="utf-8")
+    result = worker.approve_and_commit("candidate-a", approved_by="reviewer")
+    assert result["status"] == "blocked"
+    assert result["reason"] == "certified_patch_mutated"
+
+
+def test_deployment_requires_exact_tested_baseline(tmp_path):
+    import json
+    import sqlite3
+    import subprocess
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("stable\n", encoding="utf-8")
+    for cmd in (
+        ["git", "init"],
+        ["git", "config", "user.name", "Tríade test"],
+        ["git", "config", "user.email", "test@example.invalid"],
+        ["git", "add", "."],
+        ["git", "commit", "-m", "trusted-base"],
+    ):
+        subprocess.run(cmd, cwd=repo, capture_output=True, check=True)
+    worker = EngineeringEvolutionWorker(repo, tmp_path / "audit.sqlite")
+    with sqlite3.connect(worker.db_path) as conn:
+        conn.execute(
+            "INSERT INTO engineering_evolution_runs "
+            "(evolution_id,objective,hypothesis,baseline_commit,"
+            "worktree_path,status,budget_json,review_json,commit_hash) "
+            "VALUES(?,?,?,?,?,?,?,?,?)",
+            (
+                "candidate-b",
+                "repair",
+                "replay",
+                "OUTDATED",
+                str(repo),
+                "approved_commit",
+                "{}",
+                json.dumps(
+                    {
+                        "decision": "accept_candidate",
+                        "measured_functional_repair": True,
+                        "rollback_verified": True,
+                    }
+                ),
+                "FAKE",
+            ),
+        )
+    result = worker.deploy("candidate-b", approved_by="reviewer")
+    assert result["status"] == "blocked"
+    assert result["reason"] == "deployment_baseline_changed"
+
+
+def test_real_git_rollback_restores_original_tree(tmp_path):
+    import json
+    import sqlite3
+    import subprocess
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    source = repo / "worker.py"
+    source.write_text("VALUE = 0\n", encoding="utf-8")
+    for cmd in (
+        ["git", "init"],
+        ["git", "config", "user.name", "Tríade test"],
+        ["git", "config", "user.email", "test@example.invalid"],
+        ["git", "add", "."],
+        ["git", "commit", "-m", "stable"],
+    ):
+        subprocess.run(cmd, cwd=repo, capture_output=True, check=True)
+    worker = EngineeringEvolutionWorker(repo, tmp_path / "audit.sqlite")
+    previous = worker._git(["rev-parse", "HEAD"], repo).strip()
+    source.write_text("VALUE = 1\n", encoding="utf-8")
+    for cmd in (
+        ["git", "add", "worker.py"],
+        ["git", "commit", "-m", "candidate"],
+    ):
+        subprocess.run(cmd, cwd=repo, capture_output=True, check=True)
+    updated = worker._git(["rev-parse", "HEAD"], repo).strip()
+    with sqlite3.connect(worker.db_path) as conn:
+        conn.execute(
+            "INSERT INTO engineering_evolution_runs "
+            "(evolution_id,objective,hypothesis,baseline_commit,"
+            "worktree_path,status,budget_json,rollback_json) "
+            "VALUES(?,?,?,?,?,?,?,?)",
+            (
+                "rollback-smoke",
+                "repair",
+                "replay",
+                previous,
+                str(worker.root / "unused-worktree"),
+                "deployed_canary",
+                "{}",
+                json.dumps({"commit": updated, "previous": previous}),
+            ),
+        )
+    outcome = worker.rollback("rollback-smoke", approved_by="reviewer")
+    assert outcome["status"] == "rolled_back"
+    assert outcome["rollback_verified"] is True
+    assert source.read_text(encoding="utf-8") == "VALUE = 0\n"
+    assert (
+        outcome["restored_tree"]
+        == worker._git(["rev-parse", previous + "^{tree}"], repo).strip()
+    )
+
+
+def test_missing_trusted_regression_is_blocked_before_worktree(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    worker = EngineeringEvolutionWorker(repo, tmp_path / "audit.sqlite")
+    result = worker.propose(
+        "fix worker cancellation",
+        "old behavior treats requested cancellation as failure",
+        "--- a/worker.py\n+++ b/worker.py\n",
+    )
+    assert result == {
+        "status": "blocked",
+        "reason": "independent_functional_regression_test_required",
+    }
+    assert list(worker.root.iterdir()) == []
+
+
+def test_engineering_api_accepts_trusted_test_reference_without_prompt():
+    from apps.routes.governance import EvolutionRequest
+
+    request = EvolutionRequest(
+        objective="fix task cancellation",
+        hypothesis="requested cancellation should not create failure lessons",
+        patch="--- a/triade/worker.py\n+++ b/triade/worker.py\n",
+        regression_test="tests/test_worker_failure_ab.py",
+    )
+    assert request.regression_test == "tests/test_worker_failure_ab.py"

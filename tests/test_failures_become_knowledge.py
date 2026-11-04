@@ -82,3 +82,26 @@ def test_a_completed_task_leaves_no_candidate(tmp_path: Path) -> None:
     with sqlite3.connect(db_path) as conn:
         before = conn.execute("SELECT COUNT(*) FROM learning_queue").fetchone()[0]
     assert before == 0
+
+
+def test_explicit_cancellation_is_not_fabricated_worker_failure():
+    from triade.workers.worker_loop import _should_learn_from_worker_outcome
+
+    assert not _should_learn_from_worker_outcome(
+        "cancelled", {"reason": "cancellation_requested"}
+    )
+    assert not _should_learn_from_worker_outcome(
+        "cancelled", {"error": "cancellation_requested"}
+    )
+    assert _should_learn_from_worker_outcome(
+        "cancelled", {"error": "unexpected_worker_termination"}
+    )
+    assert _should_learn_from_worker_outcome(
+        "failed", {"error": "sqlite_database_locked"}
+    )
+    assert _should_learn_from_worker_outcome(
+        "blocked", {"reason": "regression_gate_failed"}
+    )
+    assert not _should_learn_from_worker_outcome(
+        "completed", {"reason": "cancellation_requested"}
+    )

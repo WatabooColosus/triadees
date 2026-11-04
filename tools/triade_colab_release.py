@@ -494,6 +494,117 @@ def audit(context):
     return context["r5"].audit_progress(30)
 
 
+def failure_ab_status(context):
+    """Auditoría aislada del candidato, accesible desde el panel permanente.
+
+    La publicación debe incluir el script con SHA validado. Nunca modifica
+    la Bodega ni fusiona, promueve o despliega reparaciones de código.
+    """
+    script = context.get("files", {}).get("failure_ab_acceptance")
+    if not script or not Path(script).is_file():
+        raise RuntimeError("La publicación aún no incluye auditoría A/B")
+    manifest = context.get("manifest") or {}
+    commit = str(manifest.get("commit") or "")
+    if not re.fullmatch(r"[a-f0-9]{40}", commit):
+        raise RuntimeError("Commit de auditoría inválido")
+    r5 = context["r5"]
+    database_source = Path(r5.DB)
+    if database_source.is_symlink() or not database_source.is_file():
+        raise RuntimeError("Ruta de Bodega simbólica o ausente")
+    database = database_source.resolve(strict=True)
+    artifact_root = Path(r5.ROOT)
+    if artifact_root.is_symlink() or not artifact_root.is_dir():
+        raise RuntimeError("Directorio de ejecución no verificado")
+    artifact_root = artifact_root.resolve(strict=True)
+
+    checkout = Path("/content/triade_failure_ab_checkouts") / commit
+    if not checkout.exists():
+        checkout.parent.mkdir(parents=True, exist_ok=True)
+        checkout.mkdir(mode=0o700)
+        git = ["git", "-C", str(checkout)]
+        subprocess.run([*git, "init", "-q"], check=True, timeout=15)
+        subprocess.run(
+            [
+                *git,
+                "remote",
+                "add",
+                "origin",
+                "https://github.com/WatabooColosus/triadees.git",
+            ],
+            check=True,
+            timeout=15,
+        )
+        subprocess.run(
+            [*git, "fetch", "--depth", "1", "origin", commit],
+            check=True,
+            timeout=180,
+        )
+        subprocess.run(
+            [*git, "checkout", "--detach", commit],
+            check=True,
+            timeout=60,
+        )
+    head = subprocess.check_output(
+        ["git", "-C", str(checkout), "rev-parse", "--verify", "HEAD"],
+        text=True,
+        timeout=15,
+    ).strip()
+    dirty = subprocess.check_output(
+        [
+            "git",
+            "-C",
+            str(checkout),
+            "status",
+            "--porcelain",
+            "--untracked-files=no",
+        ],
+        text=True,
+        timeout=15,
+    ).strip()
+    if head != commit or dirty:
+        raise RuntimeError("Checkout de auditoría alterado o desactualizado")
+    reports = Path("/content/triade_failure_ab_reports")
+    reports.mkdir(parents=True, exist_ok=True)
+    stamp = dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%S%fZ")
+    destination = reports / f"evidence-{stamp}.json"
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = str(checkout)
+    subprocess.run(
+        [
+            sys.executable,
+            str(Path(script).resolve(strict=True)),
+            "--db",
+            str(database),
+            "--repo",
+            str(checkout),
+            "--expected-commit",
+            commit,
+            "--artifact-root",
+            str(artifact_root),
+            "--report",
+            str(destination),
+        ],
+        check=True,
+        timeout=240,
+        cwd=str(checkout),
+        env=environment,
+    )
+    result = json.loads(destination.read_text(encoding="utf-8"))
+    if (
+        result.get("commit") != commit
+        or result.get("promotion_authorized") is not False
+    ):
+        raise RuntimeError("Auditoría de evidencia sin contrato de seguridad")
+    return {
+        "status": "evidence_collected_readonly",
+        "commit": commit,
+        "report": str(destination),
+        "snapshot": result.get("snapshot"),
+        "findings": result.get("findings"),
+        "promotion_authorized": False,
+    }
+
+
 def learning_status(context):
     learning = _learning(context)
     if learning is None:
