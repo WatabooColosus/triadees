@@ -674,3 +674,37 @@ def test_colab_study_startup_receipt_records_reason_without_sensitive_data(
     assert report["status"] == "automatic_learning_blocked"
     assert report["reason"] == "RuntimeError"
     assert "DO_NOT_PERSIST" not in json.dumps(report)
+
+
+def test_colab_install_reports_blocked_learning_launch_without_failing(monkeypatch, tmp_path):
+    def persist(path, value):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(value), encoding="utf-8")
+
+    protection = SimpleNamespace(
+        repair=lambda r5: {"status": "encrypted_copy_verified"},
+        start_watch=lambda r5: None,
+        _json=persist,
+    )
+    monkeypatch.setattr(adapter, "_auditor", lambda context: None)
+    monkeypatch.setattr(adapter, "_protection", lambda context: protection)
+    monkeypatch.setattr(
+        adapter,
+        "_learning",
+        lambda context: SimpleNamespace(attach=lambda context: None),
+    )
+    monkeypatch.setattr(
+        adapter,
+        "learning_start",
+        lambda context: {"status": "blocked", "reason": "embedding_inference_failed"},
+    )
+    context = {
+        "r5": SimpleNamespace(WORK=tmp_path),
+        "progress": lambda message: None,
+    }
+    result = adapter._attach_panel_components(context)
+    assert result["status"] == "encrypted_copy_verified"
+    assert result["learning"]["status"] == "blocked"
+    receipt = json.loads((tmp_path / "prospective_launch.json").read_text())
+    assert receipt["status"] == "blocked"
+    assert receipt["reason"] == "embedding_inference_failed"
