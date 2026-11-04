@@ -710,3 +710,108 @@ def test_colab_install_reports_blocked_learning_launch_without_failing(
     receipt = json.loads((tmp_path / "prospective_launch.json").read_text())
     assert receipt["status"] == "blocked"
     assert receipt["reason"] == "embedding_inference_failed"
+
+
+def test_colab_embed_transient_failure_retries_once_with_real_valid_vector(
+    monkeypatch, tmp_path
+):
+    from triade.core import ollama_blood
+    from triade.models import ollama_client
+
+    calls = []
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            assert kwargs["timeout"] == 120
+
+        def embed(self, model, prompt):
+            calls.append(model)
+            if len(calls) == 1:
+                return ollama_client.EmbeddingResult(
+                    ok=False, model=model, error="timed out"
+                )
+            return ollama_client.EmbeddingResult(
+                ok=True, model=model, embeddings=[[0.1, 0.2, 0.3]]
+            )
+
+    monkeypatch.setattr(ollama_client, "OllamaClient", FakeClient)
+    monkeypatch.setattr(
+        ollama_blood,
+        "check_ollama_blood",
+        lambda: {
+            "can_reason": True,
+            "can_embed": True,
+            "reasoning_model": "fixture-reasoner",
+            "embedding_model": "nomic-embed-text:latest",
+        },
+    )
+    monkeypatch.setattr(learning, "_measured", lambda r5, task, fn, model: fn())
+    monkeypatch.setattr(learning.time, "sleep", lambda duration: None)
+    context = {"r5": SimpleNamespace(DB=tmp_path / "db.sqlite3")}
+    result = learning.prepare_models(context)
+    assert result["embedding_dimensions"] == 3
+    assert len(calls) == 2
+    assert context["embedding_probe"] == {
+        "status": "passed",
+        "failure_code": None,
+        "dimensions": 3,
+        "vector_count": 1,
+        "attempts": 2,
+    }
+
+
+def test_colab_embed_permanent_backend_failure_has_no_retry_or_raw_error(
+    monkeypatch, tmp_path
+):
+    from triade.core import ollama_blood
+    from triade.models import ollama_client
+
+    calls = []
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            pass
+
+        def embed(self, model, prompt):
+            calls.append(model)
+            return ollama_client.EmbeddingResult(
+                ok=False,
+                model=model,
+                error="HTTP Error 404: PRIVATE_BACKEND_DETAIL",
+            )
+
+    monkeypatch.setattr(ollama_client, "OllamaClient", FakeClient)
+    monkeypatch.setattr(
+        ollama_blood,
+        "check_ollama_blood",
+        lambda: {
+            "can_reason": True,
+            "can_embed": True,
+            "embedding_model": "nomic-embed-text:latest",
+        },
+    )
+    monkeypatch.setattr(learning, "_measured", lambda r5, task, fn, model: fn())
+    context = {"r5": SimpleNamespace(DB=tmp_path / "db.sqlite3")}
+    with pytest.raises(learning.NotReady, match="embedding_inference_failed"):
+        learning.prepare_models(context)
+    assert len(calls) == 1
+    assert context["embedding_probe"]["failure_code"] == "model_or_endpoint_not_found"
+    assert "PRIVATE_BACKEND_DETAIL" not in json.dumps(context["embedding_probe"])
+
+
+def test_colab_embedding_failure_categories_do_not_forward_backend_errors():
+    from triade.models.ollama_client import EmbeddingResult
+
+    scenarios = {
+        "HTTP Error 500: internal": "backend_internal_error",
+        "HTTP Error 503: unavailable": "backend_transient",
+        "connection refused": "connection_unavailable",
+        "UNIQUE_SECRET": "inference_unspecified",
+    }
+    for backend_error, expected in scenarios.items():
+        result = EmbeddingResult(
+            ok=False, model="nomic-embed-text", error=backend_error
+        )
+        assert learning._embedding_failure_code(result) == expected
+    empty = EmbeddingResult(ok=True, model="nomic-embed-text", embeddings=[])
+    assert learning._embedding_failure_code(empty) == "empty_embedding_response"
