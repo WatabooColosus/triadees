@@ -568,3 +568,38 @@ def test_inspector_is_read_only_and_reports_no_fake_certification(
     assert result["full_certified"] is False
     assert result["functional_probes"] == []
     assert db.read_bytes() == before
+
+
+def test_colab_refresh_reloads_schema_owners_before_cached_runner(monkeypatch):
+    """R5's cached imports must not keep old cwd-relative schema paths."""
+    order = []
+    modules = (
+        "triade.core.neuron_registry",
+        "triade.core.neuron_activity_store",
+        "triade.learning.pipeline",
+        "triade.core.experimental_neuron_runtime",
+        "triade.core.neuron_autopromoter",
+        "triade.core.run_neuron_orchestrator",
+        "triade.core.runner",
+    )
+    for name in modules:
+        monkeypatch.setitem(sys.modules, name, SimpleNamespace(__name__=name))
+    monkeypatch.setattr(
+        learning.Path, "is_dir", lambda path: str(path) == "/content/Triade"
+    )
+    monkeypatch.setattr(
+        learning.importlib, "reload", lambda module: order.append(module.__name__)
+    )
+
+    learning._refresh_worker_runtime_modules(reload_runner=True)
+
+    assert set(modules).issubset(order)
+    assert order.index("triade.core.neuron_registry") < order.index(
+        "triade.core.experimental_neuron_runtime"
+    )
+    assert order.index("triade.core.neuron_activity_store") < order.index(
+        "triade.core.run_neuron_orchestrator"
+    )
+    assert order.index("triade.learning.pipeline") < order.index(
+        "triade.core.runner"
+    )
