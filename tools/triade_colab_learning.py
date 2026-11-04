@@ -280,7 +280,9 @@ def _embedding_failure_code(result):
         return "inference_unspecified"
     if result.dimensions <= 0 or not result.embeddings:
         return "empty_embedding_response"
-    if not all(math.isfinite(value) for vector in result.embeddings for value in vector):
+    if not all(
+        math.isfinite(value) for vector in result.embeddings for value in vector
+    ):
         return "nonfinite_embedding_values"
     return None
 
