@@ -873,7 +873,7 @@ def test_colab_neutral_diagnostics_read_only_and_redacts_error_details(
             ),
         )
     before = db.read_bytes()
-    monkeypatch.setattr(ollama_blood, "check_ollama_blood", lambda: {})
+    monkeypatch.setattr(ollama_blood, "check_ollama_blood", dict)
     r5 = SimpleNamespace(DB=db, ROOT=tmp_path, WORK=tmp_path)
     report = learning.inspect(r5)
     assert report["read_only"] is True
