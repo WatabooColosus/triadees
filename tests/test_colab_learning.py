@@ -601,9 +601,7 @@ def test_colab_refresh_reloads_schema_owners_before_cached_runner(monkeypatch):
     assert order.index("triade.core.neuron_activity_store") < order.index(
         "triade.core.run_neuron_orchestrator"
     )
-    assert order.index("triade.learning.pipeline") < order.index(
-        "triade.core.runner"
-    )
+    assert order.index("triade.learning.pipeline") < order.index("triade.core.runner")
 
 
 @pytest.mark.parametrize(
