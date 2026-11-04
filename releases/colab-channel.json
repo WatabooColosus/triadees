@@ -7,7 +7,7 @@
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "ef4393c44f51ecc38bb6d1543d391bcf2418e079",
+  "commit": "b3d4af53fa88e677878160780644ee52f48d4a00",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
@@ -35,7 +35,7 @@
     },
     "learning": {
       "path": "tools/triade_colab_learning.py",
-      "sha256": "e6ad501e8abb886a15aef92d449f350c773278add7e469064e68b85daf64e234"
+      "sha256": "49a577e7bac03abae765e8b98cfa7d543610c79aa22efdd6f6c2ada2f94be602"
     },
     "router": {
       "path": "tools/model_router.py",
