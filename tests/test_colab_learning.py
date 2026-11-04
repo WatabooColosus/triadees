@@ -609,9 +609,18 @@ def test_colab_refresh_reloads_schema_owners_before_cached_runner(monkeypatch):
 @pytest.mark.parametrize(
     ("source", "artifact"),
     [
-        ("triade/core/neuron_registry.py", "tools/colab_patch_sources/neuron_registry_schema.py"),
-        ("triade/core/neuron_activity_store.py", "tools/colab_patch_sources/neuron_activity_schema.py"),
-        ("triade/learning/pipeline.py", "tools/colab_patch_sources/learning_pipeline_schema.py"),
+        (
+            "triade/core/neuron_registry.py",
+            "tools/colab_patch_sources/neuron_registry_schema.py",
+        ),
+        (
+            "triade/core/neuron_activity_store.py",
+            "tools/colab_patch_sources/neuron_activity_schema.py",
+        ),
+        (
+            "triade/learning/pipeline.py",
+            "tools/colab_patch_sources/learning_pipeline_schema.py",
+        ),
     ],
 )
 def test_colab_schema_patch_sources_match_runtime_modules(source, artifact):
