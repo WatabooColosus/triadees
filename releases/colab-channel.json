@@ -2,16 +2,16 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 29,
-  "version": "R7.17.4-schema-education-recovery",
+  "sequence": 30,
+  "version": "R7.17.5-embedding-preflight-recovery",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "d588fbe0d3f7005e6b787df4b53935346a6f8d0b",
+  "commit": "1f397b5720dce05afd204e2429e668bd5553828d",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
-      "sha256": "3fccd2304b0c493760a423560e04df7c18ab69dc383be6797191faf4349137c2"
+      "sha256": "9e7cd238ec70c5f3a898ef2897042c23d3b743e3bd68d036e1770d9fafd6485c"
     },
     "controller": {
       "path": "tools/triade_colab_control_r7.py",
@@ -35,7 +35,7 @@
     },
     "learning": {
       "path": "tools/triade_colab_learning.py",
-      "sha256": "10498dd75ba2541786f7265301de16738c975411a209b529ea0860cf2c9cb5e3"
+      "sha256": "48900c474253e439f5ec746514c066cc5e416c99055c01c072bda9cf9da2eefe"
     },
     "router": {
       "path": "tools/model_router.py",
