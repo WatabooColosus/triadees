@@ -88,7 +88,11 @@ def _study_memory_lineage(r5):
             tables = _tables(conn)
             required = {"neuron_functional_assessments", "neuron_education_sessions"}
             if not required.issubset(tables):
-                return {"status": "regressed", "reason": "study_tables_missing", **counts}
+                return {
+                    "status": "regressed",
+                    "reason": "study_tables_missing",
+                    **counts,
+                }
             row = conn.execute(
                 "SELECT state FROM neuron_education_sessions "
                 "WHERE session_id=? AND neuron_id=?",
