@@ -2,17 +2,12 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 28,
-  "version": "R7.17.3-manifest-fix",
+  "sequence": 29,
+  "version": "R7.17.4-schema-education-recovery",
   "runtime": "R6.3.1-candidate",
-  "channel": "stable",
-  "auto_update_safe": true,
-  "commit": "8c76dab14512827d01218dc42476355235209580",
-  "ci": {
-    "Python Tests": 41554498551,
-    "Runtime Truth CI": 41554498635,
-    "Tríade Tests": 41554498572
-  },
+  "channel": "candidate",
+  "auto_update_safe": false,
+  "commit": "d588fbe0d3f7005e6b787df4b53935346a6f8d0b",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
@@ -40,7 +35,7 @@
     },
     "learning": {
       "path": "tools/triade_colab_learning.py",
-      "sha256": "89e1c75dc1d55894e05f2082f1a737717baa2f5f31ef439c7c89b4c7988a4329"
+      "sha256": "10498dd75ba2541786f7265301de16738c975411a209b529ea0860cf2c9cb5e3"
     },
     "router": {
       "path": "tools/model_router.py",
@@ -49,6 +44,18 @@
     "worker_state_store": {
       "path": "triade/workers/state_store.py",
       "sha256": "12fd5e1d4d4b495a1ebd6d26d87578fabb0ebb77edc32bed5e7a1fa99cf97bda"
+    },
+    "neuron_registry_schema": {
+      "path": "tools/colab_patch_sources/neuron_registry_schema.py",
+      "sha256": "005d2a234daa90dfdf91ec5820de85bea7a360907749c26de88ac5122e4caa9d"
+    },
+    "neuron_activity_schema": {
+      "path": "tools/colab_patch_sources/neuron_activity_schema.py",
+      "sha256": "b73e6bd56607b0ed6ff1015a2f821dc2391a6561db5e0497a10e69097f30fb61"
+    },
+    "learning_pipeline_schema": {
+      "path": "tools/colab_patch_sources/learning_pipeline_schema.py",
+      "sha256": "231df7d7a9b211dc95f34bba643e8af8b5d66f03bbd8328b63977e1d9283c5be"
     }
   }
 }
