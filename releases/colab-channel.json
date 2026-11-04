@@ -7,7 +7,7 @@
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "afd90001a70da7932a5d0be719d9d3101808dd02",
+  "commit": "2bf60694728d21c24a84024803fd09a7bef165d4",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
