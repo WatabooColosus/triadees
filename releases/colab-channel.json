@@ -2,12 +2,12 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 30,
-  "version": "R7.17.5-embedding-preflight-recovery",
+  "sequence": 31,
+  "version": "R7.17.6-neutral-evidence-diagnostics",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "b3d4af53fa88e677878160780644ee52f48d4a00",
+  "commit": "dbc68124ac1b7e903efb6c82cd4c5d7805b51af6",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
@@ -35,7 +35,7 @@
     },
     "learning": {
       "path": "tools/triade_colab_learning.py",
-      "sha256": "49a577e7bac03abae765e8b98cfa7d543610c79aa22efdd6f6c2ada2f94be602"
+      "sha256": "c746abc4ee98983cd8d116184763d52127fe40d8e27dfda743001129a65908de"
     },
     "router": {
       "path": "tools/model_router.py",
