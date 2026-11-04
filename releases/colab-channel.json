@@ -2,53 +2,53 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 25,
-  "version": "R7.17.0-scheduler-health",
+  "sequence": 26,
+  "version": "R7.17.1-schema-recovery",
   "runtime": "R6.3.1-candidate",
-  "channel": "candidate",
-  "auto_update_safe": false,
-  "commit": "f9d88bce11fe89a683dbc41f10b6b739cd2a3c26",
+  "channel": "stable",
+  "auto_update_safe": true,
+  "commit": "8c76dab14512827d01218dc42476355235209580",
   "ci": {
-    "Python Tests": 41288477368,
-    "Runtime Truth CI": 41288477401,
-    "Tríade Tests": 41288477391
+    "Python Tests": 41554498551,
+    "Runtime Truth CI": 41554498635,
+    "Tríade Tests": 41554498572
   },
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
-      "sha256": "3fccd2304b0c493760a423560e04df7c18ab69dc383be6797191faf4349137c2"
+      "sha256": "4b078f123159776db7983f088f34903be68df2ac"
     },
     "controller": {
       "path": "tools/triade_colab_control_r7.py",
-      "sha256": "2968af29d8b43acc3856f784fbcb6b9597e13acd3f2b3a3fa28e71d389561719"
+      "sha256": "a4fe5f036038e5ce3bb96fb515176b45c006f66a"
     },
     "client": {
       "path": "tools/triade_colab_continuous.py",
-      "sha256": "f6b34684d41b0f6d6a19588683b915b0951523268bcff9ce19dabfefba7963b9"
+      "sha256": "95cba559f7f9bf1d9936dd353b38bb41eba256dd"
     },
     "rehydrator": {
       "path": "tools/triade_colab_continuity_r631.py",
-      "sha256": "1892cb3ad2fc00a61bc1c90584968a807d10d53be47eeeb960e28ccb5de093ef"
+      "sha256": "40278e8e9581ce38c7ef3706bf9a8fb520f64f86"
     },
     "auditor": {
       "path": "tools/triade_colab_audit.py",
-      "sha256": "d8b0575fd6a7d8a66aef5fb635eb1764ff73397a02359539dba0d5b6d91df3ab"
+      "sha256": "8cf157047b2eff9202b5ab179f3f6fcdabc86784"
     },
     "protection": {
       "path": "tools/triade_colab_backup.py",
-      "sha256": "ed5c4d3efa6283220529fe1df2a1850ed5b57487a02eef91df7ad7a25a3970aa"
+      "sha256": "c4eb1376f65f2f08c60531f122841e46ed940229"
     },
     "learning": {
       "path": "tools/triade_colab_learning.py",
-      "sha256": "89e1c75dc1d55894e05f2082f1a737717baa2f5f31ef439c7c89b4c7988a4329"
+      "sha256": "d871cec44a6545c9ac13d328f919c8af7c7db916"
     },
     "router": {
       "path": "tools/model_router.py",
-      "sha256": "2ecd09ca7c6500014d22afc4943f8a84ed50c2454412e443b4595919b413cd1c"
+      "sha256": "571e29b7aabf70bddffab6df24698f351f5668a6"
     },
     "worker_state_store": {
       "path": "triade/workers/state_store.py",
-      "sha256": "12fd5e1d4d4b495a1ebd6d26d87578fabb0ebb77edc32bed5e7a1fa99cf97bda"
+      "sha256": "feecc56483d71ac253be76252e67252f2239e7b0"
     }
   }
 }
