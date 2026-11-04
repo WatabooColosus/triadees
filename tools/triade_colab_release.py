@@ -366,6 +366,17 @@ def _record_learning_launch(context, launch):
         "reason": reason,
         "at": dt.datetime.now(dt.UTC).isoformat(),
     }
+    probe = context.get("embedding_probe")
+    if isinstance(probe, dict):
+        # Explicit allowlist: no request text, raw backend errors, model keys,
+        # vectors or environment variables can enter this receipt.
+        receipt["embedding_probe"] = {
+            "status": "passed" if probe.get("status") == "passed" else "failed",
+            "failure_code": str(probe.get("failure_code") or "")[:60],
+            "dimensions": int(probe.get("dimensions") or 0),
+            "vector_count": int(probe.get("vector_count") or 0),
+            "attempts": int(probe.get("attempts") or 0),
+        }
     try:
         _protection(context)._json(
             Path(context["r5"].WORK) / "prospective_launch.json", receipt
@@ -526,6 +537,7 @@ def learning_status(context):
 
 
 def learning_start(context):
+    context.pop("embedding_probe", None)
     learning = _learning(context)
     if learning is None:
         raise RuntimeError("Esta publicación no incluye aprendizaje prospectivo")
