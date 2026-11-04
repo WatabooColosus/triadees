@@ -353,6 +353,40 @@ def _learning(context):
     return context["learning_module"]
 
 
+def _record_learning_launch(context, launch):
+    """Record the latest study preflight without persisting model output or keys."""
+    status = str(launch.get("status") or "unknown")[:80]
+    reason = (
+        str(launch.get("reason") or "")[:200]
+        if status == "blocked"
+        else str(launch.get("error_type") or "")[:80]
+    )
+    receipt = {
+        "status": status,
+        "reason": reason,
+        "at": dt.datetime.now(dt.UTC).isoformat(),
+    }
+    probe = context.get("embedding_probe")
+    if isinstance(probe, dict):
+        # Explicit allowlist: no request text, raw backend errors, model keys,
+        # vectors or environment variables can enter this receipt.
+        receipt["embedding_probe"] = {
+            "status": "passed" if probe.get("status") == "passed" else "failed",
+            "failure_code": str(probe.get("failure_code") or "")[:60],
+            "dimensions": int(probe.get("dimensions") or 0),
+            "vector_count": int(probe.get("vector_count") or 0),
+            "attempts": int(probe.get("attempts") or 0),
+        }
+    try:
+        _protection(context)._json(
+            Path(context["r5"].WORK) / "prospective_launch.json", receipt
+        )
+    except (OSError, RuntimeError, ValueError, TypeError):
+        # A diagnostic receipt must not make a healthy installation fail.
+        context["progress"]("Aviso: estado de inicio educativo no persistido")
+    return receipt
+
+
 def _attach_panel_components(context):
     auditor = _auditor(context)
     if auditor is not None:
@@ -377,8 +411,9 @@ def _attach_panel_components(context):
         except Exception as exc:  # noqa: BLE001 - panel reports a guarded block
             result["learning"] = {
                 "status": "automatic_learning_blocked",
-                "reason": f"{type(exc).__name__}: {str(exc)[:500]}",
+                "error_type": type(exc).__name__,
             }
+        _record_learning_launch(context, result["learning"])
     return result
 
 
@@ -502,6 +537,7 @@ def learning_status(context):
 
 
 def learning_start(context):
+    context.pop("embedding_probe", None)
     learning = _learning(context)
     if learning is None:
         raise RuntimeError("Esta publicación no incluye aprendizaje prospectivo")
