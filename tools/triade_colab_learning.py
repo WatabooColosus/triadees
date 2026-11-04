@@ -68,7 +68,7 @@ def _measured(r5, task_class, call, model=None):
     success = False
     try:
         result = call()
-        success = True
+        success = bool(getattr(result, "ok", True))
         return result
     finally:
         ledger.record_usage(
