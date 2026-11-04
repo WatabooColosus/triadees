@@ -2,8 +2,8 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 26,
-  "version": "R7.17.1-schema-recovery",
+  "sequence": 27,
+  "version": "R7.17.2-worker-state-recovery",
   "runtime": "R6.3.1-candidate",
   "channel": "stable",
   "auto_update_safe": true,
@@ -48,7 +48,7 @@
     },
     "worker_state_store": {
       "path": "triade/workers/state_store.py",
-      "sha256": "12fd5e1d4d4b495a1ebd6d26d87578fabb0ebb77edc32bed5e7a1fa99cf97bda"
+      "sha256": "feecc56483d71ac253be76252e67252f2239e7b0"
     }
   }
 }
