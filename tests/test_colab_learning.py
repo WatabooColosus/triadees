@@ -927,11 +927,7 @@ def test_study_memory_lineage_blocks_reopened_completed_study_without_db_write(
     source = "a" * 64
     (work / "restore_proof.json").write_text(json.dumps({"source_sha256": source}))
     current = (
-        base
-        / "operacion_colab_continua"
-        / "aprendizaje"
-        / source[:16]
-        / "current.json"
+        base / "operacion_colab_continua" / "aprendizaje" / source[:16] / "current.json"
     )
     current.parent.mkdir(parents=True)
     current.write_text(
@@ -966,9 +962,7 @@ def test_study_memory_lineage_blocks_reopened_completed_study_without_db_write(
         )
     assert learning._study_memory_lineage(r5)["reason"] == "finished_study_reopened"
     with sqlite3.connect(db) as conn:
-        conn.execute(
-            "UPDATE neuron_education_sessions SET state='applied_neutral'"
-        )
+        conn.execute("UPDATE neuron_education_sessions SET state='applied_neutral'")
     assert learning._study_memory_lineage(r5) == {
         "status": "aligned",
         "pre": 1,
@@ -988,11 +982,7 @@ def test_study_memory_lineage_requires_verified_source_and_valid_pointer(tmp_pat
     source = "b" * 64
     (work / "restore_proof.json").write_text(json.dumps({"source_sha256": source}))
     current = (
-        base
-        / "operacion_colab_continua"
-        / "aprendizaje"
-        / source[:16]
-        / "current.json"
+        base / "operacion_colab_continua" / "aprendizaje" / source[:16] / "current.json"
     )
     current.parent.mkdir(parents=True)
     current.write_text(
