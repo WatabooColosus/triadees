@@ -244,6 +244,7 @@ def inspect(r5):
     except (OSError, sqlite3.Error, ValueError):
         report["resource_policy"] = {"status": "not_observed"}
     report["prospective_study"] = _read(Path(r5.WORK) / "prospective_learning.json")
+    report["study_launch"] = _read(Path(r5.WORK) / "prospective_launch.json")
     report["study_wait"] = _read(Path(r5.WORK) / "prospective_wait.json")
     if report["study_wait"].get("at", "") < report["prospective_study"].get(
         "updated_at", ""
