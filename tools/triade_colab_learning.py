@@ -95,7 +95,17 @@ def _refresh_worker_runtime_modules(*, reload_runner=False):
     if not Path("/content/Triade").is_dir():
         return
     importlib.invalidate_caches()
+    # The R5 checkout was pinned before these schema-path repairs existed.
+    # Reload the schema owners before their consumers: reloading runner alone
+    # retains NeuronRegistry/NeuronActivityStore classes imported by older
+    # experimental and learning modules in this long-lived Colab kernel.
     names = (
+        "triade.core.neuron_registry",
+        "triade.core.neuron_activity_store",
+        "triade.learning.pipeline",
+        "triade.core.experimental_neuron_runtime",
+        "triade.core.neuron_autopromoter",
+        "triade.core.run_neuron_orchestrator",
         "triade.workers.state_store",
         "triade.workers.task_queue",
         "triade.workers.worker_loop",
