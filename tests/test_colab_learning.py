@@ -676,7 +676,9 @@ def test_colab_study_startup_receipt_records_reason_without_sensitive_data(
     assert "DO_NOT_PERSIST" not in json.dumps(report)
 
 
-def test_colab_install_reports_blocked_learning_launch_without_failing(monkeypatch, tmp_path):
+def test_colab_install_reports_blocked_learning_launch_without_failing(
+    monkeypatch, tmp_path
+):
     def persist(path, value):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(value), encoding="utf-8")
