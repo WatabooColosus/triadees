@@ -80,7 +80,9 @@ def _study_memory_lineage(r5):
     neuron_id = study.get("neuron_id")
     if not session_id or type(neuron_id) is not int:
         return {"status": "blocked", "reason": "invalid_study_pointer"}
-    counts = {"pre": len(study.get("pre", [])), "post": len(study.get("post", []))}
+    if not all(isinstance(study.get(phase), list) for phase in ("pre", "post")):
+        return {"status": "blocked", "reason": "invalid_study_pointer"}
+    counts = {"pre": len(study["pre"]), "post": len(study["post"])}
     try:
         with contextlib.closing(_connect(r5.DB)) as conn:
             tables = _tables(conn)
