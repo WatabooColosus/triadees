@@ -815,3 +815,87 @@ def test_colab_embedding_failure_categories_do_not_forward_backend_errors():
         assert learning._embedding_failure_code(result) == expected
     empty = EmbeddingResult(ok=True, model="nomic-embed-text", embeddings=[])
     assert learning._embedding_failure_code(empty) == "empty_embedding_response"
+
+
+def test_colab_neutral_diagnostics_read_only_and_redacts_error_details(
+    monkeypatch, tmp_path
+):
+    from datetime import UTC, datetime
+
+    from triade.core import ollama_blood
+    from triade.neurons.functional_evidence import ensure_schema
+
+    db, neuron_id = _database(tmp_path)
+    learning._engine(db)
+    now = datetime.now(UTC).isoformat()
+    with sqlite3.connect(db) as conn:
+        ensure_schema(conn)
+        conn.execute(
+            "INSERT INTO neuron_functional_assessments "
+            "(run_id,neuron_id,case_id,domain,phase,session_id,score,"
+            "rubric_version,answer_digest,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (
+                "audited-real-run",
+                neuron_id,
+                "py1",
+                "python_text",
+                "pre",
+                None,
+                0.0,
+                "functional-probe-1",
+                "digest-not-model-output",
+                now,
+            ),
+        )
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS worker_events "
+            "(id INTEGER PRIMARY KEY,run_ref TEXT,task_id INTEGER,"
+            "task_type TEXT,event_type TEXT,status TEXT,message TEXT,"
+            "payload_json TEXT,created_at TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO worker_events "
+            "(task_type,event_type,status,message,payload_json,created_at) "
+            "VALUES (?,?,?,?,?,?)",
+            (
+                "runner.learning_usage",
+                "internal_error",
+                "error",
+                "error visible only in DB",
+                json.dumps(
+                    {
+                        "error_type": "OperationalError",
+                        "error_message": "database is locked TOKEN_DO_NOT_EXPOSE",
+                        "traceback": "sensitive path information",
+                    }
+                ),
+                now,
+            ),
+        )
+    before = db.read_bytes()
+    monkeypatch.setattr(ollama_blood, "check_ollama_blood", dict)
+    r5 = SimpleNamespace(DB=db, ROOT=tmp_path, WORK=tmp_path)
+    report = learning.inspect(r5)
+    assert report["read_only"] is True
+    assert report["full_certified"] is False
+    assert db.read_bytes() == before
+    assert report["functional_case_scores"] == [
+        {
+            "neuron_id": neuron_id,
+            "phase": "pre",
+            "case_id": "py1",
+            "runs": 1,
+            "passed": 0,
+            "mean_score": 0.0,
+        }
+    ]
+    assert report["recent_error_classes"] == [
+        {
+            "scope": "runner.learning_usage",
+            "error_type": "OperationalError",
+            "failure_code": "database_locked",
+            "at": now,
+        }
+    ]
+    assert "TOKEN_DO_NOT_EXPOSE" not in json.dumps(report)
+    assert "sensitive path information" not in json.dumps(report)

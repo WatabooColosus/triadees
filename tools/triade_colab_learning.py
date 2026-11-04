@@ -224,8 +224,22 @@ def inspect(r5):
                     "SELECT neuron_id,phase,COUNT(*) AS runs,COUNT(DISTINCT case_id) AS cases FROM neuron_functional_assessments GROUP BY neuron_id,phase"
                 )
             ]
+            # This is an audit of scores already recorded by the original rubric.
+            # Never reinterpret responses, change grades or expose model output.
+            report["functional_case_scores"] = [
+                dict(row)
+                for row in conn.execute(
+                    "SELECT neuron_id,phase,case_id,COUNT(*) AS runs,"
+                    "SUM(CASE WHEN score=1.0 THEN 1 ELSE 0 END) AS passed,"
+                    "ROUND(AVG(score),3) AS mean_score "
+                    "FROM neuron_functional_assessments "
+                    "GROUP BY neuron_id,phase,case_id "
+                    "ORDER BY neuron_id,phase,case_id LIMIT 60"
+                )
+            ]
         else:
             report["functional_probes"] = []
+            report["functional_case_scores"] = []
         if "worker_events" in tables:
             report["recent_error_groups"] = [
                 dict(row)
@@ -233,6 +247,47 @@ def inspect(r5):
                     "SELECT task_type,event_type,COUNT(*) AS count,MAX(created_at) AS last_at FROM worker_events WHERE status IN ('error','failed') AND julianday(created_at)>=julianday('now','-15 minutes') GROUP BY task_type,event_type ORDER BY last_at DESC LIMIT 20"
                 )
             ]
+            report["recent_error_classes"] = []
+            for row in conn.execute(
+                "SELECT task_type,payload_json,created_at FROM worker_events "
+                "WHERE event_type='internal_error' "
+                "AND julianday(created_at)>=julianday('now','-60 minutes') "
+                "ORDER BY id DESC LIMIT 15"
+            ):
+                try:
+                    payload = json.loads(row["payload_json"] or "{}")
+                except (TypeError, ValueError):
+                    payload = {}
+                if not isinstance(payload, dict):
+                    payload = {}
+                error_type = str(payload.get("error_type") or "unknown")
+                if len(error_type) > 64 or not all(
+                    c.isalnum() or c == "_" for c in error_type
+                ):
+                    error_type = "unclassified"
+                message = str(payload.get("error_message") or "").casefold()
+                failure_code = "unclassified"
+                for phrase, category in (
+                    ("database is locked", "database_locked"),
+                    ("no such table", "missing_table"),
+                    ("no such column", "missing_column"),
+                    ("no existe el esquema", "schema_path_missing"),
+                    ("unable to open database", "database_unavailable"),
+                    ("readonly database", "readonly_database"),
+                ):
+                    if phrase in message:
+                        failure_code = category
+                        break
+                report["recent_error_classes"].append(
+                    {
+                        "scope": row["task_type"],
+                        "error_type": error_type,
+                        "failure_code": failure_code,
+                        "at": row["created_at"],
+                    }
+                )
+        else:
+            report["recent_error_classes"] = []
         if "autonomous_tasks" in tables:
             report["queue_order"] = [
                 dict(row)
