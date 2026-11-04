@@ -560,6 +560,9 @@ def test_inspector_is_read_only_and_reports_no_fake_certification(
     db, _ = _database(tmp_path)
     learning._engine(db)
     before = db.read_bytes()
+    (tmp_path / "prospective_launch.json").write_text(
+        json.dumps({"status": "blocked", "reason": "embedding_inference_failed"})
+    )
     monkeypatch.setattr(
         ollama_blood, "check_ollama_blood", lambda: {"can_embed": False}
     )
@@ -568,6 +571,7 @@ def test_inspector_is_read_only_and_reports_no_fake_certification(
     assert result["read_only"] is True
     assert result["full_certified"] is False
     assert result["functional_probes"] == []
+    assert result["study_launch"]["reason"] == "embedding_inference_failed"
     assert db.read_bytes() == before
 
 
@@ -625,3 +629,48 @@ def test_colab_schema_patch_sources_match_runtime_modules(source, artifact):
     """Old panel accepts tools/ paths; staged sources must match the audited code."""
     root = Path(__file__).resolve().parents[1]
     assert (root / source).read_bytes() == (root / artifact).read_bytes()
+
+
+def test_colab_study_startup_receipt_records_reason_without_sensitive_data(
+    monkeypatch, tmp_path
+):
+    writes = []
+
+    def persist(path, value):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(value), encoding="utf-8")
+        writes.append(path)
+
+    protection = SimpleNamespace(_json=persist)
+    monkeypatch.setattr(adapter, "_protection", lambda context: protection)
+    context = {
+        "r5": SimpleNamespace(WORK=tmp_path),
+        "progress": lambda message: None,
+    }
+    adapter._record_learning_launch(
+        context,
+        {
+            "status": "blocked",
+            "reason": "embedding_inference_failed",
+            "models": {"token": "DO_NOT_PERSIST"},
+        },
+    )
+    report = json.loads((tmp_path / "prospective_launch.json").read_text())
+    assert report["status"] == "blocked"
+    assert report["reason"] == "embedding_inference_failed"
+    assert "models" not in report
+    assert "DO_NOT_PERSIST" not in json.dumps(report)
+    assert len(writes) == 1
+
+    adapter._record_learning_launch(
+        context,
+        {
+            "status": "automatic_learning_blocked",
+            "error_type": "RuntimeError",
+            "reason": "DO_NOT_PERSIST",
+        },
+    )
+    report = json.loads((tmp_path / "prospective_launch.json").read_text())
+    assert report["status"] == "automatic_learning_blocked"
+    assert report["reason"] == "RuntimeError"
+    assert "DO_NOT_PERSIST" not in json.dumps(report)
