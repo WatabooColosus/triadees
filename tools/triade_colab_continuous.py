@@ -25,7 +25,7 @@ from pathlib import Path, PurePosixPath
 REPO = "WatabooColosus/triadees"
 CHANNEL = (
     f"https://raw.githubusercontent.com/{REPO}/colab-releases/"
-    "releases/colab-channel.json"
+    "releases/colab-channel.json?cache=28"
 )
 REQUIRED_CI = frozenset({"Runtime Truth CI", "Python Tests", "Tríade Tests"})
 PROTOCOL = 1
