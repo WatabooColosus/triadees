@@ -2,12 +2,12 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 37,
-  "version": "R7.17.13-guarded-education-recovery",
+  "sequence": 38,
+  "version": "R7.17.14-guarded-education-recovery-ci-green",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "67fce564ce157f4f603952ce572ec53915a415c7",
+  "commit": "59978587764ff86beefe665bf60cd2ddcf99ec5b",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
