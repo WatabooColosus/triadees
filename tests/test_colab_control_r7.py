@@ -1107,3 +1107,47 @@ def test_modified_historical_archive_rejected_on_review_rotation():
                 original.parent, first["original_sha256"], "d" * 64
             )
         ).exists()
+
+
+def test_actual_colab_restart_with_old_quarantine_and_newer_review_recovers():
+    with tempfile.TemporaryDirectory() as root:
+        fake = FakeR5(Path(root))
+        make_db(fake.DB, applications=15, tasks=2500)
+        review, original, epoch, orphan_run_id = _make_unbacked_single_pre_epoch(
+            fake
+        )
+        previous = r7._legacy_quarantine_candidate(
+            review, fake.WORK, fake.BASE, "c" * 64
+        )
+        assert previous is not None
+        old_receipt = r7._persist_legacy_quarantine(
+            fake.WORK, fake.BASE, previous
+        )
+        original_bytes = original.read_bytes()
+        historical_receipt_bytes = old_receipt.read_bytes()
+        epoch_bytes = epoch.read_bytes()
+        review_bytes_sha = r7._sha(review)
+        with patch.object(r7, "_check_api", return_value=False):
+            result = r7.Center(fake)._restore_best_before_api()
+        assert result["status"] == "review_restored_quarantined_history"
+        assert result["sha256"] == review_bytes_sha
+        assert result["education_continuity"]["historical_certified"] is False
+        assert result["education_continuity"]["new_epoch"].startswith("retry-")
+        assert result["education_continuity"]["abandoned_pre_probe"] == {
+            "status": "unbacked_archived",
+            "missing_run_ids": [orphan_run_id],
+        }
+        transition = r7._quarantine_transition_path(
+            original.parent, previous["original_sha256"], review_bytes_sha
+        )
+        assert transition.is_file()
+        assert original.read_bytes() == original_bytes
+        assert old_receipt.read_bytes() == historical_receipt_bytes
+        assert epoch.read_bytes() == epoch_bytes
+        assert r7._sha(review) == review_bytes_sha
+        # Repeated startup must not overwrite the restored working database.
+        before = r7._counts(fake.DB)
+        with patch.object(r7, "_check_api", return_value=False):
+            reused = r7.Center(fake)._restore_best_before_api()
+        assert r7._counts(fake.DB) == before
+        assert reused["result"] == "Bodega local intacta con cuarentena verificada"
