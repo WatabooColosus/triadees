@@ -2,12 +2,12 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 38,
-  "version": "R7.17.14-guarded-education-recovery-ci-green",
+  "sequence": 39,
+  "version": "R7.17.15-legacy-panel-migration",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "59978587764ff86beefe665bf60cd2ddcf99ec5b",
+  "commit": "a7f7e046019748d03bb7c9d801077b5df651b499",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
@@ -19,7 +19,7 @@
     },
     "client": {
       "path": "tools/triade_colab_continuous.py",
-      "sha256": "ad9d19cacc97a8db562c6d76cd66b22513f7e7a45d1ffb4218c47e9a2d6ccaf1"
+      "sha256": "c51287c0789154c9223601bf911f988e0e0c1af0a5173f6207b739a0ef1e78f2"
     },
     "rehydrator": {
       "path": "tools/triade_colab_continuity_r631.py",
