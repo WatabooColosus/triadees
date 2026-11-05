@@ -930,7 +930,7 @@ def render(r5):
             """<div class="r7hero"><h2>TRÍADE Ω · CENTRO DE CONTINUIDAD R7</h2><small>Git = código · Drive = memoria · Colab = ejecución temporal</small><div><span class="r7pill">Versión verificable</span><span class="r7pill">Identidad protegida</span><span class="r7pill">Reinicio seguro</span><span class="r7pill">Sin procesos duplicados</span></div></div>"""
         )
     )
-    info = w.HTML(value="<b>Centro listo. Pulsa «Verificar estado».</b>")
+    info = w.HTML(value="<b>Centro autónomo. Solo el ciclo de instalación requiere botón.</b>")
     out = w.Output(
         layout=w.Layout(
             border="1px solid #426aac",
@@ -939,20 +939,13 @@ def render(r5):
             padding="10px",
         )
     )
-    approve = w.Text(
-        placeholder="Para instalar: ACTUALIZAR R6.3.1",
-        description="Autorización",
-        layout=w.Layout(width="96%"),
-    )
     busy = w.HTML("")
 
-    def execute(label, fn, require=None):
+    def execute(label, fn):
         with out:
             clear_output(wait=True)
             print("TRÍADE Ω ·", label)
             try:
-                if require and approve.value.strip() != require:
-                    raise RuntimeError("Autorización requerida: " + require)
                 result = fn()
                 print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
                 print("✓ Operación concluida. Verifica el resultado real en la salida.")
@@ -980,25 +973,13 @@ def render(r5):
             if busy.value:
                 return
             busy.value = "<b>Ejecutando acción. Evita pulsar otro botón.</b>"
-            execute(
-                label,
-                fn,
-                require="ACTUALIZAR R6.3.1" if fn == center.install_release else None,
-            )
+            execute(label, fn)
 
         b.on_click(click)
         return b
 
     controls = [
-        button("Verificar estado / versión", center.status, "info"),
-        button("Buscar versiones en Git", center.check_updates),
-        button("Iniciar última versión + memoria", center.start, "success"),
-        button("Actualizar código a R6.3.1", center.install_release, "warning"),
-        button("Abrir frontend privado", center.r5.open_frontend),
-        button("Guardar copia verificada", center.save),
-        button("Activar guardián Drive", center.start_guardian),
-        button("Confirmar punto recuperable", center.record_release),
-        button("Auditar actividad real (30 s)", lambda: center.r5.audit_progress(30)),
+        button("Instalar / encender / actualizar", center.start, "success"),
     ]
     display(
         info,
@@ -1006,9 +987,9 @@ def render(r5):
         w.Box(
             controls, layout=w.Layout(display="flex", flex_flow="row wrap", gap="8px")
         ),
-        approve,
         w.HTML(
-            "<small>No pide claves. No sustituye el índice V2. Si el kernel se apaga, vuelve a ejecutar esta celda y pulsa «Iniciar / recuperar».</small>"
+            "<small>La supervisión, memoria y aprendizaje pertenecen al ciclo "
+            "gobernado de Tríade. Este panel no sustituye el índice V2.</small>"
         ),
         out,
     )
