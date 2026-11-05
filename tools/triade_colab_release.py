@@ -518,6 +518,8 @@ def verify(context):
         and observed.get("ollama_http_200") is True
         and observed.get("bodega", "").startswith("SQLite ok")
         and observed.get("known_regression") is None
+        and (observed.get("education_continuity") or {}).get("status")
+        != "regressed_blocked"
         and observed.get("release", "").startswith("R6.3.1 candidata")
     )
     if ready:
