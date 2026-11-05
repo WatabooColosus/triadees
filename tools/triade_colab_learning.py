@@ -127,6 +127,8 @@ def _quarantined_learning_lineage(r5, epoch):
             "historical_certified": False,
             "new_epoch": epoch["id"],
         }
+    if state.get("session_id") == epoch["original_study_id"]:
+        return {"status": "blocked", "reason": "fresh_epoch_reused_historical_session"}
     if state.get("phase") == "done" and not (
         isinstance(state.get("backup"), dict)
         and state["backup"].get("study_checkpoint")
@@ -945,6 +947,8 @@ def _save(context, state):
         if epoch
         else Path(context["r5"].WORK) / "prospective_learning.json"
     )
+    if epoch and state.get("session_id") == epoch["original_study_id"]:
+        raise NotReady("fresh_epoch_reused_historical_session")
     state["updated_at"] = dt.datetime.now(dt.UTC).isoformat()
     protection._json(path, state)
     if epoch:
@@ -1040,6 +1044,9 @@ def step(context):
         ).run_once(force=True, target_neuron_id=state["neuron_id"])
         if lesson.get("status") != "lesson_prepared":
             raise NotReady("official_curriculum:" + str(lesson.get("status")))
+        epoch = _quarantined_epoch(r5)
+        if epoch and lesson.get("session_id") == epoch["original_study_id"]:
+            raise NotReady("fresh_epoch_reused_historical_session")
         with contextlib.closing(_connect(r5.DB)) as conn:
             stored = conn.execute(
                 "SELECT lesson_json FROM neuron_education_sessions WHERE session_id=?",
