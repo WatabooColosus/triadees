@@ -509,6 +509,40 @@ class Client:
             return callback(self.context)
 
 
+def transfer_render_state(client, previous):
+    """Preserve an existing verified runtime across legacy panel refreshes.
+
+    Observation metadata was added after older Colab clients were instantiated.
+    Treat it as optional, but require the runtime module/context to exist so a
+    refreshed panel cannot silently detach from its running API and Bodega.
+    """
+    if previous is None or previous.r5 is not client.r5:
+        return False
+    for required in ("module", "context"):
+        if not hasattr(previous, required):
+            raise RuntimeError(
+                "Migración del panel bloqueada: falta estado de sesión " + required
+            )
+    for field in (
+        "module",
+        "context",
+        "diagnostic_module",
+        "diagnostic_context",
+        "last_check",
+        "last_error",
+        "failed_release",
+        "last_observation",
+    ):
+        if hasattr(previous, field):
+            setattr(client, field, getattr(previous, field))
+    for context in (client.context, client.diagnostic_context):
+        if context is not None:
+            context["progress"] = client.progress
+    # Candidates must never inherit a previous auto-apply setting.
+    client.auto_apply = False
+    return True
+
+
 def render(r5, *, watch=True):
     global _active_client
     from html import escape
@@ -677,25 +711,10 @@ def render(r5, *, watch=True):
     # Widget comms belong to their frontend. Reusing old views after opening
     # another browser produced HTML(value=...) text instead of live controls.
     # Rebuild views while keeping the verified runtime/release context.
-    if previous is not None and previous.r5 is r5:
-        for field in (
-            "module",
-            "context",
-            "diagnostic_module",
-            "diagnostic_context",
-            "last_check",
-            "last_error",
-            "failed_release",
-            "last_observation",
-        ):
-            setattr(client, field, getattr(previous, field))
-        for context in (client.context, client.diagnostic_context):
-            if context is not None:
-                context["progress"] = client.progress
-        client.auto_apply = False
+    if transfer_render_state(client, previous):
         if client.last_observation is not None:
             show_observation(client.last_observation)
-        client.progress(previous.stage_message)
+        client.progress(getattr(previous, "stage_message", client.stage_message))
     display(*client.view)
     if watch:
         client.start_watch()
