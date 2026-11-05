@@ -553,6 +553,4 @@ def test_cannot_save_or_certify_review_from_restored_incomplete_study():
         ):
             center.record_release()
         assert not calls
-        assert not (
-            fake.BASE / "operacion_colab_r7" / "last_success.json"
-        ).exists()
+        assert not (fake.BASE / "operacion_colab_r7" / "last_success.json").exists()
