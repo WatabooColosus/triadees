@@ -161,7 +161,9 @@ def _check_completed_study_evidence(db: Path, work: Path, drive: Path):
         for item in state[phase]:
             run_id = item.get("run_id") if isinstance(item, dict) else None
             if not isinstance(run_id, str) or not run_id:
-                raise RuntimeError("Continuidad educativa: referencia de ejecución inválida")
+                raise RuntimeError(
+                    "Continuidad educativa: referencia de ejecución inválida"
+                )
             evidence.append((run_id, neuron_id, phase))
     if not evidence or len({x[0] for x in evidence}) != len(evidence):
         raise RuntimeError("Continuidad educativa: ejecuciones duplicadas o ausentes")
@@ -188,7 +190,9 @@ def _check_completed_study_evidence(db: Path, work: Path, drive: Path):
             expected = (state.get("result") or {}).get("session") or {}
             expected_state = expected.get("state")
             if session is None or session[0] == "lesson_prepared":
-                raise RuntimeError("Continuidad educativa: sesión concluida retrocedida")
+                raise RuntimeError(
+                    "Continuidad educativa: sesión concluida retrocedida"
+                )
             if expected_state and session[0] != expected_state:
                 raise RuntimeError("Continuidad educativa: estado final divergente")
             missing = sum(
