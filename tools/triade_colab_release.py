@@ -436,9 +436,28 @@ def _enforce_observation_panel(context):
     ):
 
         def maintain_controls(change):
+            nonlocal allowed
             if change.get("name") != "children":
                 return
-            if tuple(getattr(actions, "children", ())) != allowed:
+            current = tuple(getattr(actions, "children", ()))
+            # The trusted notebook may REPLACE the lifecycle button with its
+            # release-refresh wrapper. Keep that replacement, not the stale
+            # button from before the notebook attached its click handler.
+            replacement = next(
+                (
+                    item
+                    for item in current
+                    if item is not chosen
+                    and (
+                        "encender" in str(getattr(item, "description", "")).lower()
+                        or "instalar" in str(getattr(item, "description", "")).lower()
+                    )
+                ),
+                None,
+            )
+            if replacement is not None and current and current[0] is replacement:
+                allowed = (replacement, opener) if opener is not None else (replacement,)
+            if current != allowed:
                 actions.children = allowed
 
         observer(maintain_controls, names="children")
