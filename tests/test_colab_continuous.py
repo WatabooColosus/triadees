@@ -708,7 +708,7 @@ def test_installer_minimizes_preexisting_widget_panel_without_running_actions():
 
     owner = Owner()
     result = adapter._enforce_observation_panel({"progress": owner.progress})
-    assert result == {"status": "single_lifecycle_control", "visible_buttons": 1}
+    assert result == {"status": "lifecycle_and_open_controls", "visible_buttons": 1}
     assert widget_box.children == (controls[1],)
     assert calls == []
 
@@ -720,5 +720,6 @@ def test_legacy_controller_render_has_only_lifecycle_button():
 
     source = inspect.getsource(controller.render)
     assert 'button("Instalar / encender / actualizar", center.start' in source
+    assert 'button("Abrir Tríade", open_verified_frontend' in source
     assert 'button("Guardar copia verificada"' not in source
     assert 'button("Auditar actividad real' not in source
