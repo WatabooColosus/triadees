@@ -49,6 +49,14 @@ def _read(path):
         return {}
 
 
+def _hash_file(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for block in iter(lambda: stream.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 def _active_epoch_after_abandonment(folder, epoch_id):
     """Read-only verification of a single archived, unfinished pre-probe."""
     original = folder / "epochs" / epoch_id / "current.json"
@@ -78,6 +86,16 @@ def _active_epoch_after_abandonment(folder, epoch_id):
         and receipt.get("learning_credit") is False
         and receipt.get("original_pointer_preserved") is True
         and len(receipt.get("missing_run_ids") or []) == 1
+        and (
+            not receipt.get("local_run_present")
+            or (
+                isinstance(receipt.get("source_local_sha256"), str)
+                and (root / "original-local.sqlite3").is_file()
+                and not (root / "original-local.sqlite3").is_symlink()
+                and _hash_file(root / "original-local.sqlite3")
+                == receipt["source_local_sha256"]
+            )
+        )
     ):
         raise NotReady("abandoned_preprobe_receipt_invalid")
     return expected
