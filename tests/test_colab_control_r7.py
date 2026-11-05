@@ -557,9 +557,7 @@ def test_cannot_save_or_certify_review_from_restored_incomplete_study():
 
 
 def _review_fixture_for_isolated_fork(fake):
-    image_root = (
-        fake.BASE / "operacion_colab_r5" / "ramas_en_revision" / ("a" * 16)
-    )
+    image_root = fake.BASE / "operacion_colab_r5" / "ramas_en_revision" / ("a" * 16)
     image_root.mkdir(parents=True)
     image = image_root / "r5-checkpoint.sqlite3"
     make_db(image, applications=20, tasks=2501)
@@ -622,9 +620,7 @@ def test_prepares_only_local_isolated_fork_with_historical_evidence_quarantined(
             for path in fake.BASE.rglob("*")
             if path.is_file()
         }
-        receipt = json.loads(
-            (copied.parent / "isolation_receipt.json").read_text()
-        )
+        receipt = json.loads((copied.parent / "isolation_receipt.json").read_text())
         assert receipt["recovery_certified"] is False
 
 
