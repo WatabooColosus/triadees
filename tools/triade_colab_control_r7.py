@@ -481,9 +481,7 @@ def _quarantine_status(db, work, drive):
         ).fetchone()
     if row is None or row[0] != "lesson_prepared":
         return None
-    new_study = _verify_fresh_epoch_mirrors(
-        db, work, folder, receipt["epoch"]
-    )
+    new_study = _verify_fresh_epoch_mirrors(db, work, folder, receipt["epoch"])
     return {
         "status": "historical_unverified_quarantined",
         "historical_certified": False,
