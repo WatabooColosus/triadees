@@ -2,12 +2,12 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 39,
-  "version": "R7.17.15-legacy-panel-migration",
+  "sequence": 40,
+  "version": "R7.17.16-guarded-preprobe-recovery",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "a7f7e046019748d03bb7c9d801077b5df651b499",
+  "commit": "76d2a56f28dd80b8f9c4fd947ab217a8216d29f5",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
@@ -15,7 +15,7 @@
     },
     "controller": {
       "path": "tools/triade_colab_control_r7.py",
-      "sha256": "54ff37bfa0d49bdceca4d74b121e1b0f7ce43763f97fe8e006bcd502ff05c7e2"
+      "sha256": "3c5660518b6125de9108a66696059e09379cc9d6acdf2252c9eb940fe9e60303"
     },
     "client": {
       "path": "tools/triade_colab_continuous.py",
@@ -35,7 +35,7 @@
     },
     "learning": {
       "path": "tools/triade_colab_learning.py",
-      "sha256": "d306f758c9a4149ba3c721d72a3b615122fa43bb4cba33ed1319e8df0085d21a"
+      "sha256": "f7ae52cb472cb0fca959dc771970484d014ace228e517cb09121cb9b3d90ab2d"
     },
     "router": {
       "path": "tools/model_router.py",
