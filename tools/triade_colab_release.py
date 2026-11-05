@@ -456,7 +456,9 @@ def _enforce_observation_panel(context):
                 None,
             )
             if replacement is not None and current and current[0] is replacement:
-                allowed = (replacement, opener) if opener is not None else (replacement,)
+                allowed = (
+                    (replacement, opener) if opener is not None else (replacement,)
+                )
             if current != allowed:
                 actions.children = allowed
 
