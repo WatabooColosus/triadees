@@ -1,9 +1,12 @@
 # Centro continuo de Colab
 
-El mismo botón **Instalar / encender / actualizar** sirve en una VM vacía y en
+El botón principal **Instalar / encender / actualizar** sirve en una VM vacía y en
 una sesión existente. Instala las dependencias ausentes, recupera únicamente la
 continuidad de Drive acreditada e inicia el runtime. El cuaderno no ofrece un
 botón por versión histórica ni exige instalar R5 manualmente antes de actualizar.
+El segundo botón, **Abrir Tríade**, únicamente solicita mostrar el frontend si
+la API, Ollama, la Bodega, el código y la continuidad están verificados; jamás
+restaura memoria ni sustituye el botón de arranque.
 
 El cuaderno de ciclo único llama al instalador desde la ejecución principal de
 la celda. La autorización de Drive continúa directamente hacia la instalación,
@@ -39,7 +42,7 @@ versiones del runtime.
 - Runtime Truth CI, Python Tests y Tríade Tests deben estar completadas y en verde
   para el commit exacto. Una ejecución más reciente fallida o pendiente bloquea
   la versión aunque exista un resultado antiguo correcto.
-- Por defecto, las versiones se aplican con el único botón. La casilla opcional
+- Por defecto, las versiones se aplican con el botón de instalación. La casilla opcional
   permite aplicar futuras publicaciones **estables** con `auto_update_safe=true`;
   las candidatas siguen requiriendo pulsar el botón. No instala por primera vez
   ni pide OAuth desde un hilo de fondo. Un intento automático fallido no se
@@ -169,3 +172,20 @@ de lease/reintento de tareas. Lee además las brechas de respaldo, servicios y
 cadena vital con inspectores oficiales locales: su origen se distingue de la
 API autenticada. Los 403 siguen visibles; no se desactiva el login ni se fabrican
 sesiones. El modo `observe_only` y las restricciones de aprendizaje permanecen.
+
+## Apertura y continuidad educativa (noviembre de 2026)
+
+El panel continuo presenta dos acciones visibles: **Instalar / encender / actualizar**
+y **Abrir Tríade**. El segundo control verifica el runtime actual y rechaza la
+apertura si la publicación, los servicios o la continuidad no están acreditados.
+La política de compatibilidad conserva ambos controles cuando el cuaderno antiguo
+ya tiene su botón de apertura. La observación de continuidad identifica sesiones
+retrocedidas y referencias concretas de evaluaciones ausentes de forma solo lectura.
+
+El registro histórico de una sesión marcada `done` en Drive **no sustituye** los
+registros funcionales en la Bodega. Si una copia conserva solamente 9 de 10
+pruebas y su sesión sigue en `lesson_prepared`, permanece en cuarentena y no se
+presenta como memoria recuperada. El código no inventa evaluaciones ni promueve
+una sesión incompleta. Una recuperación real necesita una imagen verificable que
+contenga todos los `run_id` y el estado terminal, o una nueva evaluación real
+independiente con su propio identificador y un checkpoint fresco.
