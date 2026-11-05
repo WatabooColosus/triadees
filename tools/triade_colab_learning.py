@@ -17,7 +17,6 @@ import threading
 import time
 import traceback
 import uuid
-from html import escape
 from pathlib import Path
 
 from triade.db import sqlite3
@@ -969,56 +968,8 @@ def start(context):
 
 
 def attach(context):
+    """Learning is observed by the governed cycle, not triggered by UI buttons."""
     client = getattr(context.get("progress"), "__self__", None)
     if client is None or not getattr(client, "view", None):
         return {"status": "panel_not_rendered"}
-    import ipywidgets as widgets
-    from IPython.display import display
-
-    output = client.view[-1]
-    if not hasattr(output, "value"):
-        output = widgets.HTML(
-            value="",
-            layout=widgets.Layout(max_height="480px", overflow="auto"),
-        )
-        client.view = (*client.view[:-1], output)
-        display(output)
-
-    box = client.view[3]
-    known = {getattr(child, "description", "") for child in box.children}
-    for label, action in (("Ver circuito de aprendizaje", "learning_status"),):
-        if label in known:
-            continue
-        button = widgets.Button(
-            description=label, layout=widgets.Layout(width="300px", height="44px")
-        )
-
-        def click(control, selected=action):
-            control.disabled = True
-            try:
-                output.value = "<small>Acción en curso…</small>"
-                try:
-                    rendered = json.dumps(
-                        client.action(selected),
-                        ensure_ascii=False,
-                        indent=2,
-                        default=str,
-                    )
-                except Exception as exc:  # noqa: BLE001 - panel boundary reports action errors
-                    rendered = (
-                        "Operación detenida: "
-                        + type(exc).__name__
-                        + " "
-                        + str(exc)[:1600]
-                    )
-                output.value = (
-                    "<pre style='white-space:pre-wrap;overflow-wrap:anywhere'>"
-                    + escape(rendered)
-                    + "</pre>"
-                )
-            finally:
-                control.disabled = False
-
-        button.on_click(click)
-        box.children = (*box.children, button)
-    return {"status": "learning_controls_attached"}
+    return {"status": "learning_observation_only", "manual_controls": False}
