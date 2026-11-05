@@ -587,3 +587,25 @@ def audit(r5, seconds, *, emit=True):
     }
     assert client.r5.events == [("install", "release-one")]
     assert client.installed()["manifest"]["version"] == "fixture-panel-audit"
+
+
+def test_isolated_recovery_action_is_available_after_failed_install(runtime):
+    client, _, _ = runtime
+    client.diagnostic_module = SimpleNamespace(
+        prepare_isolated_recovery=lambda context: {
+            "status": "isolated_fork_prepared",
+            "drive_modified": False,
+            "api_started": False,
+        }
+    )
+    client.diagnostic_context = {"r5": client.r5}
+    client.last_error = "Continuidad educativa: sesión concluida retrocedida"
+    assert client.module is None
+    result = client.action("prepare_isolated_recovery")
+    assert result == {
+        "status": "isolated_fork_prepared",
+        "drive_modified": False,
+        "api_started": False,
+    }
+    with pytest.raises(RuntimeError, match="Arranque detenido"):
+        client.action("save")
