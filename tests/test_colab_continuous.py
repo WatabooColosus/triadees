@@ -720,9 +720,9 @@ def test_open_requires_a_verifiably_healthy_runtime(runtime):
     opened = []
     client.module = SimpleNamespace(
         verify=lambda context: client.r5.verified,
-        open_frontend=lambda context: opened.append("open") or {
-            "status": "frontend_requested"
-        },
+        open_frontend=lambda context: (
+            opened.append("open") or {"status": "frontend_requested"}
+        ),
     )
     client.r5.verified = False
     with pytest.raises(RuntimeError, match="Abrir Tríade bloqueado"):
