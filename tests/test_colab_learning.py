@@ -68,6 +68,15 @@ def test_recovered_education_starts_fresh_epoch_without_rewriting_old_pointer(tm
         "quarantined_fresh_epoch_aligned"
     )
     assert not (r5.WORK / "prospective_learning.json").exists()
+    epoch["local"].write_text(
+        json.dumps({"phase": "post", "neuron_id": 11, "pre": [], "post": []})
+    )
+    assert learning._study_memory_lineage(r5) == {
+        "status": "blocked",
+        "reason": "fresh_epoch_mirror_conflict",
+    }
+    with pytest.raises(learning.NotReady, match="fresh_epoch_mirror_conflict"):
+        learning._study_state(context)
 
 
 def test_application_recorder_is_scoped_idempotent_and_preserves_old_sessions(tmp_path):
