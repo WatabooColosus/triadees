@@ -1005,9 +1005,7 @@ def _archived_legacy_receipt_fixture(fake):
     make_db(fake.DB, applications=15, tasks=2500)
     _seed_review_study(fake.DB, post_count=4)
     original = _unbacked_legacy_claim(fake)
-    first = r7._legacy_quarantine_candidate(
-        fake.DB, fake.WORK, fake.BASE, "c" * 64
-    )
+    first = r7._legacy_quarantine_candidate(fake.DB, fake.WORK, fake.BASE, "c" * 64)
     assert first is not None
     receipt_path = r7._persist_legacy_quarantine(fake.WORK, fake.BASE, first)
     return original, first, receipt_path
@@ -1032,9 +1030,12 @@ def test_new_review_sha_preserves_historical_quarantine_and_verifies_transition(
             original.parent, first["original_sha256"], "d" * 64
         )
         assert transition.is_file()
-        assert r7._verify_quarantine_transition(
-            original.parent, first["original_sha256"], next_record, receipt
-        ) == transition
+        assert (
+            r7._verify_quarantine_transition(
+                original.parent, first["original_sha256"], next_record, receipt
+            )
+            == transition
+        )
         restore_file = fake.WORK / "control_r7" / "last_restore.json"
         restore_file.parent.mkdir(parents=True, exist_ok=True)
         restore_file.write_text(
@@ -1097,9 +1098,7 @@ def test_modified_historical_archive_rejected_on_review_rotation():
         archive = receipt.parent / "original.json"
         archive.write_bytes(b"corrupted")
         next_record = {**first, "selected_review_sha256": "d" * 64}
-        with unittest.TestCase().assertRaisesRegex(
-            RuntimeError, "cuarentena alterada"
-        ):
+        with unittest.TestCase().assertRaisesRegex(RuntimeError, "cuarentena alterada"):
             r7._persist_legacy_quarantine(fake.WORK, fake.BASE, next_record)
         assert original.is_file()
         assert not (
@@ -1113,16 +1112,12 @@ def test_actual_colab_restart_with_old_quarantine_and_newer_review_recovers():
     with tempfile.TemporaryDirectory() as root:
         fake = FakeR5(Path(root))
         make_db(fake.DB, applications=15, tasks=2500)
-        review, original, epoch, orphan_run_id = _make_unbacked_single_pre_epoch(
-            fake
-        )
+        review, original, epoch, orphan_run_id = _make_unbacked_single_pre_epoch(fake)
         previous = r7._legacy_quarantine_candidate(
             review, fake.WORK, fake.BASE, "c" * 64
         )
         assert previous is not None
-        old_receipt = r7._persist_legacy_quarantine(
-            fake.WORK, fake.BASE, previous
-        )
+        old_receipt = r7._persist_legacy_quarantine(fake.WORK, fake.BASE, previous)
         original_bytes = original.read_bytes()
         historical_receipt_bytes = old_receipt.read_bytes()
         epoch_bytes = epoch.read_bytes()
