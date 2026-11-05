@@ -228,3 +228,70 @@ def test_status_distinguishes_actual_backend_key_from_initial_receipt(
     assert observed["backend_key_activation"] == "configured_observed"
     assert observed["copy_watcher_alive"] is False
     assert "private fixture path" not in str(observed)
+
+
+def _study_fixture(runtime, *, missing_post=False):
+    with sqlite3.connect(runtime.DB) as conn:
+        conn.execute(
+            "CREATE TABLE neuron_education_sessions "
+            "(session_id TEXT,neuron_id INTEGER,state TEXT,post_score REAL)"
+        )
+        conn.execute(
+            "INSERT INTO neuron_education_sessions VALUES "
+            "('session-fixture',11,'applied_neutral',0.0)"
+        )
+        conn.execute(
+            "CREATE TABLE neuron_functional_assessments "
+            "(run_id TEXT,neuron_id INTEGER,case_id TEXT,"
+            "phase TEXT,score REAL,session_id TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO neuron_functional_assessments VALUES "
+            "('fixture-pre',11,'vis1','pre',0.0,NULL)"
+        )
+        if not missing_post:
+            conn.execute(
+                "INSERT INTO neuron_functional_assessments VALUES "
+                "('fixture-post',11,'vis1','post',0.0,'session-fixture')"
+            )
+    return {
+        "phase": "checkpoint_pending",
+        "study_id": "prospective-fixture",
+        "session_id": "session-fixture",
+        "neuron_id": 11,
+        "pre": [{"run_id": "fixture-pre", "case_id": "vis1", "score": 0.0}],
+        "post": [{"run_id": "fixture-post", "case_id": "vis1", "score": 0.0}],
+        "result": {"session": {"state": "applied_neutral", "post_score": 0.0}},
+    }
+
+
+def test_completed_study_forces_fresh_archive_while_backup_cooldown_is_active(runtime):
+    previous = protection.repair(runtime)
+    state = _study_fixture(runtime)
+    after = protection.repair(runtime, require_fresh=True, study_state=state)
+    assert after["status"] == "encrypted_copy_verified"
+    assert after["file"] != previous["file"]
+    assert after["study_checkpoint"]["verified_run_count"] == 2
+    assert after["study_checkpoint"]["session_id"] == "session-fixture"
+    assert (
+        protection._paths(runtime) / "copies" / after["file"]
+    ).is_file()
+    assert protection._backup_instance(runtime).verify(
+        protection._backup_instance(runtime).backup_dir / after["file"]
+    )["status"] == "ok"
+
+
+def test_fresh_checkpoint_rejects_missing_real_post_row_without_new_drive_receipt(
+    runtime,
+):
+    previous = protection.repair(runtime)
+    state = _study_fixture(runtime, missing_post=True)
+    status_file = protection._paths(runtime) / "status.json"
+    original_status = status_file.read_bytes()
+    with pytest.raises(RuntimeError, match="run_missing_or_mismatched"):
+        protection.repair(runtime, require_fresh=True, study_state=state)
+    assert status_file.read_bytes() == original_status
+    assert not any(
+        file.name != previous["file"]
+        for file in (protection._paths(runtime) / "copies").glob("*.fernet")
+    )
