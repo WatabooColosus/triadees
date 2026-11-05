@@ -504,7 +504,9 @@ def _start_autonomous_monitor(context, *, interval_seconds=600):
     thread = threading.Thread(
         target=observe, name="triade-low-resource-auto-audit", daemon=True
     )
-    r5._triade_auto_ops = {"stop": stop, "thread": thread, "state": state}
+    r5._triade_auto_ops = {
+        "stop": stop, "thread": thread, "state": state, "check": check
+    }
     thread.start()
     return dict(state)
 
