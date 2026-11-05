@@ -894,13 +894,24 @@ def step(context):
         )
     elif state["phase"] == "resolve":
         state.update(
-            phase="done",
+            phase="checkpoint_pending",
             result=_resolve(
                 r5.DB, state["session_id"], {proof["run_id"] for proof in state["post"]}
             ),
         )
-        # Genuine new memory must have a durable, decryptable checkpoint.
-        state["backup"] = context["protection_module"].repair(r5)
+        # Persist a truthful pending state before attempting a costly backup.
+        # A failure must never leave a public "done" without its matching DB.
+        _save(context, state)
+    if state["phase"] == "checkpoint_pending":
+        state["backup"] = context["protection_module"].repair(
+            r5, require_fresh=True, study_state=state
+        )
+        if (
+            state["backup"].get("status") != "encrypted_copy_verified"
+            or not state["backup"].get("study_checkpoint")
+        ):
+            raise RuntimeError("prospective_study_checkpoint_not_certified")
+        state["phase"] = "done"
     return _save(context, state)
 
 
