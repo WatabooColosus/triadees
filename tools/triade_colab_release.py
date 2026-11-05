@@ -485,14 +485,37 @@ def resume(context):
 
 
 def recover(context, error):
-    # Existing guarded installers preserve their pre-change backups. Do not
-    # manufacture a rollback of user memory or certify a failed installation.
-    return {
+    """Fail closed; autonomously prepare an offline forensic fork if needed.
+
+    This action is explicitly limited to an educational lineage regression.
+    It never starts Tríade, changes Drive, replaces the active DB, or resolves
+    a historical study by inference.
+    """
+    result = {
         "status": "not_activated",
         "memory_replaced_by_recovery": False,
         "reason": error,
         "observed": _center(context).status(),
     }
+    if "Continuidad educativa:" not in error:
+        return result
+    previous = context.get("isolated_recovery_receipt")
+    if previous is not None:
+        result["isolated_recovery"] = previous
+        return result
+    try:
+        isolated = prepare_isolated_recovery(context)
+    except (OSError, RuntimeError, ValueError, TypeError) as exc:
+        isolated = {
+            "status": "isolated_recovery_blocked",
+            "failure_type": type(exc).__name__,
+            "reason": str(exc)[:260],
+            "original_bodega_overwritten": False,
+            "drive_modified": False,
+        }
+    context["isolated_recovery_receipt"] = isolated
+    result["isolated_recovery"] = isolated
+    return result
 
 
 def open_frontend(context):
