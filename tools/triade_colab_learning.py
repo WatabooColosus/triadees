@@ -49,6 +49,89 @@ def _read(path):
         return {}
 
 
+def _study_memory_lineage(r5):
+    """Observe whether a verified Drive study points beyond the active SQLite.
+
+    This is a read-only continuity gate, not a restore or a claim of learning.
+    A stored completed study must never silently become a fresh lesson after
+    another Colab installation chooses an older valid snapshot.
+    """
+    if not hasattr(r5, "BASE") or not hasattr(r5, "WORK"):
+        return {"status": "not_observed"}
+    proof = _read(Path(r5.WORK) / "restore_proof.json")
+    source = str(proof.get("source_sha256") or "")
+    if len(source) != 64 or any(ch not in "0123456789abcdef" for ch in source):
+        return {"status": "not_observed"}
+    path = (
+        Path(r5.BASE)
+        / "operacion_colab_continua"
+        / "aprendizaje"
+        / source[:16]
+        / "current.json"
+    )
+    if not path.is_file():
+        return {"status": "not_observed"}
+    if any(parent.is_symlink() for parent in (path, *path.parents)):
+        return {"status": "blocked", "reason": "untrusted_study_pointer"}
+    study = _read(path)
+    if study.get("phase") != "done":
+        return {"status": "not_observed", "reason": "study_not_finished"}
+    session_id = str(study.get("session_id") or "")
+    neuron_id = study.get("neuron_id")
+    if not session_id or type(neuron_id) is not int:
+        return {"status": "blocked", "reason": "invalid_study_pointer"}
+    if not all(isinstance(study.get(phase), list) for phase in ("pre", "post")):
+        return {"status": "blocked", "reason": "invalid_study_pointer"}
+    counts = {"pre": len(study["pre"]), "post": len(study["post"])}
+    try:
+        with contextlib.closing(_connect(r5.DB)) as conn:
+            tables = _tables(conn)
+            required = {"neuron_functional_assessments", "neuron_education_sessions"}
+            if not required.issubset(tables):
+                return {
+                    "status": "regressed",
+                    "reason": "study_tables_missing",
+                    **counts,
+                }
+            row = conn.execute(
+                "SELECT state FROM neuron_education_sessions "
+                "WHERE session_id=? AND neuron_id=?",
+                (session_id, neuron_id),
+            ).fetchone()
+            missing = {"pre": 0, "post": 0}
+            for phase in ("pre", "post"):
+                proofs = study.get(phase, [])
+                if not isinstance(proofs, list):
+                    return {"status": "blocked", "reason": "invalid_study_pointer"}
+                for item in proofs:
+                    run_id = item.get("run_id") if isinstance(item, dict) else None
+                    if not isinstance(run_id, str) or not run_id:
+                        return {"status": "blocked", "reason": "invalid_study_pointer"}
+                    present = conn.execute(
+                        "SELECT 1 FROM neuron_functional_assessments "
+                        "WHERE run_id=? AND neuron_id=? AND phase=?",
+                        (run_id, neuron_id, phase),
+                    ).fetchone()
+                    if present is None:
+                        missing[phase] += 1
+    except (OSError, sqlite3.Error, ValueError, TypeError):
+        return {"status": "blocked", "reason": "memory_lineage_unreadable"}
+    if row is None or missing["pre"] or missing["post"]:
+        return {
+            "status": "regressed",
+            "reason": "documented_study_evidence_missing",
+            "missing_evidence": missing,
+            **counts,
+        }
+    if row["state"] == "lesson_prepared":
+        return {
+            "status": "regressed",
+            "reason": "finished_study_reopened",
+            **counts,
+        }
+    return {"status": "aligned", **counts}
+
+
 def _ledger(r5):
     from triade.runtime.resource_ledger import ResourceLedger, load_runtime_budget
 
@@ -301,6 +384,7 @@ def inspect(r5):
         report["resource_policy"] = {"status": "not_observed"}
     report["prospective_study"] = _read(Path(r5.WORK) / "prospective_learning.json")
     report["study_launch"] = _read(Path(r5.WORK) / "prospective_launch.json")
+    report["memory_lineage"] = _study_memory_lineage(r5)
     report["study_wait"] = _read(Path(r5.WORK) / "prospective_wait.json")
     if report["study_wait"].get("at", "") < report["prospective_study"].get(
         "updated_at", ""
@@ -822,6 +906,9 @@ def step(context):
 
 def start(context):
     r5 = context["r5"]
+    lineage = _study_memory_lineage(r5)
+    if lineage.get("status") in ("regressed", "blocked"):
+        return {"status": "blocked", "reason": "study_memory_lineage_unverified"}
     previous = getattr(r5, "_prospective_learning_monitor", None)
     if previous and previous["thread"].is_alive():
         return {"status": "study_already_running"}

@@ -899,3 +899,104 @@ def test_colab_neutral_diagnostics_read_only_and_redacts_error_details(
     ]
     assert "TOKEN_DO_NOT_EXPOSE" not in json.dumps(report)
     assert "sensitive path information" not in json.dumps(report)
+
+
+def test_study_memory_lineage_blocks_reopened_completed_study_without_db_write(
+    tmp_path,
+):
+    db = tmp_path / "active.sqlite3"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE TABLE neuron_education_sessions "
+            "(session_id TEXT, neuron_id INTEGER, state TEXT)"
+        )
+        conn.execute(
+            "CREATE TABLE neuron_functional_assessments "
+            "(run_id TEXT, neuron_id INTEGER, phase TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO neuron_education_sessions VALUES ('lesson-x',11,'lesson_prepared')"
+        )
+        conn.execute(
+            "INSERT INTO neuron_functional_assessments VALUES ('pre-x',11,'pre')"
+        )
+    base = tmp_path / "Drive"
+    base.mkdir()
+    work = tmp_path / "work"
+    work.mkdir()
+    source = "a" * 64
+    (work / "restore_proof.json").write_text(json.dumps({"source_sha256": source}))
+    current = (
+        base / "operacion_colab_continua" / "aprendizaje" / source[:16] / "current.json"
+    )
+    current.parent.mkdir(parents=True)
+    current.write_text(
+        json.dumps(
+            {
+                "phase": "done",
+                "session_id": "lesson-x",
+                "neuron_id": 11,
+                "pre": [{"run_id": "pre-x"}],
+                "post": [{"run_id": "post-lost"}],
+            }
+        )
+    )
+    r5 = SimpleNamespace(DB=db, WORK=work, BASE=base)
+    before = db.read_bytes()
+    result = learning._study_memory_lineage(r5)
+    assert result == {
+        "status": "regressed",
+        "reason": "documented_study_evidence_missing",
+        "missing_evidence": {"pre": 0, "post": 1},
+        "pre": 1,
+        "post": 1,
+    }
+    assert learning.start({"r5": r5}) == {
+        "status": "blocked",
+        "reason": "study_memory_lineage_unverified",
+    }
+    assert db.read_bytes() == before
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "INSERT INTO neuron_functional_assessments VALUES ('post-lost',11,'post')"
+        )
+    assert learning._study_memory_lineage(r5)["reason"] == "finished_study_reopened"
+    with sqlite3.connect(db) as conn:
+        conn.execute("UPDATE neuron_education_sessions SET state='applied_neutral'")
+    assert learning._study_memory_lineage(r5) == {
+        "status": "aligned",
+        "pre": 1,
+        "post": 1,
+    }
+
+
+def test_study_memory_lineage_requires_verified_source_and_valid_pointer(tmp_path):
+    db = tmp_path / "db.sqlite3"
+    sqlite3.connect(db).close()
+    base = tmp_path / "drive"
+    base.mkdir()
+    work = tmp_path / "work"
+    work.mkdir()
+    r5 = SimpleNamespace(DB=db, WORK=work, BASE=base)
+    assert learning._study_memory_lineage(r5)["status"] == "not_observed"
+    source = "b" * 64
+    (work / "restore_proof.json").write_text(json.dumps({"source_sha256": source}))
+    current = (
+        base / "operacion_colab_continua" / "aprendizaje" / source[:16] / "current.json"
+    )
+    current.parent.mkdir(parents=True)
+    current.write_text(
+        json.dumps(
+            {
+                "phase": "done",
+                "session_id": "study",
+                "neuron_id": 11,
+                "pre": None,
+                "post": [],
+            }
+        )
+    )
+    assert learning._study_memory_lineage(r5) == {
+        "status": "blocked",
+        "reason": "invalid_study_pointer",
+    }
