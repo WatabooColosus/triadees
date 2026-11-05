@@ -609,3 +609,79 @@ def test_isolated_recovery_action_is_available_after_failed_install(runtime):
     }
     with pytest.raises(RuntimeError, match="Arranque detenido"):
         client.action("save")
+
+
+def test_passive_observer_reports_status_without_operational_buttons(runtime):
+    client, catalogue, _ = runtime
+    client.install()
+    observations = []
+    client.on_observation = observations.append
+    client.diagnostic_module = SimpleNamespace(
+        status=lambda context: {
+            "bodega": "SQLite ok",
+            "education_continuity": {"status": "regressed_blocked"},
+        }
+    )
+    client.diagnostic_context = {}
+    client.watch_once()
+    assert len(client.r5.events) == 1
+    assert catalogue.calls
+    assert observations == [
+        {
+            "bodega": "SQLite ok",
+            "education_continuity": {"status": "regressed_blocked"},
+        }
+    ]
+
+
+def test_educational_recovery_is_automatic_guarded_and_idempotent(monkeypatch):
+    calls = []
+    center = SimpleNamespace(
+        status=lambda: {"bodega": "SQLite ok / propietario validado"},
+        prepare_isolated_recovery=lambda: (
+            calls.append("fork")
+            or {
+                "status": "isolated_fork_prepared",
+                "drive_modified": False,
+                "original_bodega_overwritten": False,
+                "learning_authorized": False,
+            }
+        ),
+    )
+    monkeypatch.setattr(adapter, "_center", lambda context: center)
+    context = {"r5": object()}
+    error = "RuntimeError: Continuidad educativa: sesión concluida retrocedida"
+    first = adapter.recover(context, error)
+    second = adapter.recover(context, error)
+    assert calls == ["fork"]
+    assert first == second
+    assert first["status"] == "not_activated"
+    assert first["memory_replaced_by_recovery"] is False
+    assert first["isolated_recovery"]["status"] == "isolated_fork_prepared"
+    assert first["isolated_recovery"]["learning_authorized"] is False
+
+
+def test_unrelated_installer_failure_never_starts_recovery(monkeypatch):
+    center = SimpleNamespace(
+        status=lambda: {},
+        prepare_isolated_recovery=lambda: pytest.fail("unsafe fork"),
+    )
+    monkeypatch.setattr(adapter, "_center", lambda context: center)
+    assert "isolated_recovery" not in adapter.recover(
+        {"r5": object()}, "RuntimeError: invalid SHA"
+    )
+
+
+def test_educational_fork_failure_keeps_installation_blocked(monkeypatch):
+    def fail_fork():
+        raise RuntimeError("source backup not authenticated")
+
+    center = SimpleNamespace(status=lambda: {}, prepare_isolated_recovery=fail_fork)
+    monkeypatch.setattr(adapter, "_center", lambda context: center)
+    record = adapter.recover(
+        {"r5": object()}, "Continuidad educativa: sesión concluida retrocedida"
+    )
+    assert record["status"] == "not_activated"
+    assert record["memory_replaced_by_recovery"] is False
+    assert record["isolated_recovery"]["status"] == "isolated_recovery_blocked"
+    assert record["isolated_recovery"]["drive_modified"] is False
