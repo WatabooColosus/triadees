@@ -104,6 +104,68 @@ def runtime(tmp_path):
     return client, catalogue, mounted
 
 
+def test_panel_refresh_preserves_legacy_runtime_without_observation(runtime):
+    client, _, _ = runtime
+    module = object()
+    diagnostic_module = object()
+    context = {"progress": lambda message: None, "session_id": "existing-session"}
+    diagnostic_context = {"progress": lambda message: None}
+    old = SimpleNamespace(
+        r5=client.r5,
+        module=module,
+        context=context,
+        diagnostic_module=diagnostic_module,
+        diagnostic_context=diagnostic_context,
+        last_check={"verified": True},
+        last_error=None,
+        failed_release=None,
+        auto_apply=True,
+    )  # Pre-observation panel client: no last_observation attribute.
+    client.auto_apply = True
+
+    assert updates.transfer_render_state(client, old) is True
+    assert client.module is module
+    assert client.context is context
+    assert client.diagnostic_module is diagnostic_module
+    assert client.diagnostic_context is diagnostic_context
+    assert client.last_observation is None
+    assert client.last_check == {"verified": True}
+    assert context["progress"] == client.progress
+    assert diagnostic_context["progress"] == client.progress
+    assert client.auto_apply is False
+    assert old.context is context
+
+
+def test_panel_refresh_preserves_existing_observation(runtime):
+    client, _, _ = runtime
+    observation = {"status": "runtime_verified", "version": "old"}
+    old = SimpleNamespace(
+        r5=client.r5,
+        module=object(),
+        context={"progress": lambda message: None},
+        last_observation=observation,
+    )
+    assert updates.transfer_render_state(client, old) is True
+    assert client.last_observation is observation
+
+
+def test_panel_refresh_rejects_missing_runtime_context(runtime):
+    client, _, _ = runtime
+    old = SimpleNamespace(r5=client.r5, module=object())
+    with pytest.raises(RuntimeError, match="falta estado de sesión context"):
+        updates.transfer_render_state(client, old)
+    assert client.module is None and client.context is None
+
+
+def test_panel_refresh_does_not_import_another_runtime(runtime):
+    client, _, _ = runtime
+    old = SimpleNamespace(r5=object(), module=object(), context={})
+    client.auto_apply = True
+    assert updates.transfer_render_state(client, old) is False
+    assert client.module is None and client.context is None
+    assert client.auto_apply is True
+
+
 def test_one_action_installs_on_an_empty_vm(runtime):
     client, _, mounted = runtime
     assert not client.work.exists()
