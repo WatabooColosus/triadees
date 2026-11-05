@@ -194,6 +194,8 @@ class Client:
         self.diagnostic_context = None
         self.stage_message = "Preparando instalación"
         self.set_busy = lambda value: None
+        self.last_observation = None
+        self.on_observation = lambda value: None
 
     def progress(self, message):
         self.stage_message = message
@@ -360,6 +362,8 @@ class Client:
             self.failed_release = release_identity(manifest)
             self.last_error = type(exc).__name__ + ": " + str(exc)[:300]
             recovery = module.recover(context, self.last_error)
+            self.last_observation = recovery
+            self.on_observation(recovery)
             self.notify(
                 "Instalación incompleta; se conservaron los registros y la memoria"
             )
@@ -380,6 +384,12 @@ class Client:
         self.last_error = None
         self.failed_release = None
         self.progress("Instalación / actualización verificada: " + manifest["version"])
+        self.last_observation = {
+            "status": "runtime_verified",
+            "version": manifest["version"],
+            "runtime": installed.get("runtime", {}).get("state"),
+        }
+        self.on_observation(self.last_observation)
         return {
             "status": "ready",
             "version": manifest["version"],
@@ -408,25 +418,44 @@ class Client:
             self.start_watch()
 
     def watch_once(self):
+        """Passive monitoring only; new releases always need the main button."""
         if not self.lock.acquire(blocking=False):
             return
         try:
-            result = self.check()
-            manifest = result["manifest"]
-            if (
-                not self.stop_event.is_set()
-                and self.auto_apply
-                and self.drive_ready()
-                and self.installed()
-                and result["update_available"]
-                and self.failed_release != release_identity(manifest)
-                and manifest["channel"] == "stable"
-                and manifest["auto_update_safe"] is True
-            ):
-                self.install()
-        except Exception as exc:  # noqa: BLE001 - background boundary reports and survives release failures
-            self.last_error = type(exc).__name__ + ": " + str(exc)[:300]
-            self.notify("Comprobación pendiente: " + self.last_error)
+            # Git version discovery is read-only and works before Drive mounts.
+            # Requiring Drive here broke the observer's offline preflight.
+            try:
+                result = self.check()
+                manifest = result["manifest"]
+                # Preserve previously authorized opt-in behavior only for
+                # stable CI-verified releases; the new panel never enables it.
+                if (
+                    self.auto_apply
+                    and not self.stop_event.is_set()
+                    and self.installed()
+                    and result["update_available"]
+                    and self.failed_release != release_identity(manifest)
+                    and manifest["channel"] == "stable"
+                    and manifest["auto_update_safe"] is True
+                ):
+                    self.install()
+            except Exception as exc:  # noqa: BLE001 - monitoring must survive network outages
+                self.last_error = type(exc).__name__ + ": " + str(exc)[:300]
+                self.notify("Comprobación pendiente: " + self.last_error)
+            source = self.diagnostic_module or self.module
+            context = self.diagnostic_context or self.context
+            callback = getattr(source, "status", None)
+            if callable(callback) and context is not None:
+                try:
+                    observed = callback(context)
+                except Exception as exc:  # noqa: BLE001 - read-only observation boundary
+                    observed = {
+                        "status": "observation_blocked",
+                        "error_type": type(exc).__name__,
+                        "reason": str(exc)[:260],
+                    }
+                self.last_observation = observed
+                self.on_observation(observed)
         finally:
             self.lock.release()
 
@@ -451,9 +480,12 @@ class Client:
             self.thread.join(timeout=1)
 
     def action(self, name):
-        if name == "status" and self.diagnostic_module:
+        if name in ("status", "prepare_isolated_recovery") and self.diagnostic_module:
             with self.lock:
-                return self.diagnostic_module.status(self.diagnostic_context)
+                callback = getattr(self.diagnostic_module, name, None)
+                if not callable(callback):
+                    raise TypeError("Esta versión no ofrece la acción: " + name)
+                return callback(self.diagnostic_context)
         if not self.module:
             if self.last_error:
                 raise RuntimeError(
@@ -575,24 +607,47 @@ def render(r5, *, watch=True):
 
     actions = [
         button("Instalar / encender / actualizar", client.install, "success"),
-        button("Comprobar nuevas versiones", client.check, "info"),
-        button("Abrir Tríade", lambda: client.action("open_frontend")),
-        button("Estado real", lambda: client.action("status")),
-        button("Guardar memoria", lambda: client.action("save")),
-        button("Auditar actividad (30 s)", lambda: client.action("audit")),
-        button("Ver circuito de aprendizaje", lambda: client.action("learning_status")),
     ]
     client.set_busy = lambda value: [
         setattr(control, "disabled", value) for control in buttons
     ]
-    automatic = widgets.Checkbox(
-        value=False,
-        indent=False,
-        description="Aplicar automáticamente futuras versiones estables verificadas",
+    observation = widgets.HTML(
+        "<small>Observación automática de CI, memoria, workers y aprendizaje. "
+        "Solo lectura. No hay restauraciones ni promociones manuales.</small>",
+        layout=widgets.Layout(max_height="360px", overflow="auto"),
     )
-    automatic.observe(
-        lambda change: setattr(client, "auto_apply", change["new"]), names="value"
-    )
+
+    def show_observation(value):
+        # No raw HTML from runtime data is ever rendered.
+        if isinstance(value, dict):
+            visible = {
+                key: value[key]
+                for key in (
+                    "status",
+                    "version",
+                    "runtime",
+                    "api_http_200",
+                    "ollama_http_200",
+                    "bodega",
+                    "known_regression",
+                    "education_continuity",
+                    "backup_protection",
+                    "learning_circuit",
+                    "isolated_recovery",
+                    "memory_replaced_by_recovery",
+                )
+                if key in value
+            }
+        else:
+            visible = {"status": "invalid_observation"}
+        observation.value = (
+            "<strong>Estado autónomo de Tríade</strong>"
+            "<pre style='white-space:pre-wrap;overflow-wrap:anywhere'>"
+            + escape(json.dumps(visible, ensure_ascii=False, indent=2, default=str))
+            + "</pre>"
+        )
+
+    client.on_observation = show_observation
     client.view = (
         banner,
         status,
@@ -601,11 +656,11 @@ def render(r5, *, watch=True):
             actions, layout=widgets.Layout(display="flex", flex_flow="row wrap")
         ),
         widgets.HTML(
-            "<small>El aprendizaje verificado corre dentro del ciclo continuo mientras "
-            "la sesión esté activa. Las compuertas aplican sólo evidencia segura; no "
-            "necesitas otra celda ni un botón de inicio.</small>"
+            "<small>Tríade vigila su estado cada 10 minutos mientras Colab siga "
+            "conectado. Los respaldos, las recuperaciones aisladas y el aprendizaje "
+            "son procesos gobernados; la Bodega original permanece protegida.</small>"
         ),
-        automatic,
+        observation,
         output,
     )
     # Widget comms belong to their frontend. Reusing old views after opening
@@ -620,13 +675,15 @@ def render(r5, *, watch=True):
             "last_check",
             "last_error",
             "failed_release",
-            "auto_apply",
+            "last_observation",
         ):
             setattr(client, field, getattr(previous, field))
         for context in (client.context, client.diagnostic_context):
             if context is not None:
                 context["progress"] = client.progress
-        automatic.value = previous.auto_apply
+        client.auto_apply = False
+        if client.last_observation is not None:
+            show_observation(client.last_observation)
         client.progress(previous.stage_message)
     display(*client.view)
     if watch:
