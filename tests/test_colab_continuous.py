@@ -685,3 +685,40 @@ def test_educational_fork_failure_keeps_installation_blocked(monkeypatch):
     assert record["memory_replaced_by_recovery"] is False
     assert record["isolated_recovery"]["status"] == "isolated_recovery_blocked"
     assert record["isolated_recovery"]["drive_modified"] is False
+
+
+def test_installer_minimizes_preexisting_widget_panel_without_running_actions():
+    calls = []
+    controls = [
+        SimpleNamespace(description="Estado real"),
+        SimpleNamespace(description="ENCENDER / ACTUALIZAR TRÍADE"),
+        SimpleNamespace(description="Guardar memoria"),
+        SimpleNamespace(description="Ver circuito de aprendizaje"),
+    ]
+    widget_box = SimpleNamespace(children=tuple(controls))
+    client = SimpleNamespace(view=(None, None, None, widget_box))
+
+    # A bound method is how the Colab updater identifies its current view.
+    class Owner:
+        def __init__(self):
+            self.view = client.view
+
+        def progress(self, message):
+            calls.append(message)
+
+    owner = Owner()
+    result = adapter._enforce_observation_panel({"progress": owner.progress})
+    assert result == {"status": "single_lifecycle_control", "visible_buttons": 1}
+    assert widget_box.children == (controls[1],)
+    assert calls == []
+
+
+def test_legacy_controller_render_has_only_lifecycle_button():
+    import inspect
+
+    from tools import triade_colab_control_r7 as controller
+
+    source = inspect.getsource(controller.render)
+    assert 'button("Instalar / encender / actualizar", center.start' in source
+    assert 'button("Guardar copia verificada"' not in source
+    assert 'button("Auditar actividad real' not in source
