@@ -692,6 +692,7 @@ def test_installer_minimizes_preexisting_widget_panel_without_running_actions():
     controls = [
         SimpleNamespace(description="Estado real"),
         SimpleNamespace(description="ENCENDER / ACTUALIZAR TRÍADE"),
+        SimpleNamespace(description="Abrir Tríade"),
         SimpleNamespace(description="Guardar memoria"),
         SimpleNamespace(description="Ver circuito de aprendizaje"),
     ]
@@ -708,12 +709,31 @@ def test_installer_minimizes_preexisting_widget_panel_without_running_actions():
 
     owner = Owner()
     result = adapter._enforce_observation_panel({"progress": owner.progress})
-    assert result == {"status": "lifecycle_and_open_controls", "visible_buttons": 1}
-    assert widget_box.children == (controls[1],)
+    assert result == {"status": "lifecycle_and_open_controls", "visible_buttons": 2}
+    assert widget_box.children == (controls[1], controls[2])
     assert calls == []
 
 
-def test_legacy_controller_render_has_only_lifecycle_button():
+def test_open_requires_a_verifiably_healthy_runtime(runtime):
+    client, _, _ = runtime
+    client.install()
+    opened = []
+    client.module = SimpleNamespace(
+        verify=lambda context: client.r5.verified,
+        open_frontend=lambda context: opened.append("open") or {
+            "status": "frontend_requested"
+        },
+    )
+    client.r5.verified = False
+    with pytest.raises(RuntimeError, match="Abrir Tríade bloqueado"):
+        client.action("open_frontend")
+    assert opened == []
+    client.r5.verified = True
+    assert client.action("open_frontend") == {"status": "frontend_requested"}
+    assert opened == ["open"]
+
+
+def test_legacy_controller_render_has_lifecycle_and_open_buttons():
     import inspect
 
     from tools import triade_colab_control_r7 as controller
