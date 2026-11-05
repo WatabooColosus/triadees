@@ -422,8 +422,8 @@ class Client:
         if not self.lock.acquire(blocking=False):
             return
         try:
-            if not self.drive_ready():
-                return
+            # Git version discovery is read-only and works before Drive mounts.
+            # Requiring Drive here broke the observer's offline preflight.
             try:
                 result = self.check()
                 manifest = result["manifest"]
