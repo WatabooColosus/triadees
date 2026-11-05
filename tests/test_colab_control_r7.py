@@ -935,7 +935,6 @@ def test_conflicting_pre_epoch_mirrors_block_without_archiving():
         assert not (epoch.parent / "abandoned").exists()
 
 
-
 def test_existing_local_probe_is_archived_as_real_sqlite_before_review_restore():
     with tempfile.TemporaryDirectory() as root:
         fake = FakeR5(Path(root))
