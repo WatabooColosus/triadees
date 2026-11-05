@@ -273,12 +273,13 @@ def test_completed_study_forces_fresh_archive_while_backup_cooldown_is_active(ru
     assert after["file"] != previous["file"]
     assert after["study_checkpoint"]["verified_run_count"] == 2
     assert after["study_checkpoint"]["session_id"] == "session-fixture"
+    assert (protection._paths(runtime) / "copies" / after["file"]).is_file()
     assert (
-        protection._paths(runtime) / "copies" / after["file"]
-    ).is_file()
-    assert protection._backup_instance(runtime).verify(
-        protection._backup_instance(runtime).backup_dir / after["file"]
-    )["status"] == "ok"
+        protection._backup_instance(runtime).verify(
+            protection._backup_instance(runtime).backup_dir / after["file"]
+        )["status"]
+        == "ok"
+    )
 
 
 def test_fresh_checkpoint_rejects_missing_real_post_row_without_new_drive_receipt(
