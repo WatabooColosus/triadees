@@ -772,3 +772,151 @@ def test_isolated_fork_refuses_to_write_when_work_is_inside_drive():
         ):
             center.prepare_isolated_recovery()
         assert not (fake.WORK / "isolated_recovery").exists()
+
+
+def _make_unbacked_single_pre_epoch(fake):
+    review = _review_fixture_for_isolated_fork(fake)
+    original = _unbacked_legacy_claim(fake)
+    epoch_id = "recovery-" + r7._sha(original)[:16]
+    epoch = original.parent / "epochs" / epoch_id / "current.json"
+    epoch.parent.mkdir(parents=True, exist_ok=True)
+    run_id = "run-20261105-164055-86c67953"
+    state = {
+        "phase": "pre",
+        "rubric_version": "functional-probe-1",
+        "neuron_id": 11,
+        "study_id": "prospective-a-new-real-attempt",
+        "pre": [{"run_id": run_id, "case_id": "vis1", "score": 0.0,
+                 "experimental_material_ids": [],
+                 "production_application_certified": False}],
+        "post": [],
+        "stable_promotion_authorized": False,
+        "causal_improvement_certified": False,
+    }
+    epoch.write_text(json.dumps(state))
+    return review, original, epoch, run_id
+
+
+def test_orphaned_pre_run_is_archived_without_fabricating_or_rewriting_history():
+    with tempfile.TemporaryDirectory() as root:
+        fake = FakeR5(Path(root))
+        make_db(fake.DB, applications=15, tasks=2500)
+        review, original, epoch, run_id = _make_unbacked_single_pre_epoch(fake)
+        original_bytes, epoch_bytes = original.read_bytes(), epoch.read_bytes()
+        source_bytes = review.read_bytes()
+        before = r7._sha(fake.DB)
+        with patch.object(r7, "_check_api", return_value=False):
+            result = r7.Center(fake)._restore_best_before_api()
+        continuity = result["education_continuity"]
+        assert result["status"] == "review_restored_quarantined_history"
+        assert continuity["status"] == "historical_unverified_quarantined"
+        assert continuity["historical_certified"] is False
+        assert continuity["abandoned_pre_probe"] == {
+            "status": "unbacked_archived", "missing_run_ids": [run_id]
+        }
+        assert continuity["new_study"] == {"status": "fresh_epoch_not_started"}
+        assert continuity["new_epoch"].startswith("retry-")
+        assert original.read_bytes() == original_bytes
+        assert epoch.read_bytes() == epoch_bytes
+        assert review.read_bytes() == source_bytes
+        assert r7._sha(fake.DB) != before
+        archived = epoch.parent / "abandoned" / r7._sha(epoch)
+        assert (archived / "original.json").read_bytes() == epoch_bytes
+        receipt = json.loads((archived / "receipt.json").read_text())
+        assert receipt["historical_certified"] is False
+        assert receipt["learning_credit"] is False
+        assert receipt["selected_review_sha256"] == r7._sha(review)
+        with sqlite3.connect(fake.DB) as conn:
+            assert conn.execute(
+                "SELECT COUNT(*) FROM neuron_functional_assessments WHERE run_id=?",
+                (run_id,),
+            ).fetchone()[0] == 0
+        # Retry the same running local image with no dominated review.
+        with patch.object(r7, "_check_api", return_value=False):
+            reused = r7.Center(fake)._restore_best_before_api()
+        assert reused["result"] == "Bodega local intacta con cuarentena verificada"
+        assert reused["education_continuity"]["new_epoch"] == continuity["new_epoch"]
+
+
+def test_archived_pre_run_isolation_works_in_learning_namespace():
+    from tools import triade_colab_learning as learning
+
+    with tempfile.TemporaryDirectory() as root:
+        fake = FakeR5(Path(root))
+        make_db(fake.DB, applications=15, tasks=2500)
+        _, original, old_epoch, _ = _make_unbacked_single_pre_epoch(fake)
+        with patch.object(r7, "_check_api", return_value=False):
+            r7.Center(fake)._restore_best_before_api()
+        old_bytes = old_epoch.read_bytes()
+        claim_bytes = original.read_bytes()
+        epoch = learning._quarantined_epoch(fake)
+        assert epoch is not None
+        assert epoch["id"].startswith("retry-")
+        assert epoch["remote"] != old_epoch
+        assert learning._epoch_state(epoch) == {}
+        assert learning._study_memory_lineage(fake)["status"] == (
+            "quarantined_fresh_epoch_ready"
+        )
+        # Genuine later evidence may be written ONLY under an independent path.
+        from types import SimpleNamespace
+
+        def write(path, value):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(value))
+
+        state = {
+            "phase": "pre",
+            "neuron_id": 11,
+            "pre": [],
+            "post": [],
+            "study_id": "prospective-fresh-independent",
+        }
+        learning._save(
+            {"r5": fake, "protection_module": SimpleNamespace(_json=write)}, state
+        )
+        assert epoch["remote"].is_file()
+        assert old_epoch.read_bytes() == old_bytes
+        assert original.read_bytes() == claim_bytes
+
+
+def test_post_or_terminal_epoch_cannot_be_abandoned():
+    for change in (
+        {"phase": "post"},
+        {"post": [{"run_id": "post-unbacked"}]},
+        {"session_id": "education-existing"},
+        {"backup": {"study_checkpoint": "verified"}},
+    ):
+        with tempfile.TemporaryDirectory() as root:
+            fake = FakeR5(Path(root))
+            make_db(fake.DB, applications=15, tasks=2500)
+            _, original, epoch, _ = _make_unbacked_single_pre_epoch(fake)
+            state = json.loads(epoch.read_text())
+            state.update(change)
+            epoch.write_text(json.dumps(state))
+            live = r7._sha(fake.DB)
+            with patch.object(r7, "_check_api", return_value=False):
+                with unittest.TestCase().assertRaisesRegex(
+                    RuntimeError, "Continuidad educativa"
+                ):
+                    r7.Center(fake)._restore_best_before_api()
+            assert r7._sha(fake.DB) == live
+            assert not (epoch.parent / "abandoned").exists()
+            assert original.is_file()
+
+
+def test_conflicting_pre_epoch_mirrors_block_without_archiving():
+    with tempfile.TemporaryDirectory() as root:
+        fake = FakeR5(Path(root))
+        make_db(fake.DB, applications=15, tasks=2500)
+        _, _, epoch, _ = _make_unbacked_single_pre_epoch(fake)
+        local = fake.WORK / ("prospective_" + epoch.parent.name + ".json")
+        local.write_text(json.dumps({"phase": "pre", "pre": []}))
+        before = r7._sha(fake.DB)
+        with patch.object(r7, "_check_api", return_value=False):
+            with unittest.TestCase().assertRaisesRegex(
+                RuntimeError, "local/Drive divergente"
+            ):
+                r7.Center(fake)._restore_best_before_api()
+        assert before == r7._sha(fake.DB)
+        assert not (epoch.parent / "abandoned").exists()
+
