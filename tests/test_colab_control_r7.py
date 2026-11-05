@@ -554,3 +554,90 @@ def test_cannot_save_or_certify_review_from_restored_incomplete_study():
             center.record_release()
         assert not calls
         assert not (fake.BASE / "operacion_colab_r7" / "last_success.json").exists()
+
+
+def _review_fixture_for_isolated_fork(fake):
+    image_root = (
+        fake.BASE / "operacion_colab_r5" / "ramas_en_revision" / ("a" * 16)
+    )
+    image_root.mkdir(parents=True)
+    image = image_root / "r5-checkpoint.sqlite3"
+    make_db(image, applications=20, tasks=2501)
+    _seed_review_study(image, post_count=4)
+    _finished_study_pointer(fake)
+    metadata = {
+        "status": "review_branch_only",
+        "lineage": "90e9a51dd7ffef31",
+        "file": image.name,
+        "source_v2_sha256": "a" * 64,
+        "code_sha": r7.PIN,
+        "sha256": r7._sha(image),
+        "counts": {
+            k: v for k, v in r7._counts(image).items() if k != "neuron_activity"
+        },
+    }
+    (image_root / "latest_review.json").write_text(json.dumps(metadata))
+    image.with_suffix(".json").write_text(json.dumps(metadata))
+    return image
+
+
+def test_prepares_only_local_isolated_fork_with_historical_evidence_quarantined():
+    with tempfile.TemporaryDirectory() as root:
+        fake = FakeR5(Path(root))
+        make_db(fake.DB, applications=15)
+        source = _review_fixture_for_isolated_fork(fake)
+        live_sha = r7._sha(fake.DB)
+        source_sha = r7._sha(source)
+        drive_state = {
+            str(path.relative_to(fake.BASE)): r7._sha(path)
+            for path in fake.BASE.rglob("*")
+            if path.is_file()
+        }
+        center = r7.Center(fake)
+        fork = center.prepare_isolated_recovery()
+        assert fork["status"] == "isolated_fork_prepared"
+        assert fork["original_bodega_overwritten"] is False
+        assert fork["drive_modified"] is False
+        assert fork["api_started"] is False
+        assert fork["workers_started"] is False
+        assert fork["learning_authorized"] is False
+        assert fork["study_promoted"] is False
+        assert fork["recovery_certified"] is False
+        assert fork["historical_study"]["run_refs_expected"] == 10
+        assert fork["historical_study"]["run_refs_found"] == 9
+        assert fork["historical_study"]["observed_state"] == "lesson_prepared"
+        assert fork["historical_study"]["status"] == "quarantined_unverified"
+        assert fork["historical_study"]["missing_refs"] == [
+            {"run_id": "post5", "phase": "post"}
+        ]
+        copied = Path(fork["isolated_db"])
+        assert copied.is_file()
+        assert copied.is_relative_to(fake.WORK.resolve())
+        assert not copied.is_relative_to(fake.BASE.resolve())
+        assert r7._sha(copied) == source_sha
+        assert r7._sha(fake.DB) == live_sha
+        assert r7._sha(source) == source_sha
+        assert drive_state == {
+            str(path.relative_to(fake.BASE)): r7._sha(path)
+            for path in fake.BASE.rglob("*")
+            if path.is_file()
+        }
+        receipt = json.loads(
+            (copied.parent / "isolation_receipt.json").read_text()
+        )
+        assert receipt["recovery_certified"] is False
+
+
+def test_isolated_fork_refuses_to_write_when_work_is_inside_drive():
+    with tempfile.TemporaryDirectory() as root:
+        fake = FakeR5(Path(root))
+        make_db(fake.DB, applications=15)
+        _review_fixture_for_isolated_fork(fake)
+        fake.WORK = fake.BASE / "work"
+        fake.WORK.mkdir()
+        center = r7.Center(fake)
+        with unittest.TestCase().assertRaisesRegex(
+            RuntimeError, "nunca se escribe en Drive"
+        ):
+            center.prepare_isolated_recovery()
+        assert not (fake.WORK / "isolated_recovery").exists()
