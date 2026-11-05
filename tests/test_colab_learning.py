@@ -1072,6 +1072,7 @@ def test_checkpoint_pending_never_claims_done_when_fresh_backup_fails(
     assert len(attempts) == 1
     assert attempts[0]["require_fresh"] is True
     assert attempts[0]["study_state"]["phase"] == "checkpoint_pending"
-    assert json.loads((work / "prospective_learning.json").read_text())[
-        "phase"
-    ] == "checkpoint_pending"
+    assert (
+        json.loads((work / "prospective_learning.json").read_text())["phase"]
+        == "checkpoint_pending"
+    )
