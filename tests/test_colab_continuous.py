@@ -748,13 +748,13 @@ def recover(context, error):
     catalogue.manifest["files"]["installer"]["sha256"] = hashlib.sha256(
         catalogue.code
     ).hexdigest()
-    record = client.install()
-    assert record["status"] == "isolated_recovery_pending"
-    assert record["runtime_ready"] is False
-    assert record["release_activated"] is False
-    assert record["installed_receipt_written"] is False
-    assert record["reason"] == "education_continuity_regressed"
-    assert record["isolated_recovery"]["isolated_canary"]["status"] == "passed"
+    with pytest.raises(RuntimeError, match="Arranque principal bloqueado"):
+        client.install()
+    assert client.last_observation["recovery_status"] == "isolated_recovery_pending"
+    assert client.last_observation["isolated_recovery"]["isolated_canary"] == {
+        "status": "passed",
+        "learning_probed": False,
+    }
     assert not client.drive_receipt.exists()
     assert not (client.work / "installed.json").exists()
     assert client.module is None
