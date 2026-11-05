@@ -616,18 +616,13 @@ def test_prepares_only_local_isolated_fork_with_historical_evidence_quarantined(
         assert sandbox.is_file()
         assert sandbox.is_relative_to(fake.WORK.resolve())
         assert not sandbox.is_relative_to(fake.BASE.resolve())
-        with sqlite3.connect(
-            sandbox.resolve().as_uri() + "?mode=ro", uri=True
-        ) as conn:
+        with sqlite3.connect(sandbox.resolve().as_uri() + "?mode=ro", uri=True) as conn:
             assert conn.execute(
                 "SELECT COUNT(*) FROM triade_isolated_canary"
             ).fetchone() == (1,)
-        with sqlite3.connect(
-            source.resolve().as_uri() + "?mode=ro", uri=True
-        ) as conn:
+        with sqlite3.connect(source.resolve().as_uri() + "?mode=ro", uri=True) as conn:
             assert conn.execute(
-                "SELECT COUNT(*) FROM sqlite_master "
-                "WHERE name='triade_isolated_canary'"
+                "SELECT COUNT(*) FROM sqlite_master WHERE name='triade_isolated_canary'"
             ).fetchone() == (0,)
         copied = Path(fork["isolated_db"])
         assert copied.is_file()
