@@ -395,6 +395,56 @@ class Center:
                 },
                 "next_step": "independent_learning_canary_only_after_sandbox_runtime_audit",
             }
+            # A second, disposable sandbox may prove that SQLite writes work
+            # independently. The archived forensic copy stays byte-identical.
+            # This is NOT a neuronal learning run or production recovery.
+            sandbox = destination / "triade-canary.sqlite3"
+            shutil.copyfile(isolated, sandbox, follow_symlinks=False)
+            os.chmod(sandbox, 0o600)
+            if _sha(sandbox) != before_hash:
+                raise RuntimeError("Laboratorio aislado no coincide con la fuente")
+            token = uuid.uuid4().hex
+            with contextlib.closing(sqlite3.connect(sandbox, timeout=20)) as conn:
+                if conn.execute("PRAGMA integrity_check").fetchone() != ("ok",):
+                    raise RuntimeError("Integridad SQLite del laboratorio inválida")
+                conn.execute("BEGIN IMMEDIATE")
+                conn.execute(
+                    "CREATE TABLE triade_isolated_canary "
+                    "(nonce TEXT PRIMARY KEY, source_sha256 TEXT NOT NULL)"
+                )
+                conn.execute(
+                    "INSERT INTO triade_isolated_canary(nonce,source_sha256) "
+                    "VALUES (?, ?)",
+                    (token, before_hash),
+                )
+                conn.commit()
+            with contextlib.closing(
+                sqlite3.connect(
+                    sandbox.resolve().as_uri() + "?mode=ro", uri=True, timeout=20
+                )
+            ) as conn:
+                verified = conn.execute(
+                    "SELECT source_sha256 FROM triade_isolated_canary WHERE nonce=?",
+                    (token,),
+                ).fetchone()
+                if verified != (before_hash,):
+                    raise RuntimeError("Prueba aislada de escritura no verificable")
+            if (
+                _sha(isolated) != before_hash
+                or _sha(source) != before_hash
+                or (original_hash is not None and _sha(self.db) != original_hash)
+            ):
+                raise RuntimeError("Origen o memoria original cambió en laboratorio")
+            receipt["isolated_canary"] = {
+                "status": "passed",
+                "sandbox_db": str(sandbox),
+                "sandbox_sha256": _sha(sandbox),
+                "original_unchanged": True,
+                "forensic_copy_unchanged": True,
+                "api_started": False,
+                "learning_probed": False,
+                "study_certified": False,
+            }
             self._write_local(destination / "isolation_receipt.json", receipt)
             return receipt
 
@@ -578,6 +628,25 @@ class Center:
                 result["known_regression"] = missing or None
             except (RuntimeError, sqlite3.Error) as ex:
                 result["bodega"] = "BLOQUEADA: " + str(ex)[:150]
+        # Distinguish row-count continuity from per-study evidence. Both must
+        # pass independently before the restored DB could ever be promoted.
+        if (
+            self.db.is_file()
+            and self.drive.is_dir()
+            and (self.work / "restore_proof.json").is_file()
+        ):
+            try:
+                result["education_continuity"] = _check_completed_study_evidence(
+                    self.db, self.work, self.drive
+                )
+            except (RuntimeError, sqlite3.Error) as ex:
+                result["education_continuity"] = {
+                    "status": "regressed_blocked",
+                    "reason": str(ex)[:180],
+                    "memory_modified": False,
+                }
+        else:
+            result["education_continuity"] = {"status": "not_checked"}
         meta = _read_json(self.work / "actualizaciones" / "continuidad_git_r631.json")
         if self._release_verified(meta):
             result["release"] = (

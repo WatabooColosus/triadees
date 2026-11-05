@@ -722,3 +722,64 @@ def test_legacy_controller_render_has_only_lifecycle_button():
     assert 'button("Instalar / encender / actualizar", center.start' in source
     assert 'button("Guardar copia verificada"' not in source
     assert 'button("Auditar actividad real' not in source
+
+
+def test_completed_isolated_canary_returns_quarantine_without_activating_runtime(
+    runtime,
+):
+    client, catalogue, _ = runtime
+    catalogue.code = b"""
+def install(context):
+    raise RuntimeError("Continuidad educativa: sesion concluida retrocedida")
+def verify(context):
+    return False
+def recover(context, error):
+    return {
+        "status": "not_activated",
+        "memory_replaced_by_recovery": False,
+        "isolated_recovery": {
+            "status": "isolated_fork_prepared",
+            "drive_modified": False,
+            "learning_authorized": False,
+            "isolated_canary": {"status": "passed", "learning_probed": False},
+        },
+    }
+"""
+    catalogue.manifest["files"]["installer"]["sha256"] = hashlib.sha256(
+        catalogue.code
+    ).hexdigest()
+    with pytest.raises(RuntimeError, match="Arranque principal bloqueado"):
+        client.install()
+    assert client.last_observation["recovery_status"] == "isolated_recovery_pending"
+    assert client.last_observation["isolated_recovery"]["isolated_canary"] == {
+        "status": "passed",
+        "learning_probed": False,
+    }
+    assert not client.drive_receipt.exists()
+    assert not (client.work / "installed.json").exists()
+    assert client.module is None
+    assert client.last_error is not None
+
+
+def test_no_canary_still_raises_and_never_writes_install_receipt(runtime):
+    client, catalogue, _ = runtime
+    catalogue.code = b"""
+def install(context):
+    raise RuntimeError("Continuidad educativa: sesion concluida retrocedida")
+def verify(context):
+    return False
+def recover(context, error):
+    return {
+        "status": "not_activated",
+        "memory_replaced_by_recovery": False,
+        "isolated_recovery": {"status": "isolated_fork_prepared"},
+    }
+"""
+    catalogue.manifest["files"]["installer"]["sha256"] = hashlib.sha256(
+        catalogue.code
+    ).hexdigest()
+    with pytest.raises(RuntimeError, match="No se activó la publicación"):
+        client.install()
+    assert client.module is None
+    assert not client.drive_receipt.exists()
+    assert not (client.work / "installed.json").exists()

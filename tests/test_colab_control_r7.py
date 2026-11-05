@@ -608,6 +608,22 @@ def test_prepares_only_local_isolated_fork_with_historical_evidence_quarantined(
         assert fork["historical_study"]["missing_refs"] == [
             {"run_id": "post5", "phase": "post"}
         ]
+        assert fork["isolated_canary"]["status"] == "passed"
+        assert fork["isolated_canary"]["original_unchanged"] is True
+        assert fork["isolated_canary"]["forensic_copy_unchanged"] is True
+        assert fork["isolated_canary"]["learning_probed"] is False
+        sandbox = Path(fork["isolated_canary"]["sandbox_db"])
+        assert sandbox.is_file()
+        assert sandbox.is_relative_to(fake.WORK.resolve())
+        assert not sandbox.is_relative_to(fake.BASE.resolve())
+        with sqlite3.connect(sandbox.resolve().as_uri() + "?mode=ro", uri=True) as conn:
+            assert conn.execute(
+                "SELECT COUNT(*) FROM triade_isolated_canary"
+            ).fetchone() == (1,)
+        with sqlite3.connect(source.resolve().as_uri() + "?mode=ro", uri=True) as conn:
+            assert conn.execute(
+                "SELECT COUNT(*) FROM sqlite_master WHERE name='triade_isolated_canary'"
+            ).fetchone() == (0,)
         copied = Path(fork["isolated_db"])
         assert copied.is_file()
         assert copied.is_relative_to(fake.WORK.resolve())
@@ -637,3 +653,24 @@ def test_isolated_fork_refuses_to_write_when_work_is_inside_drive():
         ):
             center.prepare_isolated_recovery()
         assert not (fake.WORK / "isolated_recovery").exists()
+
+
+def test_status_reports_completed_study_regression_independently_of_counts():
+    with tempfile.TemporaryDirectory() as root:
+        fake = FakeR5(Path(root))
+        make_db(fake.DB, applications=20, tasks=2500)
+        _seed_review_study(fake.DB, post_count=4)
+        _finished_study_pointer(fake)
+        center = r7.Center(fake)
+        with (
+            patch.object(r7, "_check_api", return_value=False),
+            patch.object(center, "_origin_verified", return_value=False),
+        ):
+            observed = center.status()
+        assert observed["known_regression"] is None
+        assert observed["bodega"] == "SQLite ok / propietario validado"
+        assert observed["education_continuity"]["status"] == "regressed_blocked"
+        assert (
+            "sesión concluida retrocedida" in observed["education_continuity"]["reason"]
+        )
+        assert observed["education_continuity"]["memory_modified"] is False
