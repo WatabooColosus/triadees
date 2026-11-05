@@ -999,3 +999,150 @@ def test_missing_or_tampered_archived_local_sqlite_blocks_continuation():
             RuntimeError, "abandono de época no verificable"
         ):
             r7._quarantine_status(fake.DB, fake.WORK, fake.BASE)
+
+
+def _archived_legacy_receipt_fixture(fake):
+    make_db(fake.DB, applications=15, tasks=2500)
+    _seed_review_study(fake.DB, post_count=4)
+    original = _unbacked_legacy_claim(fake)
+    first = r7._legacy_quarantine_candidate(fake.DB, fake.WORK, fake.BASE, "c" * 64)
+    assert first is not None
+    receipt_path = r7._persist_legacy_quarantine(fake.WORK, fake.BASE, first)
+    return original, first, receipt_path
+
+
+def test_new_review_sha_preserves_historical_quarantine_and_verifies_transition():
+    with tempfile.TemporaryDirectory() as root:
+        fake = FakeR5(Path(root))
+        original, first, receipt = _archived_legacy_receipt_fixture(fake)
+        archive = receipt.parent / "original.json"
+        original_bytes = original.read_bytes()
+        receipt_bytes = receipt.read_bytes()
+        archive_bytes = archive.read_bytes()
+        next_record = {**first, "selected_review_sha256": "d" * 64}
+        r7._persist_legacy_quarantine(fake.WORK, fake.BASE, next_record)
+        # Idempotent re-entry after a Colab kernel restart.
+        r7._persist_legacy_quarantine(fake.WORK, fake.BASE, next_record)
+        assert original.read_bytes() == original_bytes
+        assert receipt.read_bytes() == receipt_bytes
+        assert archive.read_bytes() == archive_bytes
+        transition = r7._quarantine_transition_path(
+            original.parent, first["original_sha256"], "d" * 64
+        )
+        assert transition.is_file()
+        assert (
+            r7._verify_quarantine_transition(
+                original.parent, first["original_sha256"], next_record, receipt
+            )
+            == transition
+        )
+        restore_file = fake.WORK / "control_r7" / "last_restore.json"
+        restore_file.parent.mkdir(parents=True, exist_ok=True)
+        restore_file.write_text(
+            json.dumps(
+                {
+                    "status": "review_restored_quarantined_history",
+                    "sha256": "d" * 64,
+                    "counts": r7._counts(fake.DB),
+                }
+            )
+        )
+        continuity = r7._quarantine_status(fake.DB, fake.WORK, fake.BASE)
+        assert continuity["status"] == "historical_unverified_quarantined"
+        assert continuity["historical_certified"] is False
+        assert continuity["new_study"]["status"] == "fresh_epoch_not_started"
+
+
+def test_changed_legacy_claim_or_missing_transition_stays_blocked():
+    with tempfile.TemporaryDirectory() as root:
+        fake = FakeR5(Path(root))
+        original, first, receipt = _archived_legacy_receipt_fixture(fake)
+        next_record = {**first, "selected_review_sha256": "d" * 64}
+        changed = {**next_record, "session_id": "another-session"}
+        receipt_bytes = receipt.read_bytes()
+        with unittest.TestCase().assertRaisesRegex(
+            RuntimeError, "recibo histórico divergente"
+        ):
+            r7._persist_legacy_quarantine(fake.WORK, fake.BASE, changed)
+        assert receipt.read_bytes() == receipt_bytes
+        restore_file = fake.WORK / "control_r7" / "last_restore.json"
+        restore_file.parent.mkdir(parents=True, exist_ok=True)
+        restore_file.write_text(
+            json.dumps(
+                {
+                    "status": "review_restored_quarantined_history",
+                    "sha256": "d" * 64,
+                    "counts": r7._counts(fake.DB),
+                }
+            )
+        )
+        with unittest.TestCase().assertRaisesRegex(
+            RuntimeError, "transición de revisión divergente"
+        ):
+            r7._quarantine_status(fake.DB, fake.WORK, fake.BASE)
+        r7._persist_legacy_quarantine(fake.WORK, fake.BASE, next_record)
+        transition = r7._quarantine_transition_path(
+            original.parent, first["original_sha256"], "d" * 64
+        )
+        transition.write_text(json.dumps({"status": "tampered"}))
+        with unittest.TestCase().assertRaisesRegex(
+            RuntimeError, "transición de revisión divergente"
+        ):
+            r7._quarantine_status(fake.DB, fake.WORK, fake.BASE)
+
+
+def test_modified_historical_archive_rejected_on_review_rotation():
+    with tempfile.TemporaryDirectory() as root:
+        fake = FakeR5(Path(root))
+        original, first, receipt = _archived_legacy_receipt_fixture(fake)
+        archive = receipt.parent / "original.json"
+        archive.write_bytes(b"corrupted")
+        next_record = {**first, "selected_review_sha256": "d" * 64}
+        with unittest.TestCase().assertRaisesRegex(RuntimeError, "cuarentena alterada"):
+            r7._persist_legacy_quarantine(fake.WORK, fake.BASE, next_record)
+        assert original.is_file()
+        assert not (
+            r7._quarantine_transition_path(
+                original.parent, first["original_sha256"], "d" * 64
+            )
+        ).exists()
+
+
+def test_actual_colab_restart_with_old_quarantine_and_newer_review_recovers():
+    with tempfile.TemporaryDirectory() as root:
+        fake = FakeR5(Path(root))
+        make_db(fake.DB, applications=15, tasks=2500)
+        review, original, epoch, orphan_run_id = _make_unbacked_single_pre_epoch(fake)
+        previous = r7._legacy_quarantine_candidate(
+            review, fake.WORK, fake.BASE, "c" * 64
+        )
+        assert previous is not None
+        old_receipt = r7._persist_legacy_quarantine(fake.WORK, fake.BASE, previous)
+        original_bytes = original.read_bytes()
+        historical_receipt_bytes = old_receipt.read_bytes()
+        epoch_bytes = epoch.read_bytes()
+        review_bytes_sha = r7._sha(review)
+        with patch.object(r7, "_check_api", return_value=False):
+            result = r7.Center(fake)._restore_best_before_api()
+        assert result["status"] == "review_restored_quarantined_history"
+        assert result["sha256"] == review_bytes_sha
+        assert result["education_continuity"]["historical_certified"] is False
+        assert result["education_continuity"]["new_epoch"].startswith("retry-")
+        assert result["education_continuity"]["abandoned_pre_probe"] == {
+            "status": "unbacked_archived",
+            "missing_run_ids": [orphan_run_id],
+        }
+        transition = r7._quarantine_transition_path(
+            original.parent, previous["original_sha256"], review_bytes_sha
+        )
+        assert transition.is_file()
+        assert original.read_bytes() == original_bytes
+        assert old_receipt.read_bytes() == historical_receipt_bytes
+        assert epoch.read_bytes() == epoch_bytes
+        assert r7._sha(review) == review_bytes_sha
+        # Repeated startup must not overwrite the restored working database.
+        before = r7._counts(fake.DB)
+        with patch.object(r7, "_check_api", return_value=False):
+            reused = r7.Center(fake)._restore_best_before_api()
+        assert r7._counts(fake.DB) == before
+        assert reused["result"] == "Bodega local intacta con cuarentena verificada"
