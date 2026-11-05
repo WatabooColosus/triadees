@@ -525,3 +525,34 @@ def test_restore_accepts_snapshot_with_verified_finished_run_ids():
             "status": "finished_study_evidence_present",
             "runs": 10,
         }
+
+
+def test_cannot_save_or_certify_review_from_restored_incomplete_study():
+    with tempfile.TemporaryDirectory() as root:
+        fake = FakeR5(Path(root))
+        make_db(fake.DB)
+        _seed_review_study(fake.DB, post_count=4)
+        _finished_study_pointer(fake)
+        center = r7.Center(fake)
+        calls = []
+
+        def save_review_copy():
+            calls.append("saved")
+            return {"status": "saved_review_only"}
+
+        fake.save_review_copy = save_review_copy
+        with unittest.TestCase().assertRaisesRegex(
+            RuntimeError, "Continuidad educativa"
+        ):
+            center.save()
+        with (
+            patch.object(center, "_origin_verified", return_value=True),
+            unittest.TestCase().assertRaisesRegex(
+                RuntimeError, "Continuidad educativa"
+            ),
+        ):
+            center.record_release()
+        assert not calls
+        assert not (
+            fake.BASE / "operacion_colab_r7" / "last_success.json"
+        ).exists()
