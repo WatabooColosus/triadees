@@ -425,7 +425,20 @@ class Client:
             if not self.drive_ready():
                 return
             try:
-                self.check()
+                result = self.check()
+                manifest = result["manifest"]
+                # Preserve previously authorized opt-in behavior only for
+                # stable CI-verified releases; the new panel never enables it.
+                if (
+                    self.auto_apply
+                    and not self.stop_event.is_set()
+                    and self.installed()
+                    and result["update_available"]
+                    and self.failed_release != release_identity(manifest)
+                    and manifest["channel"] == "stable"
+                    and manifest["auto_update_safe"] is True
+                ):
+                    self.install()
             except Exception as exc:  # noqa: BLE001 - monitoring must survive network outages
                 self.last_error = type(exc).__name__ + ": " + str(exc)[:300]
                 self.notify("Comprobación pendiente: " + self.last_error)
