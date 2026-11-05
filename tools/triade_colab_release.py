@@ -20,6 +20,8 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import threading
+import time
 import urllib.request
 from pathlib import Path
 
@@ -424,11 +426,98 @@ def _enforce_observation_panel(context):
     )
     # Keep the existing notebook's navigation control, but do not synthesize
     # one with an untrusted callback. The current panel creates its own gate.
-    actions.children = (chosen, opener) if opener is not None else (chosen,)
+    allowed = (chosen, opener) if opener is not None else (chosen,)
+    actions.children = allowed
+    # Legacy notebooks may repopulate the SAME widget after installation.
+    # A single observer keeps lifecycle controls stable without invoking them.
+    observer = getattr(actions, "observe", None)
+    if callable(observer) and not getattr(
+        actions, "_triade_lifecycle_observer_installed", False
+    ):
+        def maintain_controls(change):
+            if change.get("name") != "children":
+                return
+            if tuple(getattr(actions, "children", ())) != allowed:
+                actions.children = allowed
+
+        observer(maintain_controls, names="children")
+        actions._triade_lifecycle_observer_installed = True
     return {
         "status": "lifecycle_and_open_controls",
         "visible_buttons": len(actions.children),
     }
+
+
+def _start_autonomous_monitor(context, *, interval_seconds=600):
+    """One low-impact read-only audit loop; never restores or promotes memory.
+
+    The canonical guardian and the encrypted-copy watcher are independent
+    backend-owned services. This observer must not create a second writer.
+    """
+    r5 = context["r5"]
+    previous = getattr(r5, "_triade_auto_ops", None)
+    if previous is not None:
+        thread = previous.get("thread")
+        if thread is not None and thread.is_alive():
+            return {"status": "already_running", "single_observer": True}
+    auditor = _auditor(context)
+    if auditor is None:
+        return {"status": "auditor_unavailable"}
+    stop = threading.Event()
+    state = {
+        "status": "scheduled",
+        "single_observer": True,
+        "interval_seconds": interval_seconds,
+        "audit_read_only": True,
+        "backup_writer_started": False,
+        "cross_session_certified": False,
+    }
+
+    def check():
+        cpus = os.cpu_count() or 1
+        try:
+            load = os.getloadavg()[0]
+        except (AttributeError, OSError):
+            load = None
+        state["cpu_count_observed"] = cpus
+        state["loadavg_1m"] = round(load, 2) if load is not None else None
+        # OS load average is a run-queue proxy, not a claim of CPU percentage.
+        # High pressure defers optional read-only audit, not memory safety.
+        if load is not None and load >= cpus * 0.75:
+            state["status"] = "deferred_cpu_pressure"
+            return
+        try:
+            result = auditor.audit(r5, 15, emit=False)
+            state["status"] = "audited_read_only"
+            state["last_audit_at"] = time.time()
+            state["audit_version"] = result.get("audit_version")
+            state["audit_error"] = None
+        except (OSError, RuntimeError, ValueError, TypeError) as exc:
+            state["status"] = "audit_deferred"
+            state["audit_error"] = type(exc).__name__
+
+    def observe():
+        # Do not compete with initial model loading, guardian or startup.
+        while not stop.wait(interval_seconds):
+            check()
+
+    thread = threading.Thread(
+        target=observe, name="triade-low-resource-auto-audit", daemon=True
+    )
+    r5._triade_auto_ops = {"stop": stop, "thread": thread, "state": state}
+    thread.start()
+    return dict(state)
+
+
+def _autonomous_monitor_status(r5):
+    handle = getattr(r5, "_triade_auto_ops", None)
+    if not handle:
+        return {"status": "not_started"}
+    state = dict(handle["state"])
+    state["observer_alive"] = bool(
+        handle["thread"].is_alive() and not handle["stop"].is_set()
+    )
+    return state
 
 
 def _attach_panel_components(context):
@@ -459,6 +548,7 @@ def _attach_panel_components(context):
                 "error_type": type(exc).__name__,
             }
         _record_learning_launch(context, result["learning"])
+    result["autonomous_monitor"] = _start_autonomous_monitor(context)
     return result
 
 
@@ -578,6 +668,7 @@ def open_frontend(context):
 
 def status(context):
     result = _center(context).status()
+    result["autonomous_monitor"] = _autonomous_monitor_status(context["r5"])
     protection = _protection(context)
     if protection is not None:
         result["backup_protection"] = protection.status(context["r5"])
