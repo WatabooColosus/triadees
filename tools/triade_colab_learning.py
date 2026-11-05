@@ -906,10 +906,9 @@ def step(context):
         state["backup"] = context["protection_module"].repair(
             r5, require_fresh=True, study_state=state
         )
-        if (
-            state["backup"].get("status") != "encrypted_copy_verified"
-            or not state["backup"].get("study_checkpoint")
-        ):
+        if state["backup"].get("status") != "encrypted_copy_verified" or not state[
+            "backup"
+        ].get("study_checkpoint"):
             raise RuntimeError("prospective_study_checkpoint_not_certified")
         state["phase"] = "done"
     return _save(context, state)
