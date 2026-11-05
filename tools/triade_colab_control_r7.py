@@ -607,6 +607,79 @@ def _legacy_quarantine_candidate(db, work, drive, review_sha):
     }
 
 
+def _quarantine_transition_path(folder, digest, review_sha):
+    """Bound a later reviewed snapshot to an unchanged immutable quarantine."""
+    if (
+        not isinstance(review_sha, str)
+        or len(review_sha) != 64
+        or any(ch not in "0123456789abcdef" for ch in review_sha)
+    ):
+        raise RuntimeError("Continuidad educativa: SHA de revisión inválido")
+    return folder / "quarantine" / digest / "review_transitions" / (review_sha + ".json")
+
+
+def _verify_quarantine_anchor(original, archive, receipt, expected):
+    """Only the selected review SHA may differ from the original quarantine."""
+    if (
+        not archive.is_file()
+        or archive.is_symlink()
+        or not receipt.is_file()
+        or receipt.is_symlink()
+        or _sha(archive) != expected["original_sha256"]
+        or archive.read_bytes() != original.read_bytes()
+    ):
+        raise RuntimeError("Continuidad educativa: cuarentena alterada")
+    stored = _read_json(receipt)
+    if (
+        not isinstance(stored, dict)
+        or set(stored) != set(expected)
+        or any(
+            stored[key] != value
+            for key, value in expected.items()
+            if key != "selected_review_sha256"
+        )
+    ):
+        raise RuntimeError("Continuidad educativa: recibo histórico divergente")
+    old_sha = stored.get("selected_review_sha256")
+    if (
+        not isinstance(old_sha, str)
+        or len(old_sha) != 64
+        or any(ch not in "0123456789abcdef" for ch in old_sha)
+    ):
+        raise RuntimeError("Continuidad educativa: SHA histórico inválido")
+    if receipt.read_bytes() != (
+        json.dumps(stored, sort_keys=True, indent=2) + "\n"
+    ).encode():
+        raise RuntimeError("Continuidad educativa: recibo histórico alterado")
+    return stored
+
+
+def _verify_quarantine_transition(folder, digest, record, receipt):
+    """Reject any transition not bound to the exact archived receipt bytes."""
+    target = _quarantine_transition_path(
+        folder, digest, record["selected_review_sha256"]
+    )
+    if any(path.is_symlink() for path in (target, *target.parents)):
+        raise RuntimeError("Continuidad educativa: transición insegura")
+    expected = {
+        "schema": "triade.colab.quarantine_review_transition.v1",
+        "status": "review_quarantine_carried_forward",
+        "prior_receipt_sha256": _sha(receipt),
+        "quarantine_sha256": digest,
+        "selected_review_sha256": record["selected_review_sha256"],
+        "historical_certified": False,
+        "historical_promotion_authorized": False,
+        "record": record,
+    }
+    if not target.is_file() or _read_json(target) != expected:
+        raise RuntimeError("Continuidad educativa: transición de revisión divergente")
+    if target.read_bytes() != (
+        json.dumps(expected, sort_keys=True, indent=2) + "\n"
+    ).encode():
+        raise RuntimeError("Continuidad educativa: transición de revisión alterada")
+    return target
+
+
 def _persist_legacy_quarantine(work, drive, record):
     """Append-only evidence archive; NEVER overwrites current.json or DB."""
     source, folder, original = _study_paths(work, drive)
@@ -621,14 +694,54 @@ def _persist_legacy_quarantine(work, drive, record):
     data = original.read_bytes()
     if hashlib.sha256(data).hexdigest() != record["original_sha256"]:
         raise RuntimeError("Continuidad educativa: evidencia original cambió")
+    # A previously archived historical claim may be bound to an *older*
+    # genuine review image. Keep that claim and receipt byte-for-byte; never
+    # overwrite their original SHA binding when selecting a later review.
+    if receipt.is_file():
+        stored = _verify_quarantine_anchor(original, archive, receipt, record)
+        if stored["selected_review_sha256"] != record["selected_review_sha256"]:
+            transition = _quarantine_transition_path(
+                folder, record["original_sha256"], record["selected_review_sha256"]
+            )
+            expected = {
+                "schema": "triade.colab.quarantine_review_transition.v1",
+                "status": "review_quarantine_carried_forward",
+                "prior_receipt_sha256": _sha(receipt),
+                "quarantine_sha256": record["original_sha256"],
+                "selected_review_sha256": record["selected_review_sha256"],
+                "historical_certified": False,
+                "historical_promotion_authorized": False,
+                "record": record,
+            }
+            if any(path.is_symlink() for path in (transition, *transition.parents)):
+                raise RuntimeError("Continuidad educativa: transición insegura")
+            if transition.is_file():
+                _verify_quarantine_transition(
+                    folder, record["original_sha256"], record, receipt
+                )
+            else:
+                transition.parent.mkdir(parents=True, exist_ok=True)
+                payload = (json.dumps(expected, sort_keys=True, indent=2) + "\n").encode()
+                try:
+                    fd = os.open(
+                        transition, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600
+                    )
+                except FileExistsError as exc:
+                    raise RuntimeError("Continuidad educativa: transición en conflicto") from exc
+                with os.fdopen(fd, "wb") as handle:
+                    handle.write(payload)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                _verify_quarantine_transition(
+                    folder, record["original_sha256"], record, receipt
+                )
+        return receipt
+    if archive.exists() or archive.is_symlink() or receipt.is_symlink():
+        raise RuntimeError("Continuidad educativa: cuarentena incompleta o alterada")
     for path, payload in (
         (archive, data),
         (receipt, (json.dumps(record, sort_keys=True, indent=2) + "\n").encode()),
     ):
-        if path.is_file():
-            if path.is_symlink() or path.read_bytes() != payload:
-                raise RuntimeError("Continuidad educativa: cuarentena alterada")
-            continue
         try:
             fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
         except FileExistsError as exc:
@@ -639,8 +752,7 @@ def _persist_legacy_quarantine(work, drive, record):
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
-    if _sha(archive) != record["original_sha256"]:
-        raise RuntimeError("Continuidad educativa: archivo histórico divergente")
+    _verify_quarantine_anchor(original, archive, receipt, record)
     return receipt
 
 
@@ -663,10 +775,14 @@ def _quarantine_status(db, work, drive):
         or receipt.get("historical_certified") is not False
         or receipt.get("historical_promotion_authorized") is not False
         or restore.get("status") != "review_restored_quarantined_history"
-        or restore.get("sha256") != receipt.get("selected_review_sha256")
-        or _sha(folder / "quarantine" / digest / "original.json") != digest
     ):
         return None
+    anchor = folder / "quarantine" / digest
+    receipt_file = anchor / "receipt.json"
+    _verify_quarantine_anchor(original, anchor / "original.json", receipt_file, receipt)
+    if restore.get("sha256") != receipt.get("selected_review_sha256"):
+        new_record = {**receipt, "selected_review_sha256": restore.get("sha256")}
+        _verify_quarantine_transition(folder, digest, new_record, receipt_file)
     if not _dominates(_counts(db), restore["counts"]):
         return None
     with contextlib.closing(
