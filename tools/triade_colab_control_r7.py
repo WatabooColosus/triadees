@@ -723,6 +723,8 @@ class Center:
         with self.lock:
             if not self.drive.is_dir():
                 raise RuntimeError("Drive desconectado, no hay respaldo persistente")
+            # Never make a new review checkpoint from an already-regressed DB.
+            _check_completed_study_evidence(self.db, self.work, self.drive)
             result = self.r5.save_review_copy()
             if not result or result.get("status") not in (
                 "saved_review_only",
@@ -745,11 +747,13 @@ class Center:
             if not proof or not self._origin_verified():
                 raise RuntimeError("Sin identidad/checkout R5 acreditados")
             self.r5._owner_account_status(self.db)
+            _check_completed_study_evidence(self.db, self.work, self.drive)
             review = self._checkpoint_index()
             if not review:
                 raise RuntimeError(
                     "No hay imagen de Drive comprobada; no marcar continuidad"
                 )
+            _check_completed_study_evidence(review["file"], self.work, self.drive)
             # La memoria viva puede avanzar durante el guardado. Certificamos la imagen
             # restaurable en Drive, no afirmamos que tenga todos los ciclos presentes.
             manifest = {
