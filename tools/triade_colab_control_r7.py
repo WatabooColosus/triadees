@@ -222,7 +222,6 @@ def _check_completed_study_evidence(db: Path, work: Path, drive: Path):
     return {"status": "finished_study_evidence_present", "runs": len(evidence)}
 
 
-
 def _study_paths(work, drive):
     """Return paths under the verified V2 lineage, not a caller-chosen directory."""
     proof = _read_json(work / "restore_proof.json") or {}
@@ -248,7 +247,9 @@ def _verify_fresh_epoch(db, epoch):
     if state.get("phase") == "done":
         backup = state.get("backup") or {}
         if not isinstance(backup, dict) or not backup.get("study_checkpoint"):
-            raise RuntimeError("Continuidad educativa: nueva época sin checkpoint certificado")
+            raise RuntimeError(
+                "Continuidad educativa: nueva época sin checkpoint certificado"
+            )
     neuron = state.get("neuron_id")
     if type(neuron) is not int:
         raise RuntimeError("Continuidad educativa: neurona de nueva época inválida")
@@ -269,12 +270,18 @@ def _verify_fresh_epoch(db, epoch):
             for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
         if refs and "neuron_functional_assessments" not in tables:
-            raise RuntimeError("Continuidad educativa: faltan evaluaciones de nueva época")
+            raise RuntimeError(
+                "Continuidad educativa: faltan evaluaciones de nueva época"
+            )
         for ref in refs:
-            if conn.execute(
-                "SELECT 1 FROM neuron_functional_assessments "
-                "WHERE run_id=? AND neuron_id=? AND phase=?", ref
-            ).fetchone() is None:
+            if (
+                conn.execute(
+                    "SELECT 1 FROM neuron_functional_assessments "
+                    "WHERE run_id=? AND neuron_id=? AND phase=?",
+                    ref,
+                ).fetchone()
+                is None
+            ):
                 raise RuntimeError(
                     "Continuidad educativa: nueva época retrocedida; run_id=" + ref[0]
                 )
@@ -284,14 +291,19 @@ def _verify_fresh_epoch(db, epoch):
                 raise RuntimeError("Continuidad educativa: sesiones nuevas ausentes")
             row = conn.execute(
                 "SELECT state FROM neuron_education_sessions WHERE session_id=? "
-                "AND neuron_id=?", (session_id, neuron)
+                "AND neuron_id=?",
+                (session_id, neuron),
             ).fetchone()
             if row is None:
                 raise RuntimeError("Continuidad educativa: sesión nueva ausente")
             if state.get("phase") == "done":
-                expected = ((state.get("result") or {}).get("session") or {}).get("state")
+                expected = ((state.get("result") or {}).get("session") or {}).get(
+                    "state"
+                )
                 if not expected or row[0] != expected:
-                    raise RuntimeError("Continuidad educativa: sesión nueva retrocedida")
+                    raise RuntimeError(
+                        "Continuidad educativa: sesión nueva retrocedida"
+                    )
     return {"status": "fresh_epoch_evidence_present", "runs": len(refs)}
 
 
@@ -340,13 +352,14 @@ def _legacy_quarantine_candidate(db, work, drive, review_sha):
             row[0]
             for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
-        if not {
-            "neuron_functional_assessments", "neuron_education_sessions"
-        }.issubset(tables):
+        if not {"neuron_functional_assessments", "neuron_education_sessions"}.issubset(
+            tables
+        ):
             return None
         row = conn.execute(
             "SELECT state FROM neuron_education_sessions "
-            "WHERE session_id=? AND neuron_id=?", (session_id, neuron)
+            "WHERE session_id=? AND neuron_id=?",
+            (session_id, neuron),
         ).fetchone()
         if not row or row[0] != "lesson_prepared":
             return None
@@ -357,7 +370,8 @@ def _legacy_quarantine_candidate(db, work, drive, review_sha):
                 "SELECT 1 FROM neuron_functional_assessments "
                 "WHERE run_id=? AND neuron_id=? AND phase=?",
                 (run_id, neuron_id, phase),
-            ).fetchone() is None
+            ).fetchone()
+            is None
         ]
     # Only the specifically diagnosed final post-probe dropout qualifies.
     if len(missing) != 1 or missing[0]["phase"] != "post":
@@ -406,7 +420,9 @@ def _persist_legacy_quarantine(work, drive, record):
         try:
             fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
         except FileExistsError as exc:
-            raise RuntimeError("Continuidad educativa: archivo de cuarentena en conflicto") from exc
+            raise RuntimeError(
+                "Continuidad educativa: archivo de cuarentena en conflicto"
+            ) from exc
         with os.fdopen(fd, "wb") as handle:
             handle.write(payload)
             handle.flush()
