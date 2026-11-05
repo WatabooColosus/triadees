@@ -2,12 +2,12 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 33,
-  "version": "R7.17.8-pre-restore-study-evidence-guard",
+  "sequence": 34,
+  "version": "R7.17.9-prospective-checkpoint-fresh",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "ba0b36b5caa02ecb818a730288770850c06a21c9",
+  "commit": "5284b41ca76054f686c6c14e30f7e97248234819",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
@@ -31,11 +31,11 @@
     },
     "protection": {
       "path": "tools/triade_colab_backup.py",
-      "sha256": "ed5c4d3efa6283220529fe1df2a1850ed5b57487a02eef91df7ad7a25a3970aa"
+      "sha256": "9cdff34f8319ad99769c206f1e859d7e16b896c7f19040e1a04ee12b2139ab1b"
     },
     "learning": {
       "path": "tools/triade_colab_learning.py",
-      "sha256": "b95a4d60ff168d403fb2f3d70988d22a5df7ad8313f4217994bcc0f91ac80906"
+      "sha256": "3aee52306c97a2a77eed3742569832f2be63626eb0b1d5132f44ebba78163144"
     },
     "router": {
       "path": "tools/model_router.py",
