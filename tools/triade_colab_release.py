@@ -387,7 +387,39 @@ def _record_learning_launch(context, launch):
     return receipt
 
 
+def _enforce_observation_panel(context):
+    """Collapse legacy widget action sets to one explicit lifecycle control.
+
+    The installer can be loaded by an older Colab bootstrap that still owns
+    its previous widgets. This changes only the displayed controls, never
+    runs a hidden action or bypasses a runtime/memory safety gate.
+    """
+    client = getattr(context.get("progress"), "__self__", None)
+    view = getattr(client, "view", None)
+    if not view or len(view) < 4:
+        return {"status": "panel_not_available"}
+    actions = view[3]
+    children = getattr(actions, "children", None)
+    if children is None:
+        return {"status": "non_widget_panel_unchanged"}
+    chosen = None
+    for item in children:
+        label = str(getattr(item, "description", "")).lower()
+        if (
+            "instalar" in label
+            or "encender" in label
+            or "iniciar última versión" in label
+        ):
+            chosen = item
+            break
+    if chosen is None:
+        return {"status": "lifecycle_control_not_found"}
+    actions.children = (chosen,)
+    return {"status": "single_lifecycle_control", "visible_buttons": 1}
+
+
 def _attach_panel_components(context):
+    context["panel_policy"] = _enforce_observation_panel(context)
     auditor = _auditor(context)
     if auditor is not None:
         auditor.install(context["r5"])
@@ -496,6 +528,7 @@ def recover(context, error):
         "memory_replaced_by_recovery": False,
         "reason": error,
         "observed": _center(context).status(),
+        "panel_policy": _enforce_observation_panel(context),
     }
     if "Continuidad educativa:" not in error:
         return result
