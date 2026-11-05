@@ -860,16 +860,12 @@ def test_autonomous_audit_is_one_read_only_observer_and_cpu_bounded(monkeypatch)
     monkeypatch.setattr(adapter, "_auditor", lambda context: auditor)
     monkeypatch.setattr(adapter.os, "cpu_count", lambda: 4)
     monkeypatch.setattr(adapter.os, "getloadavg", lambda: (3.5, 1.0, 1.0))
-    first = adapter._start_autonomous_monitor(
-        {"r5": r5}, interval_seconds=3600
-    )
+    first = adapter._start_autonomous_monitor({"r5": r5}, interval_seconds=3600)
     try:
         assert first["status"] == "scheduled"
         assert first["cross_session_certified"] is False
         assert first["backup_writer_started"] is False
-        second = adapter._start_autonomous_monitor(
-            {"r5": r5}, interval_seconds=3600
-        )
+        second = adapter._start_autonomous_monitor({"r5": r5}, interval_seconds=3600)
         assert second["status"] == "already_running"
         handle = r5._triade_auto_ops
         handle["check"]()
