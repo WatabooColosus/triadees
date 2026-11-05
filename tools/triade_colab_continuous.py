@@ -367,9 +367,11 @@ class Client:
             self.notify(
                 "Instalación incompleta; se conservaron los registros y la memoria"
             )
-            isolated = recovery.get("isolated_recovery") if isinstance(
-                recovery, dict
-            ) else None
+            isolated = (
+                recovery.get("isolated_recovery")
+                if isinstance(recovery, dict)
+                else None
+            )
             if (
                 "Continuidad educativa:" in self.last_error
                 and isinstance(isolated, dict)
