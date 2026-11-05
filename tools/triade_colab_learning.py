@@ -49,7 +49,6 @@ def _read(path):
         return {}
 
 
-
 def _quarantined_epoch(r5):
     """Use a separate learning namespace only after an immutable forensic receipt.
 
@@ -62,10 +61,15 @@ def _quarantined_epoch(r5):
     if len(lineage) != 64 or any(ch not in "0123456789abcdef" for ch in lineage):
         return None
     original = (
-        Path(r5.BASE) / "operacion_colab_continua" / "aprendizaje"
-        / lineage[:16] / "current.json"
+        Path(r5.BASE)
+        / "operacion_colab_continua"
+        / "aprendizaje"
+        / lineage[:16]
+        / "current.json"
     )
-    if not original.is_file() or any(p.is_symlink() for p in (original, *original.parents)):
+    if not original.is_file() or any(
+        p.is_symlink() for p in (original, *original.parents)
+    ):
         return None
     digest = hashlib.sha256(original.read_bytes()).hexdigest()
     receipt_path = original.parent / "quarantine" / digest / "receipt.json"
@@ -134,21 +138,36 @@ def _quarantined_learning_lineage(r5, epoch):
                             (run_id, neuron, phase),
                         ).fetchone()
                     ):
-                        return {"status": "regressed", "reason": "fresh_epoch_run_missing"}
+                        return {
+                            "status": "regressed",
+                            "reason": "fresh_epoch_run_missing",
+                        }
             session_id = state.get("session_id")
             if session_id:
                 if "neuron_education_sessions" not in tables:
-                    return {"status": "regressed", "reason": "fresh_epoch_session_missing"}
+                    return {
+                        "status": "regressed",
+                        "reason": "fresh_epoch_session_missing",
+                    }
                 row = conn.execute(
                     "SELECT state FROM neuron_education_sessions "
-                    "WHERE session_id=? AND neuron_id=?", (session_id, neuron)
+                    "WHERE session_id=? AND neuron_id=?",
+                    (session_id, neuron),
                 ).fetchone()
                 if row is None:
-                    return {"status": "regressed", "reason": "fresh_epoch_session_missing"}
+                    return {
+                        "status": "regressed",
+                        "reason": "fresh_epoch_session_missing",
+                    }
                 if state.get("phase") == "done":
-                    expected = ((state.get("result") or {}).get("session") or {}).get("state")
+                    expected = ((state.get("result") or {}).get("session") or {}).get(
+                        "state"
+                    )
                     if not expected or row[0] != expected:
-                        return {"status": "regressed", "reason": "fresh_epoch_state_rolled_back"}
+                        return {
+                            "status": "regressed",
+                            "reason": "fresh_epoch_state_rolled_back",
+                        }
     except (sqlite3.Error, OSError, ValueError):
         return {"status": "blocked", "reason": "fresh_epoch_unreadable"}
     return {
@@ -908,7 +927,11 @@ def _resolve(db, session_id, run_ids):
 def _save(context, state):
     protection = context["protection_module"]
     epoch = _quarantined_epoch(context["r5"])
-    path = epoch["local"] if epoch else Path(context["r5"].WORK) / "prospective_learning.json"
+    path = (
+        epoch["local"]
+        if epoch
+        else Path(context["r5"].WORK) / "prospective_learning.json"
+    )
     state["updated_at"] = dt.datetime.now(dt.UTC).isoformat()
     protection._json(path, state)
     if epoch:
