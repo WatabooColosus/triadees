@@ -245,7 +245,7 @@ def _verify_archived_study(backup, file, study):
             raise RuntimeError("prospective_checkpoint_invalid_cases")
         for proof in cases:
             if not isinstance(proof, dict):
-                raise RuntimeError("prospective_checkpoint_invalid_cases")
+                raise TypeError("prospective_checkpoint_invalid_cases")
             run_id, case_id, score = (
                 proof.get("run_id"),
                 proof.get("case_id"),
