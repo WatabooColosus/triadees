@@ -192,8 +192,10 @@ def _check_completed_study_evidence(db: Path, work: Path, drive: Path):
             if session is None or session[0] == "lesson_prepared":
                 raise RuntimeError(
                     "Continuidad educativa: sesión concluida retrocedida"
-                    + "; session_id=" + session_id
-                    + "; estado_db=" + (session[0] if session else "ausente")
+                    + "; session_id="
+                    + session_id
+                    + "; estado_db="
+                    + (session[0] if session else "ausente")
                 )
             if expected_state and session[0] != expected_state:
                 raise RuntimeError("Continuidad educativa: estado final divergente")
@@ -214,7 +216,8 @@ def _check_completed_study_evidence(db: Path, work: Path, drive: Path):
             "Continuidad educativa: faltan "
             + str(len(missing))
             + " evaluaciones reales; no restaurar esta imagen"
-            + "; run_ids=" + ",".join(missing[:4])
+            + "; run_ids="
+            + ",".join(missing[:4])
         )
     return {"status": "finished_study_evidence_present", "runs": len(evidence)}
 
@@ -951,9 +954,7 @@ def render(r5):
             """<div class="r7hero"><h2>TRÍADE Ω · CENTRO DE CONTINUIDAD R7</h2><small>Git = código · Drive = memoria · Colab = ejecución temporal</small><div><span class="r7pill">Versión verificable</span><span class="r7pill">Identidad protegida</span><span class="r7pill">Reinicio seguro</span><span class="r7pill">Sin procesos duplicados</span></div></div>"""
         )
     )
-    info = w.HTML(
-        value="<b>Centro autónomo: Encender / actualizar y Abrir Tríade.</b>"
-    )
+    info = w.HTML(value="<b>Centro autónomo: Encender / actualizar y Abrir Tríade.</b>")
     out = w.Output(
         layout=w.Layout(
             border="1px solid #426aac",
