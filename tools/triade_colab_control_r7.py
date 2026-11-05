@@ -384,7 +384,11 @@ def _legacy_quarantine_candidate(db, work, drive, review_sha):
             is None
         ]
     # Only the specifically diagnosed final post-probe dropout qualifies.
-    if len(missing) != 1 or missing[0]["phase"] != "post":
+    if (
+        len(missing) != 1
+        or missing[0]["phase"] != "post"
+        or missing[0]["run_id"] != state["post"][-1].get("run_id")
+    ):
         return None
     original_hash = _sha(original)
     return {
@@ -1011,12 +1015,13 @@ class Center:
         self.r5._owner_account_status(staged)
         if _api_port_open() or _counts(self.db) != prior:
             raise RuntimeError("La Bodega cambió durante la preparación; sin restaurar")
+        if historical_quarantine is not None:
+            # Archive immutable original claim BEFORE any SQLite mutation.
+            _persist_legacy_quarantine(self.work, self.drive, historical_quarantine)
         _sqlite_backup(staged, self.db)
         if _counts(self.db) != current:
             raise RuntimeError("Imagen restaurada no coincide; no arrancar API")
         self.r5.check_working_identity()
-        if historical_quarantine is not None:
-            _persist_legacy_quarantine(self.work, self.drive, historical_quarantine)
         receipt = {
             "status": (
                 "review_restored_quarantined_history"
