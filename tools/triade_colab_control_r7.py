@@ -192,25 +192,29 @@ def _check_completed_study_evidence(db: Path, work: Path, drive: Path):
             if session is None or session[0] == "lesson_prepared":
                 raise RuntimeError(
                     "Continuidad educativa: sesión concluida retrocedida"
+                    + "; session_id=" + session_id
+                    + "; estado_db=" + (session[0] if session else "ausente")
                 )
             if expected_state and session[0] != expected_state:
                 raise RuntimeError("Continuidad educativa: estado final divergente")
-            missing = sum(
-                conn.execute(
+            missing = [
+                reference[0]
+                for reference in evidence
+                if conn.execute(
                     "SELECT 1 FROM neuron_functional_assessments "
                     "WHERE run_id=? AND neuron_id=? AND phase=?",
                     reference,
                 ).fetchone()
                 is None
-                for reference in evidence
-            )
+            ]
     except sqlite3.Error as exc:
         raise RuntimeError("Continuidad educativa: SQLite no verificable") from exc
     if missing:
         raise RuntimeError(
             "Continuidad educativa: faltan "
-            + str(missing)
+            + str(len(missing))
             + " evaluaciones reales; no restaurar esta imagen"
+            + "; run_ids=" + ",".join(missing[:4])
         )
     return {"status": "finished_study_evidence_present", "runs": len(evidence)}
 
@@ -616,6 +620,23 @@ class Center:
                 )
             except (RuntimeError, sqlite3.Error) as ex:
                 result["drive_last_guarded_backup"] = "error: " + str(ex)[:160]
+        # A successful SQLite check alone does not prove that completed
+        # education runs survived a restart. Show this as a separate read-only
+        # status; never mutate Drive or relax the restoration gate.
+        if (
+            self.db.is_file()
+            and self.drive.is_dir()
+            and (self.work / "restore_proof.json").is_file()
+        ):
+            try:
+                result["education_continuity"] = _check_completed_study_evidence(
+                    self.db, self.work, self.drive
+                )
+            except (OSError, RuntimeError, sqlite3.Error) as exc:
+                result["education_continuity"] = {
+                    "status": "regressed_blocked",
+                    "reason": str(exc)[:300],
+                }
         return result
 
     def resume_verified(self, baseline):
@@ -931,7 +952,7 @@ def render(r5):
         )
     )
     info = w.HTML(
-        value="<b>Centro autónomo. Solo el ciclo de instalación requiere botón.</b>"
+        value="<b>Centro autónomo: Encender / actualizar y Abrir Tríade.</b>"
     )
     out = w.Output(
         layout=w.Layout(
@@ -980,8 +1001,27 @@ def render(r5):
         b.on_click(click)
         return b
 
+    def open_verified_frontend():
+        observed = center.status()
+        if not (
+            observed.get("api_http_200") is True
+            and observed.get("ollama_http_200") is True
+            and str(observed.get("bodega", "")).startswith("SQLite ok")
+            and observed.get("known_regression") is None
+            and str(observed.get("release", "")).startswith("R6.3.1 candidata")
+            and (observed.get("education_continuity") or {}).get("status")
+            != "regressed_blocked"
+        ):
+            raise RuntimeError(
+                "Abrir Tríade requiere API, Ollama, Bodega y continuidad "
+                "acreditadas; consulta Estado real"
+            )
+        r5.open_frontend()
+        return {"status": "frontend_requested"}
+
     controls = [
         button("Instalar / encender / actualizar", center.start, "success"),
+        button("Abrir Tríade", open_verified_frontend, "info"),
     ]
     display(
         info,
