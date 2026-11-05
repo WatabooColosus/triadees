@@ -123,6 +123,94 @@ def _counts(path: Path):
         return counts
 
 
+def _check_completed_study_evidence(db: Path, work: Path, drive: Path):
+    """Fail closed before restoring a snapshot older than finished Drive study.
+
+    Snapshot row counts can grow while specific study run IDs disappear. The
+    Drive record is used only as a non-regression floor: it never recreates
+    evaluations, upgrades session state or authenticates a training claim.
+    """
+    proof = _read_json(work / "restore_proof.json") or {}
+    source = str(proof.get("source_sha256") or "")
+    if len(source) != 64 or any(c not in "0123456789abcdef" for c in source):
+        raise RuntimeError("Continuidad educativa: linaje V2 no acreditado")
+    document = (
+        drive
+        / "operacion_colab_continua"
+        / "aprendizaje"
+        / source[:16]
+        / "current.json"
+    )
+    if any(part.is_symlink() for part in (document, *document.parents)):
+        raise RuntimeError("Continuidad educativa: archivo de Drive inseguro")
+    if not document.is_file():
+        return {"status": "no_finished_study"}
+    state = _read_json(document)
+    if state is None:
+        raise RuntimeError("Continuidad educativa: registro de Drive inválido")
+    if state.get("phase") != "done":
+        return {"status": "study_not_finished"}
+    session_id = state.get("session_id")
+    neuron_id = state.get("neuron_id")
+    if not isinstance(session_id, str) or not session_id or type(neuron_id) is not int:
+        raise RuntimeError("Continuidad educativa: estudio terminado mal identificado")
+    if not all(isinstance(state.get(phase), list) for phase in ("pre", "post")):
+        raise RuntimeError("Continuidad educativa: pruebas terminadas inválidas")
+    evidence = []
+    for phase in ("pre", "post"):
+        for item in state[phase]:
+            run_id = item.get("run_id") if isinstance(item, dict) else None
+            if not isinstance(run_id, str) or not run_id:
+                raise RuntimeError("Continuidad educativa: referencia de ejecución inválida")
+            evidence.append((run_id, neuron_id, phase))
+    if not evidence or len({x[0] for x in evidence}) != len(evidence):
+        raise RuntimeError("Continuidad educativa: ejecuciones duplicadas o ausentes")
+    try:
+        with contextlib.closing(
+            sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=20)
+        ) as conn:
+            tables = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
+            }
+            if not {
+                "neuron_education_sessions",
+                "neuron_functional_assessments",
+            }.issubset(tables):
+                raise RuntimeError("Continuidad educativa: faltan tablas de evidencia")
+            session = conn.execute(
+                "SELECT state FROM neuron_education_sessions "
+                "WHERE session_id=? AND neuron_id=?",
+                (session_id, neuron_id),
+            ).fetchone()
+            expected = (state.get("result") or {}).get("session") or {}
+            expected_state = expected.get("state")
+            if session is None or session[0] == "lesson_prepared":
+                raise RuntimeError("Continuidad educativa: sesión concluida retrocedida")
+            if expected_state and session[0] != expected_state:
+                raise RuntimeError("Continuidad educativa: estado final divergente")
+            missing = sum(
+                conn.execute(
+                    "SELECT 1 FROM neuron_functional_assessments "
+                    "WHERE run_id=? AND neuron_id=? AND phase=?",
+                    reference,
+                ).fetchone()
+                is None
+                for reference in evidence
+            )
+    except sqlite3.Error as exc:
+        raise RuntimeError("Continuidad educativa: SQLite no verificable") from exc
+    if missing:
+        raise RuntimeError(
+            "Continuidad educativa: faltan "
+            + str(missing)
+            + " evaluaciones reales; no restaurar esta imagen"
+        )
+    return {"status": "finished_study_evidence_present", "runs": len(evidence)}
+
+
 def _sha(path):
     h = hashlib.sha256()
     with open(path, "rb") as data:
@@ -431,6 +519,7 @@ class Center:
                     "V2 retrocede y no hay copia revisada más reciente acreditada: "
                     + str(failures)
                 )
+            _check_completed_study_evidence(self.db, self.work, self.drive)
             return {
                 "result": "V2 local validada y suficiente; no se reemplazó",
                 "counts": prior,
@@ -441,6 +530,9 @@ class Center:
             raise RuntimeError(
                 "La copia Drive más reciente sigue siendo antigua: " + str(failures)
             )
+        # Check each completed run and terminal session before touching the live
+        # SQLite destination. Count-dominant images can still omit committed work.
+        _check_completed_study_evidence(chosen["file"], self.work, self.drive)
         # WAL/SHM presence alone is normal, including after read-only checks.
         # Let SQLite preserve committed WAL state and restore transactionally;
         # never replace the database inode underneath existing sidecars/readers.
