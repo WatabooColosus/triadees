@@ -570,8 +570,8 @@ def test_status_reports_educational_regression_even_when_counts_have_no_regressi
             observed = center.status()
         assert observed["known_regression"] is None
         assert observed["education_continuity"]["status"] == "regressed_blocked"
-        assert "sesión concluida retrocedida" in observed[
-            "education_continuity"
-        ]["reason"]
+        assert (
+            "sesión concluida retrocedida" in observed["education_continuity"]["reason"]
+        )
         assert observed["education_continuity"]["memory_modified"] is False
         assert observed["bodega"] == "SQLite ok / propietario validado"
