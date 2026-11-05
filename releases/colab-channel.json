@@ -11,19 +11,19 @@
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
-      "sha256": "5ced847c35ef04f3eacc543f4feb153416d85ea790f7e317c7d3427aa49ba5a1"
+      "sha256": "f84423fb8c20e9541049a700ae4a0002355758abbd772bfc222451286f5d2709"
     },
     "controller": {
       "path": "tools/triade_colab_control_r7.py",
-      "sha256": "d3cceda96537bb11491d3be8d53711b4255a7ec158ec638f074849c84dfcebc6"
+      "sha256": "2fc4c17a137f53197370ece9c251e9d90d5d0b98a621ced2433dc90eeb15c0a2"
     },
     "client": {
       "path": "tools/triade_colab_continuous.py",
-      "sha256": "8997b81d34724d1fbe8ee3854ec6d7efce7b521c448d16d8a26f11b30c91b8fc"
+      "sha256": "b569e1731d8576d1bfd1e52209627b528299e40f4ef5edc0410f2dc7c1e72be7"
     },
     "rehydrator": {
       "path": "tools/triade_colab_continuity_r631.py",
-      "sha256": "2c6f94015e90763ec8d93d7fe73fc5c679049b9351166dfee13e40b689d3589d"
+      "sha256": "1892cb3ad2fc00a61bc1c90584968a807d10d53be47eeeb960e28ccb5de093ef"
     },
     "auditor": {
       "path": "tools/triade_colab_audit.py",
@@ -35,27 +35,27 @@
     },
     "learning": {
       "path": "tools/triade_colab_learning.py",
-      "sha256": "b07dc6195a7d7cfe5f56434814e255ec2eda8bce864e363a191eb5975d4a25ae"
+      "sha256": "75716b198ffce4ffb72058b64431ccd3c341451ab56c830081091394126f5a9b"
     },
     "router": {
       "path": "tools/model_router.py",
-      "sha256": "c3bfc3568d0750b68e228407a6177a2ed4d09bd942262e623a0d2b32fbbbafc9"
+      "sha256": "2ecd09ca7c6500014d22afc4943f8a84ed50c2454412e443b4595919b413cd1c"
     },
     "worker_state_store": {
       "path": "triade/workers/state_store.py",
-      "sha256": "6f4855200c73d1e7f6624f4237b5d6e8ea64bff445b494a410e5a5ff4aef7e4d"
+      "sha256": "12fd5e1d4d4b495a1ebd6d26d87578fabb0ebb77edc32bed5e7a1fa99cf97bda"
     },
     "neuron_registry_schema": {
       "path": "tools/colab_patch_sources/neuron_registry_schema.py",
-      "sha256": "712e1e2920fb1e64e328d71a2b191261b72e717a8bef6026fd3b60222965041d"
+      "sha256": "005d2a234daa90dfdf91ec5820de85bea7a360907749c26de88ac5122e4caa9d"
     },
     "neuron_activity_schema": {
       "path": "tools/colab_patch_sources/neuron_activity_schema.py",
-      "sha256": "e1e9ba31920cb275ed759aae554731bb03ab1c82a05a6aebab7a36f2e43aa831"
+      "sha256": "b73e6bd56607b0ed6ff1015a2f821dc2391a6561db5e0497a10e69097f30fb61"
     },
     "learning_pipeline_schema": {
       "path": "tools/colab_patch_sources/learning_pipeline_schema.py",
-      "sha256": "258ea26e5a420aabbbc7eabf64b420e43dc0f4588eb231746e0cc4853611241f"
+      "sha256": "231df7d7a9b211dc95f34bba643e8af8b5d66f03bbd8328b63977e1d9283c5be"
     }
   }
 }
