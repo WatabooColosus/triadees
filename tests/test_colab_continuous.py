@@ -663,7 +663,7 @@ def test_educational_recovery_is_automatic_guarded_and_idempotent(monkeypatch):
 
 def test_unrelated_installer_failure_never_starts_recovery(monkeypatch):
     center = SimpleNamespace(
-        status=lambda: {},
+        status=dict,
         prepare_isolated_recovery=lambda: pytest.fail("unsafe fork"),
     )
     monkeypatch.setattr(adapter, "_center", lambda context: center)
@@ -676,7 +676,7 @@ def test_educational_fork_failure_keeps_installation_blocked(monkeypatch):
     def fail_fork():
         raise RuntimeError("source backup not authenticated")
 
-    center = SimpleNamespace(status=lambda: {}, prepare_isolated_recovery=fail_fork)
+    center = SimpleNamespace(status=dict, prepare_isolated_recovery=fail_fork)
     monkeypatch.setattr(adapter, "_center", lambda context: center)
     record = adapter.recover(
         {"r5": object()}, "Continuidad educativa: sesión concluida retrocedida"
