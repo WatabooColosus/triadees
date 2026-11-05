@@ -920,3 +920,63 @@ def test_conflicting_pre_epoch_mirrors_block_without_archiving():
         assert before == r7._sha(fake.DB)
         assert not (epoch.parent / "abandoned").exists()
 
+
+
+def test_existing_local_probe_is_archived_as_real_sqlite_before_review_restore():
+    with tempfile.TemporaryDirectory() as root:
+        fake = FakeR5(Path(root))
+        make_db(fake.DB, applications=15, tasks=2500)
+        _, original, epoch, run_id = _make_unbacked_single_pre_epoch(fake)
+        _seed_review_study(fake.DB, post_count=4)
+        with sqlite3.connect(fake.DB) as conn:
+            conn.execute(
+                "INSERT INTO neuron_functional_assessments VALUES (?,11,'pre')",
+                (run_id,),
+            )
+        original_sha, epoch_sha = r7._sha(original), r7._sha(epoch)
+        with patch.object(r7, "_check_api", return_value=False):
+            report = r7.Center(fake)._restore_best_before_api()
+        receipt_root = epoch.parent / "abandoned" / epoch_sha
+        receipt = json.loads((receipt_root / "receipt.json").read_text())
+        assert receipt["local_run_present"] is True
+        archived_db = receipt_root / "original-local.sqlite3"
+        assert archived_db.is_file()
+        assert r7._sha(archived_db) == receipt["source_local_sha256"]
+        with sqlite3.connect(archived_db) as conn:
+            assert conn.execute(
+                "SELECT COUNT(*) FROM neuron_functional_assessments WHERE run_id=?",
+                (run_id,),
+            ).fetchone()[0] == 1
+        # The old real proof remains in an immutable Drive SQLite; it was not
+        # reproduced or re-certified in the selected active review snapshot.
+        with sqlite3.connect(fake.DB) as conn:
+            assert conn.execute(
+                "SELECT COUNT(*) FROM neuron_functional_assessments WHERE run_id=?",
+                (run_id,),
+            ).fetchone()[0] == 0
+        assert report["education_continuity"]["new_epoch"].startswith("retry-")
+        assert r7._sha(original) == original_sha
+        assert r7._sha(epoch) == epoch_sha
+
+
+def test_missing_or_tampered_archived_local_sqlite_blocks_continuation():
+    with tempfile.TemporaryDirectory() as root:
+        fake = FakeR5(Path(root))
+        make_db(fake.DB, applications=15, tasks=2500)
+        _, _, epoch, run_id = _make_unbacked_single_pre_epoch(fake)
+        _seed_review_study(fake.DB, post_count=4)
+        with sqlite3.connect(fake.DB) as conn:
+            conn.execute(
+                "INSERT INTO neuron_functional_assessments VALUES (?,11,'pre')",
+                (run_id,),
+            )
+        with patch.object(r7, "_check_api", return_value=False):
+            r7.Center(fake)._restore_best_before_api()
+        archived_db = (
+            epoch.parent / "abandoned" / r7._sha(epoch) / "original-local.sqlite3"
+        )
+        archived_db.unlink()
+        with unittest.TestCase().assertRaisesRegex(
+            RuntimeError, "abandono de época no verificable"
+        ):
+            r7._quarantine_status(fake.DB, fake.WORK, fake.BASE)
