@@ -3,19 +3,19 @@
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
   "sequence": 35,
-  "version": "R7.17.10-isolated-recovery-preparation",
+  "version": "R7.17.10-autonomous-recovery-one-button",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "df3e0202e3acd3a151ac7b00e04e199cd1aa18df",
+  "commit": "8d1ad96c6c5fc12ca0a9d07985d1c0aafc9933e4",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
-      "sha256": "f84423fb8c20e9541049a700ae4a0002355758abbd772bfc222451286f5d2709"
+      "sha256": "3d079030ba2af0ab075b6cd175914cfa6a4839228ac9bec8c9b57018ba69b71e"
     },
     "controller": {
       "path": "tools/triade_colab_control_r7.py",
-      "sha256": "2fc4c17a137f53197370ece9c251e9d90d5d0b98a621ced2433dc90eeb15c0a2"
+      "sha256": "01fb80fe99e1ac221195df7b96719e48aa1898d083747c453b0d69a56db9546f"
     },
     "client": {
       "path": "tools/triade_colab_continuous.py",
