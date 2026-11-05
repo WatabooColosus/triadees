@@ -2,12 +2,12 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 36,
-  "version": "R7.17.12-guarded-two-buttons",
+  "sequence": 37,
+  "version": "R7.17.13-guarded-education-recovery",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "c2c2ea7e7e57ee9c4450a524622c7250b9ec05b6",
+  "commit": "67fce564ce157f4f603952ce572ec53915a415c7",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
@@ -15,7 +15,7 @@
     },
     "controller": {
       "path": "tools/triade_colab_control_r7.py",
-      "sha256": "a70652dc7c961dc2cca3c615e4d3d7d441462e56446e4203396126c0c5b488a4"
+      "sha256": "54ff37bfa0d49bdceca4d74b121e1b0f7ce43763f97fe8e006bcd502ff05c7e2"
     },
     "client": {
       "path": "tools/triade_colab_continuous.py",
@@ -35,7 +35,7 @@
     },
     "learning": {
       "path": "tools/triade_colab_learning.py",
-      "sha256": "75716b198ffce4ffb72058b64431ccd3c341451ab56c830081091394126f5a9b"
+      "sha256": "d306f758c9a4149ba3c721d72a3b615122fa43bb4cba33ed1319e8df0085d21a"
     },
     "router": {
       "path": "tools/model_router.py",
