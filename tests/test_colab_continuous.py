@@ -843,6 +843,13 @@ def test_legacy_panel_remains_two_controls_after_widget_refresh():
         )
     )
     assert actions.children == original_controls
+    # The permanent Colab notebook legitimately replaces the lifecycle button
+    # with its verified release-refresh wrapper after installer completion.
+    refreshed = SimpleNamespace(description="ENCENDER / ACTUALIZAR TRÍADE")
+    actions.repaint(
+        (refreshed, original_controls[1], SimpleNamespace(description="Auditar"))
+    )
+    assert actions.children == (refreshed, original_controls[1])
     # Reapplying release components must not duplicate the same hook.
     adapter._enforce_observation_panel(context)
     assert len(callbacks) == 1
