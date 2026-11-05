@@ -367,6 +367,33 @@ class Client:
             self.notify(
                 "Instalación incompleta; se conservaron los registros y la memoria"
             )
+            isolated = recovery.get("isolated_recovery") if isinstance(
+                recovery, dict
+            ) else None
+            if (
+                "Continuidad educativa:" in self.last_error
+                and isinstance(isolated, dict)
+                and isolated.get("status") == "isolated_fork_prepared"
+                and isinstance(isolated.get("isolated_canary"), dict)
+                and isolated["isolated_canary"].get("status") == "passed"
+                and recovery.get("memory_replaced_by_recovery") is False
+            ):
+                # A guarded quarantine is a *completed recovery action*, not
+                # a certified runtime. Do not write installed.json, start API,
+                # or claim this release is running.
+                self.progress(
+                    "Recuperación aislada verificada; API y aprendizaje "
+                    "principal detenidos por evidencia educativa incompleta"
+                )
+                return {
+                    "status": "isolated_recovery_pending",
+                    "runtime_ready": False,
+                    "release_activated": False,
+                    "version_attempted": manifest["version"],
+                    "installed_receipt_written": False,
+                    "reason": "education_continuity_regressed",
+                    "isolated_recovery": isolated,
+                }
             raise RuntimeError(
                 f"No se activó la publicación: {self.last_error}; recuperación: {recovery}"
             ) from exc
