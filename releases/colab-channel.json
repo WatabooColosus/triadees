@@ -2,12 +2,12 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 32,
-  "version": "R7.17.7-study-memory-lineage-guard",
+  "sequence": 33,
+  "version": "R7.17.8-pre-restore-study-evidence-guard",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "d41e4b720c4978fc172cce0e8997959a852572ca",
+  "commit": "ba0b36b5caa02ecb818a730288770850c06a21c9",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
@@ -15,7 +15,7 @@
     },
     "controller": {
       "path": "tools/triade_colab_control_r7.py",
-      "sha256": "2968af29d8b43acc3856f784fbcb6b9597e13acd3f2b3a3fa28e71d389561719"
+      "sha256": "f4bbd52d853992b3b861c82194e4f45435d2c4ede9518e8bb109dd17f2f1d996"
     },
     "client": {
       "path": "tools/triade_colab_continuous.py",
