@@ -77,6 +77,17 @@ def test_recovered_education_starts_fresh_epoch_without_rewriting_old_pointer(tm
     }
     with pytest.raises(learning.NotReady, match="fresh_epoch_mirror_conflict"):
         learning._study_state(context)
+    epoch["local"].write_text(epoch["remote"].read_text())
+    forbidden = {
+        "phase": "post",
+        "neuron_id": 11,
+        "session_id": epoch["original_study_id"],
+        "pre": [],
+        "post": [],
+    }
+    with pytest.raises(learning.NotReady, match="fresh_epoch_reused_historical_session"):
+        learning._save(context, forbidden)
+    assert old.read_bytes() == historical_bytes
 
 
 def test_application_recorder_is_scoped_idempotent_and_preserves_old_sessions(tmp_path):
