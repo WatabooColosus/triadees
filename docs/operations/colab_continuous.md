@@ -189,3 +189,34 @@ presenta como memoria recuperada. El código no inventa evaluaciones ni promueve
 una sesión incompleta. Una recuperación real necesita una imagen verificable que
 contenga todos los `run_id` y el estado terminal, o una nueva evaluación real
 independiente con su propio identificador y un checkpoint fresco.
+
+## Recuperación de afirmación educativa heredada no certificada
+
+Cuando un `current.json` histórico declara `phase=done` pero no contiene
+`backup.study_checkpoint`, una copia SQLite SHA-verificada puede conservar el
+estado `lesson_prepared` y faltar una evaluación final. Esto **no equivale**
+a una sesión concluida y no debe convertirse en aprendizaje acreditado.
+
+El mecanismo de cuarentena R7 solo se permite si todas las condiciones se
+cumplen: linaje V2 verificado, respaldo de revisión íntegro/dominante y del
+mismo propietario, ausencia de una sesión ya concluida en la V2 local,
+manifiesto heredado `functional-probe-1` con cinco pruebas pre/post, el
+estado real `lesson_prepared`, una sola ejecución `post` ausente, y ausencia
+de `study_checkpoint`. No se inventa un nuevo `run_id` ni se modifica
+la sesión histórica.
+
+Antes de admitir la restauración transaccional, se preservan el estado y los
+bytes exactos de `current.json` mediante un recibo SHA y un archivo
+`quarantine/<sha256>/original.json` de escritura exclusiva, sin modificar
+el original. El estado del panel se identifica como
+`historical_unverified_quarantined`, **no como continuidad educativa total**.
+Los respaldos/recibos de publicación plena siguen exigiendo toda la
+evidencia histórica. La recuperación solo habilita una época de aprendizaje
+nueva e independiente bajo `epochs/recovery-<sha>/current.json`. Cada
+prueba nueva se registra de verdad y el checkpoint final sigue sujeto a
+la validación archivada de `protection.repair`. Un choque entre el estado
+local y Drive o un respaldo sin los nuevos run IDs vuelve a bloquear el
+arranque.
+
+La cuarentena no prueba por sí misma que el arranque de Colab ni la formación
+hayan funcionado; requiere canary real y observación de API/Ollama/Bodega.
