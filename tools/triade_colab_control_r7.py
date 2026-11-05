@@ -436,6 +436,29 @@ class Center:
                 result["known_regression"] = missing or None
             except (RuntimeError, sqlite3.Error) as ex:
                 result["bodega"] = "BLOQUEADA: " + str(ex)[:150]
+        # Count-based continuity can be green even when a finished study's
+        # individual run IDs or terminal session state disappeared. Report
+        # this independently; never rewrite the historical Drive evidence.
+        if (
+            self.db.is_file()
+            and self.drive.is_dir()
+            and (self.work / "restore_proof.json").is_file()
+        ):
+            try:
+                result["education_continuity"] = _check_completed_study_evidence(
+                    self.db, self.work, self.drive
+                )
+            except (RuntimeError, sqlite3.Error) as ex:
+                result["education_continuity"] = {
+                    "status": "regressed_blocked",
+                    "reason": str(ex)[:180],
+                    "memory_modified": False,
+                }
+        else:
+            result["education_continuity"] = {
+                "status": "not_checked",
+                "reason": "verified_restore_context_missing",
+            }
         meta = _read_json(self.work / "actualizaciones" / "continuidad_git_r631.json")
         if self._release_verified(meta):
             result["release"] = (

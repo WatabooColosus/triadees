@@ -554,3 +554,24 @@ def test_cannot_save_or_certify_review_from_restored_incomplete_study():
             center.record_release()
         assert not calls
         assert not (fake.BASE / "operacion_colab_r7" / "last_success.json").exists()
+
+
+def test_status_reports_educational_regression_even_when_counts_have_no_regression():
+    with tempfile.TemporaryDirectory() as root:
+        fake = FakeR5(Path(root))
+        make_db(fake.DB, applications=20, tasks=2500)
+        _seed_review_study(fake.DB, post_count=4)
+        _finished_study_pointer(fake)
+        center = r7.Center(fake)
+        with (
+            patch.object(r7, "_check_api", return_value=False),
+            patch.object(center, "_origin_verified", return_value=False),
+        ):
+            observed = center.status()
+        assert observed["known_regression"] is None
+        assert observed["education_continuity"]["status"] == "regressed_blocked"
+        assert (
+            "sesión concluida retrocedida" in observed["education_continuity"]["reason"]
+        )
+        assert observed["education_continuity"]["memory_modified"] is False
+        assert observed["bodega"] == "SQLite ok / propietario validado"
