@@ -469,18 +469,24 @@ def _persist_pre_abandonment(folder, receipt, local_backup):
         archived_db = archive_root / "original-local.sqlite3"
         if archived_db.is_file():
             if archived_db.is_symlink() or _sha(archived_db) != sha:
-                raise RuntimeError("Continuidad educativa: SQLite local archivada divergente")
+                raise RuntimeError(
+                    "Continuidad educativa: SQLite local archivada divergente"
+                )
         else:
             try:
                 fd = os.open(archived_db, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
             except FileExistsError as exc:
-                raise RuntimeError("Continuidad educativa: SQLite archivada en conflicto") from exc
+                raise RuntimeError(
+                    "Continuidad educativa: SQLite archivada en conflicto"
+                ) from exc
             with os.fdopen(fd, "wb") as stream, open(local_backup, "rb") as source:
                 shutil.copyfileobj(source, stream, 1 << 20)
                 stream.flush()
                 os.fsync(stream.fileno())
             if _sha(archived_db) != sha:
-                raise RuntimeError("Continuidad educativa: copia local archivada incompleta")
+                raise RuntimeError(
+                    "Continuidad educativa: copia local archivada incompleta"
+                )
     for path, payload in (
         (archive_root / "original.json", data),
         (
@@ -490,12 +496,16 @@ def _persist_pre_abandonment(folder, receipt, local_backup):
     ):
         if path.is_file():
             if path.is_symlink() or path.read_bytes() != payload:
-                raise RuntimeError("Continuidad educativa: archivo abandonado divergente")
+                raise RuntimeError(
+                    "Continuidad educativa: archivo abandonado divergente"
+                )
             continue
         try:
             fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
         except FileExistsError as exc:
-            raise RuntimeError("Continuidad educativa: archivo de abandono en conflicto") from exc
+            raise RuntimeError(
+                "Continuidad educativa: archivo de abandono en conflicto"
+            ) from exc
         with os.fdopen(fd, "wb") as stream:
             stream.write(payload)
             stream.flush()
@@ -680,7 +690,10 @@ def _quarantine_status(db, work, drive):
         "new_epoch": active_epoch,
         "new_study": new_study,
         "abandoned_pre_probe": (
-            {"status": "unbacked_archived", "missing_run_ids": archived_pre["missing_run_ids"]}
+            {
+                "status": "unbacked_archived",
+                "missing_run_ids": archived_pre["missing_run_ids"],
+            }
             if archived_pre
             else None
         ),
@@ -1203,14 +1216,20 @@ class Center:
             _source, folder, _ = _study_paths(self.work, self.drive)
             active_epoch = _active_fresh_epoch(folder, historical_quarantine["epoch"])
             try:
-                _verify_fresh_epoch_mirrors(chosen["file"], self.work, folder, active_epoch)
+                _verify_fresh_epoch_mirrors(
+                    chosen["file"], self.work, folder, active_epoch
+                )
             except RuntimeError:
                 # No terminal or post evidence may be written off. This narrowly
                 # handles an unfinished PRE probe whose receipt is newer than
                 # the latest SHA-verified snapshot.
                 abandoned_pre = _orphaned_pre_candidate(
-                    chosen["file"], self.work, folder,
-                    historical_quarantine["epoch"], chosen["sha256"], self.db
+                    chosen["file"],
+                    self.work,
+                    folder,
+                    historical_quarantine["epoch"],
+                    chosen["sha256"],
+                    self.db,
                 )
                 if abandoned_pre is None:
                     raise
@@ -1254,7 +1273,9 @@ class Center:
                         (run_id,),
                     ).fetchone()
                 if not evidence:
-                    raise RuntimeError("Continuidad educativa: backup local perdió prueba")
+                    raise RuntimeError(
+                        "Continuidad educativa: backup local perdió prueba"
+                    )
                 abandoned_pre["source_local_sha256"] = _sha(backup)
             _persist_pre_abandonment(folder, abandoned_pre, backup)
         _sqlite_backup(staged, self.db)
