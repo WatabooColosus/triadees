@@ -623,10 +623,17 @@ def render(r5, *, watch=True):
             visible = {
                 key: value[key]
                 for key in (
-                    "status", "version", "runtime", "api_http_200",
-                    "ollama_http_200", "bodega", "known_regression",
-                    "education_continuity", "backup_protection",
-                    "learning_circuit", "isolated_recovery",
+                    "status",
+                    "version",
+                    "runtime",
+                    "api_http_200",
+                    "ollama_http_200",
+                    "bodega",
+                    "known_regression",
+                    "education_continuity",
+                    "backup_protection",
+                    "learning_circuit",
+                    "isolated_recovery",
                     "memory_replaced_by_recovery",
                 )
                 if key in value
