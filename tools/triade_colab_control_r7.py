@@ -424,8 +424,7 @@ class Center:
                 )
             ) as conn:
                 verified = conn.execute(
-                    "SELECT source_sha256 FROM triade_isolated_canary "
-                    "WHERE nonce=?",
+                    "SELECT source_sha256 FROM triade_isolated_canary WHERE nonce=?",
                     (token,),
                 ).fetchone()
                 if verified != (before_hash,):
