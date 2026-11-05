@@ -317,6 +317,147 @@ def _verify_fresh_epoch_mirrors(db, work, folder, epoch_id):
     return _verify_fresh_epoch(db, active)
 
 
+def _abandoned_pre_receipt(folder, epoch_id):
+    """Find an immutable receipt for an orphaned, unfinished pre-probe epoch."""
+    pointer = folder / "epochs" / epoch_id / "current.json"
+    if not pointer.is_file() or pointer.is_symlink():
+        return None
+    digest = _sha(pointer)
+    archive_root = pointer.parent / "abandoned" / digest
+    archived = archive_root / "original.json"
+    receipt_path = archive_root / "receipt.json"
+    if not receipt_path.is_file():
+        return None
+    if any(path.is_symlink() for path in (archive_root, archived, receipt_path)):
+        raise RuntimeError("Continuidad educativa: archivo de época inseguro")
+    receipt = _read_json(receipt_path)
+    if not (
+        isinstance(receipt, dict)
+        and receipt.get("schema") == "triade.colab.preprobe_abandonment.v1"
+        and receipt.get("status") == "unbacked_preprobe_archived"
+        and receipt.get("original_epoch") == epoch_id
+        and receipt.get("original_sha256") == digest
+        and receipt.get("retry_epoch") == "retry-" + digest[:16]
+        and receipt.get("historical_certified") is False
+        and receipt.get("learning_credit") is False
+        and archived.is_file()
+        and _sha(archived) == digest
+    ):
+        raise RuntimeError("Continuidad educativa: abandono de época no verificable")
+    return receipt
+
+
+def _active_fresh_epoch(folder, epoch_id):
+    receipt = _abandoned_pre_receipt(folder, epoch_id)
+    return receipt["retry_epoch"] if receipt else epoch_id
+
+
+def _orphaned_pre_candidate(db, work, folder, epoch_id, review_sha):
+    """Only a single unbacked PRE probe can be archived, never certified.
+
+    A post probe, completed lesson, pending checkpoint or a conflicting local
+    pointer must fail closed. The original pointer and SQLite source are kept.
+    """
+    pointer = folder / "epochs" / epoch_id / "current.json"
+    if not pointer.is_file() or pointer.is_symlink():
+        return None
+    if _abandoned_pre_receipt(folder, epoch_id):
+        return None
+    state = _read_json(pointer)
+    if not isinstance(state, dict):
+        return None
+    pre, post = state.get("pre"), state.get("post")
+    if not (
+        state.get("phase") == "pre"
+        and state.get("rubric_version") == "functional-probe-1"
+        and type(state.get("neuron_id")) is int
+        and isinstance(pre, list)
+        and len(pre) == 1
+        and post == []
+        and not state.get("session_id")
+        and not state.get("result")
+        and not state.get("backup")
+        and state.get("stable_promotion_authorized") is False
+        and state.get("causal_improvement_certified") is False
+        and isinstance(state.get("study_id"), str)
+        and state["study_id"].startswith("prospective-")
+    ):
+        return None
+    proof = pre[0]
+    if not isinstance(proof, dict) or not isinstance(proof.get("run_id"), str):
+        return None
+    if not proof["run_id"] or proof.get("experimental_material_ids") != []:
+        return None
+    local = work / ("prospective_" + epoch_id + ".json")
+    if local.exists() and (local.is_symlink() or _read_json(local) != state):
+        raise RuntimeError("Continuidad educativa: época nueva local/Drive divergente")
+    with contextlib.closing(
+        sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=20)
+    ) as conn:
+        tables = {
+            row[0]
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        if "neuron_functional_assessments" not in tables:
+            return None
+        recorded = conn.execute(
+            "SELECT 1 FROM neuron_functional_assessments "
+            "WHERE run_id=? AND neuron_id=? AND phase='pre'",
+            (proof["run_id"], state["neuron_id"]),
+        ).fetchone()
+    if recorded:
+        return None
+    digest = _sha(pointer)
+    return {
+        "schema": "triade.colab.preprobe_abandonment.v1",
+        "status": "unbacked_preprobe_archived",
+        "original_epoch": epoch_id,
+        "original_sha256": digest,
+        "retry_epoch": "retry-" + digest[:16],
+        "selected_review_sha256": review_sha,
+        "missing_run_ids": [proof["run_id"]],
+        "historical_certified": False,
+        "learning_credit": False,
+        "original_pointer_preserved": True,
+    }
+
+
+def _persist_pre_abandonment(folder, receipt):
+    """Append-only archive before replacing the local working SQLite snapshot."""
+    pointer = folder / "epochs" / receipt["original_epoch"] / "current.json"
+    if pointer.is_symlink() or _sha(pointer) != receipt["original_sha256"]:
+        raise RuntimeError("Continuidad educativa: época original cambió")
+    archive_root = pointer.parent / "abandoned" / receipt["original_sha256"]
+    if any(path.is_symlink() for path in (archive_root, *archive_root.parents)):
+        raise RuntimeError("Continuidad educativa: ruta de abandono insegura")
+    archive_root.mkdir(parents=True, exist_ok=True)
+    data = pointer.read_bytes()
+    if hashlib.sha256(data).hexdigest() != receipt["original_sha256"]:
+        raise RuntimeError("Continuidad educativa: época original no coincide")
+    for path, payload in (
+        (archive_root / "original.json", data),
+        (
+            archive_root / "receipt.json",
+            (json.dumps(receipt, sort_keys=True, indent=2) + "\n").encode(),
+        ),
+    ):
+        if path.is_file():
+            if path.is_symlink() or path.read_bytes() != payload:
+                raise RuntimeError("Continuidad educativa: archivo abandonado divergente")
+            continue
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError as exc:
+            raise RuntimeError("Continuidad educativa: archivo de abandono en conflicto") from exc
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+    if not _abandoned_pre_receipt(folder, receipt["original_epoch"]):
+        raise RuntimeError("Continuidad educativa: abandono no verificable")
+    return receipt["retry_epoch"]
+
+
 def _legacy_quarantine_candidate(db, work, drive, review_sha):
     """Admit an unbacked 2026-era done *claim*, never a certified finished lesson.
 
@@ -481,14 +622,21 @@ def _quarantine_status(db, work, drive):
         ).fetchone()
     if row is None or row[0] != "lesson_prepared":
         return None
-    new_study = _verify_fresh_epoch_mirrors(db, work, folder, receipt["epoch"])
+    active_epoch = _active_fresh_epoch(folder, receipt["epoch"])
+    new_study = _verify_fresh_epoch_mirrors(db, work, folder, active_epoch)
+    archived_pre = _abandoned_pre_receipt(folder, receipt["epoch"])
     return {
         "status": "historical_unverified_quarantined",
         "historical_certified": False,
         "historical_session": receipt["session_id"],
         "missing_evidence": receipt["missing_evidence"],
-        "new_epoch": receipt["epoch"],
+        "new_epoch": active_epoch,
         "new_study": new_study,
+        "abandoned_pre_probe": (
+            {"status": "unbacked_archived", "missing_run_ids": archived_pre["missing_run_ids"]}
+            if archived_pre
+            else None
+        ),
     }
 
 
@@ -991,11 +1139,25 @@ class Center:
                 )
             if historical_quarantine is None:
                 raise
+        abandoned_pre = None
         if historical_quarantine is not None:
             _source, folder, _ = _study_paths(self.work, self.drive)
-            _verify_fresh_epoch_mirrors(
-                chosen["file"], self.work, folder, historical_quarantine["epoch"]
-            )
+            active_epoch = _active_fresh_epoch(folder, historical_quarantine["epoch"])
+            try:
+                _verify_fresh_epoch_mirrors(chosen["file"], self.work, folder, active_epoch)
+            except RuntimeError:
+                # No terminal or post evidence may be written off. This narrowly
+                # handles an unfinished PRE probe whose receipt is newer than
+                # the latest SHA-verified snapshot.
+                abandoned_pre = _orphaned_pre_candidate(
+                    chosen["file"], self.work, folder,
+                    historical_quarantine["epoch"], chosen["sha256"]
+                )
+                if abandoned_pre is None:
+                    raise
+                _verify_fresh_epoch_mirrors(
+                    chosen["file"], self.work, folder, abandoned_pre["retry_epoch"]
+                )
         # WAL/SHM presence alone is normal, including after read-only checks.
         # Let SQLite preserve committed WAL state and restore transactionally;
         # never replace the database inode underneath existing sidecars/readers.
@@ -1016,6 +1178,11 @@ class Center:
         if historical_quarantine is not None:
             # Archive immutable original claim BEFORE any SQLite mutation.
             _persist_legacy_quarantine(self.work, self.drive, historical_quarantine)
+        if abandoned_pre is not None:
+            # A verified pre-restore local SQLite backup already exists above.
+            # Preserve the unfinished Drive pointer verbatim in an append-only
+            # archive and choose an independent epoch with fresh run IDs.
+            _persist_pre_abandonment(folder, abandoned_pre)
         _sqlite_backup(staged, self.db)
         if _counts(self.db) != current:
             raise RuntimeError("Imagen restaurada no coincide; no arrancar API")
