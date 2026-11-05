@@ -1,5 +1,6 @@
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import ClassVar
 
 import pytest
@@ -146,7 +147,12 @@ def test_rate_limit_uses_rolling_window_across_minute_boundary(
     current = time.time()
     boundary = (int(current // 60) + 1) * 60
     ticks = iter((boundary - 0.1, boundary + 0.1, boundary + 0.2))
-    monkeypatch.setattr("triade.security.public_auth.time.time", lambda: next(ticks))
+    # Replace only the auth module clock: patching the shared time.time function
+    # also changes the clock used by unrelated live Tríade runner threads.
+    monkeypatch.setattr(
+        "triade.security.public_auth.time",
+        SimpleNamespace(time=lambda: next(ticks)),
+    )
 
     auth.authorize(token, required_role="viewer")
     auth.authorize(token, required_role="viewer")
