@@ -451,9 +451,12 @@ class Client:
             self.thread.join(timeout=1)
 
     def action(self, name):
-        if name == "status" and self.diagnostic_module:
+        if name in ("status", "prepare_isolated_recovery") and self.diagnostic_module:
             with self.lock:
-                return self.diagnostic_module.status(self.diagnostic_context)
+                callback = getattr(self.diagnostic_module, name, None)
+                if not callable(callback):
+                    raise TypeError("Esta versión no ofrece la acción: " + name)
+                return callback(self.diagnostic_context)
         if not self.module:
             if self.last_error:
                 raise RuntimeError(
@@ -578,6 +581,10 @@ def render(r5, *, watch=True):
         button("Comprobar nuevas versiones", client.check, "info"),
         button("Abrir Tríade", lambda: client.action("open_frontend")),
         button("Estado real", lambda: client.action("status")),
+        button(
+            "Preparar recuperación aislada",
+            lambda: client.action("prepare_isolated_recovery"),
+        ),
         button("Guardar memoria", lambda: client.action("save")),
         button("Auditar actividad (30 s)", lambda: client.action("audit")),
         button("Ver circuito de aprendizaje", lambda: client.action("learning_status")),
