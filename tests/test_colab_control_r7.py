@@ -894,11 +894,13 @@ def test_post_or_terminal_epoch_cannot_be_abandoned():
             state.update(change)
             epoch.write_text(json.dumps(state))
             live = r7._sha(fake.DB)
-            with patch.object(r7, "_check_api", return_value=False):
-                with unittest.TestCase().assertRaisesRegex(
+            with (
+                patch.object(r7, "_check_api", return_value=False),
+                unittest.TestCase().assertRaisesRegex(
                     RuntimeError, "Continuidad educativa"
-                ):
-                    r7.Center(fake)._restore_best_before_api()
+                ),
+            ):
+                r7.Center(fake)._restore_best_before_api()
             assert r7._sha(fake.DB) == live
             assert not (epoch.parent / "abandoned").exists()
             assert original.is_file()
@@ -912,11 +914,13 @@ def test_conflicting_pre_epoch_mirrors_block_without_archiving():
         local = fake.WORK / ("prospective_" + epoch.parent.name + ".json")
         local.write_text(json.dumps({"phase": "pre", "pre": []}))
         before = r7._sha(fake.DB)
-        with patch.object(r7, "_check_api", return_value=False):
-            with unittest.TestCase().assertRaisesRegex(
+        with (
+            patch.object(r7, "_check_api", return_value=False),
+            unittest.TestCase().assertRaisesRegex(
                 RuntimeError, "local/Drive divergente"
-            ):
-                r7.Center(fake)._restore_best_before_api()
+            ),
+        ):
+            r7.Center(fake)._restore_best_before_api()
         assert before == r7._sha(fake.DB)
         assert not (epoch.parent / "abandoned").exists()
 
