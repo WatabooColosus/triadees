@@ -31,9 +31,7 @@ def test_recovered_education_starts_fresh_epoch_without_rewriting_old_pointer(tm
     _seed_review_study(r5.DB, post_count=4)
     old = _unbacked_legacy_claim(r5)
     historical_bytes = old.read_bytes()
-    candidate = r7._legacy_quarantine_candidate(
-        r5.DB, r5.WORK, r5.BASE, "e" * 64
-    )
+    candidate = r7._legacy_quarantine_candidate(r5.DB, r5.WORK, r5.BASE, "e" * 64)
     assert candidate is not None
     r7._persist_legacy_quarantine(r5.WORK, r5.BASE, candidate)
     restored = r5.WORK / "control_r7" / "last_restore.json"
