@@ -264,12 +264,13 @@ def _verify_archived_study(backup, file, study):
     with tempfile.TemporaryDirectory(prefix="triade-study-proof-") as directory:
         extracted = Path(directory) / "restored-checkpoint.sqlite3"
         result = backup.restore_to_sandbox(file, extracted)
-        if (
-            result.get("status") != "restored_sandbox"
-            or result.get("production_overwritten")
+        if result.get("status") != "restored_sandbox" or result.get(
+            "production_overwritten"
         ):
             raise RuntimeError("prospective_checkpoint_restore_unverified")
-        with sqlite3.connect(extracted.resolve().as_uri() + "?mode=ro", uri=True) as conn:
+        with sqlite3.connect(
+            extracted.resolve().as_uri() + "?mode=ro", uri=True
+        ) as conn:
             row = conn.execute(
                 "SELECT state,post_score FROM neuron_education_sessions "
                 "WHERE session_id=? AND neuron_id=?",
@@ -297,7 +298,9 @@ def _verify_archived_study(backup, file, study):
                     or abs(float(found[2]) - score) > 1e-6
                     or (phase == "post" and found[3] != session_id)
                 ):
-                    raise RuntimeError("prospective_checkpoint_run_missing_or_mismatched")
+                    raise RuntimeError(
+                        "prospective_checkpoint_run_missing_or_mismatched"
+                    )
     return {
         "verified_run_count": len(run_proofs),
         "study_id": str(study.get("study_id") or ""),
