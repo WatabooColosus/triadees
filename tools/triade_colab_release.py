@@ -511,6 +511,11 @@ def status(context):
     return result
 
 
+def prepare_isolated_recovery(context):
+    """Stage an offline local fork even when normal installation is blocked."""
+    return _center(context).prepare_isolated_recovery()
+
+
 def save(context):
     return _center(context).save()
 
