@@ -615,7 +615,9 @@ def _quarantine_transition_path(folder, digest, review_sha):
         or any(ch not in "0123456789abcdef" for ch in review_sha)
     ):
         raise RuntimeError("Continuidad educativa: SHA de revisión inválido")
-    return folder / "quarantine" / digest / "review_transitions" / (review_sha + ".json")
+    return (
+        folder / "quarantine" / digest / "review_transitions" / (review_sha + ".json")
+    )
 
 
 def _verify_quarantine_anchor(original, archive, receipt, expected):
@@ -647,9 +649,10 @@ def _verify_quarantine_anchor(original, archive, receipt, expected):
         or any(ch not in "0123456789abcdef" for ch in old_sha)
     ):
         raise RuntimeError("Continuidad educativa: SHA histórico inválido")
-    if receipt.read_bytes() != (
-        json.dumps(stored, sort_keys=True, indent=2) + "\n"
-    ).encode():
+    if (
+        receipt.read_bytes()
+        != (json.dumps(stored, sort_keys=True, indent=2) + "\n").encode()
+    ):
         raise RuntimeError("Continuidad educativa: recibo histórico alterado")
     return stored
 
@@ -673,9 +676,10 @@ def _verify_quarantine_transition(folder, digest, record, receipt):
     }
     if not target.is_file() or _read_json(target) != expected:
         raise RuntimeError("Continuidad educativa: transición de revisión divergente")
-    if target.read_bytes() != (
-        json.dumps(expected, sort_keys=True, indent=2) + "\n"
-    ).encode():
+    if (
+        target.read_bytes()
+        != (json.dumps(expected, sort_keys=True, indent=2) + "\n").encode()
+    ):
         raise RuntimeError("Continuidad educativa: transición de revisión alterada")
     return target
 
@@ -721,13 +725,17 @@ def _persist_legacy_quarantine(work, drive, record):
                 )
             else:
                 transition.parent.mkdir(parents=True, exist_ok=True)
-                payload = (json.dumps(expected, sort_keys=True, indent=2) + "\n").encode()
+                payload = (
+                    json.dumps(expected, sort_keys=True, indent=2) + "\n"
+                ).encode()
                 try:
                     fd = os.open(
                         transition, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600
                     )
                 except FileExistsError as exc:
-                    raise RuntimeError("Continuidad educativa: transición en conflicto") from exc
+                    raise RuntimeError(
+                        "Continuidad educativa: transición en conflicto"
+                    ) from exc
                 with os.fdopen(fd, "wb") as handle:
                     handle.write(payload)
                     handle.flush()
