@@ -301,7 +301,7 @@ def _legacy_quarantine_candidate(db, work, drive, review_sha):
     Strictly distinguishes a false/uncertified Drive pointer from committed
     functional data. Does not write the original pointer, database or Drive.
     """
-    source, folder, original = _study_paths(work, drive)
+    source, _folder, original = _study_paths(work, drive)
     if not original.is_file() or original.stat().st_size > 200_000:
         return None
     state = _read_json(original)
@@ -963,7 +963,7 @@ class Center:
             if historical_quarantine is None:
                 raise
         if historical_quarantine is not None:
-            source, folder, _ = _study_paths(self.work, self.drive)
+            _source, folder, _ = _study_paths(self.work, self.drive)
             _verify_fresh_epoch(
                 chosen["file"],
                 folder / "epochs" / historical_quarantine["epoch"] / "current.json",
