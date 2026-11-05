@@ -639,7 +639,6 @@ def test_prepares_only_local_isolated_fork_with_historical_evidence_quarantined(
         assert receipt["recovery_certified"] is False
 
 
-
 def _unbacked_legacy_claim(r5):
     _finished_study_pointer(r5)
     folder = r5.BASE / "operacion_colab_continua" / "aprendizaje" / ("a" * 16)
