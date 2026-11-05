@@ -7,7 +7,7 @@
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "366179dcad6169cd6cb4744f692dd9f8b8e51187",
+  "commit": "8793ba317756d05208c396a4d7150fbe26db2574",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
@@ -19,7 +19,7 @@
     },
     "client": {
       "path": "tools/triade_colab_continuous.py",
-      "sha256": "6343e67f2f45253d7d6e83ae855284dadf77b865fb0fddce31cf1869347ab009"
+      "sha256": "bc4a1c0ac0eedd8d80c552e4df4c9c3da63bc3fef687e072e945b21e47f48e79"
     },
     "rehydrator": {
       "path": "tools/triade_colab_continuity_r631.py",
