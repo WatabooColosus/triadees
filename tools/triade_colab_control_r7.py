@@ -1111,7 +1111,19 @@ class Center:
                     "V2 retrocede y no hay copia revisada más reciente acreditada: "
                     + str(failures)
                 )
-            _check_completed_study_evidence(self.db, self.work, self.drive)
+            try:
+                _check_completed_study_evidence(self.db, self.work, self.drive)
+            except RuntimeError:
+                # An already-restored copy may be reused only with its
+                # exact SHA-bound quarantine receipt and verified active epoch.
+                existing = _quarantine_status(self.db, self.work, self.drive)
+                if existing is None:
+                    raise
+                return {
+                    "result": "Bodega local intacta con cuarentena verificada",
+                    "counts": prior,
+                    "education_continuity": existing,
+                }
             return {
                 "result": "V2 local validada y suficiente; no se reemplazó",
                 "counts": prior,
