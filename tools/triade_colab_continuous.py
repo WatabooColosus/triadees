@@ -497,6 +497,15 @@ class Client:
             raise TypeError("Esta versión no ofrece la acción: " + name)
         with self.lock:
             self.context["progress"] = self.progress
+            if name == "open_frontend":
+                # Never open a stale or unverified service just because the
+                # notebook still has a connected kernel.
+                verifier = getattr(self.module, "verify", None)
+                if not callable(verifier) or verifier(self.context) is not True:
+                    raise RuntimeError(
+                        "Abrir Tríade bloqueado: primero acredita API, Ollama, "
+                        "Bodega y versión mediante Encender / actualizar"
+                    )
             return callback(self.context)
 
 
@@ -520,7 +529,8 @@ def render(r5, *, watch=True):
             previous.lock.release()
     banner = widgets.HTML(
         "<h2>TRÍADE Ω · Centro continuo de Colab</h2>"
-        "<p>Una acción instala, enciende o actualiza. Drive conserva tu memoria.</p>"
+        "<p>Encender / actualizar prepara Tríade; Abrir Tríade abre solo "
+        "una instancia verificada. Drive conserva tu memoria.</p>"
     )
     status = widgets.HTML(
         "Panel listo; el ciclo comprobará la versión después de conectar Drive"
@@ -607,6 +617,7 @@ def render(r5, *, watch=True):
 
     actions = [
         button("Instalar / encender / actualizar", client.install, "success"),
+        button("Abrir Tríade", lambda: client.action("open_frontend"), "info"),
     ]
     client.set_busy = lambda value: [
         setattr(control, "disabled", value) for control in buttons
