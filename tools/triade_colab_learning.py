@@ -49,6 +49,58 @@ def _read(path):
         return {}
 
 
+def _hash_file(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for block in iter(lambda: stream.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _active_epoch_after_abandonment(folder, epoch_id):
+    """Read-only verification of a single archived, unfinished pre-probe."""
+    original = folder / "epochs" / epoch_id / "current.json"
+    if not original.is_file() or original.is_symlink():
+        return epoch_id
+    digest = hashlib.sha256(original.read_bytes()).hexdigest()
+    root = original.parent / "abandoned" / digest
+    receipt_file = root / "receipt.json"
+    if not receipt_file.is_file():
+        return epoch_id
+    archive = root / "original.json"
+    if (
+        any(path.is_symlink() for path in (root, receipt_file, archive))
+        or not archive.is_file()
+        or hashlib.sha256(archive.read_bytes()).hexdigest() != digest
+    ):
+        raise NotReady("abandoned_preprobe_archive_invalid")
+    receipt = _read(receipt_file)
+    expected = "retry-" + digest[:16]
+    if not (
+        receipt.get("schema") == "triade.colab.preprobe_abandonment.v1"
+        and receipt.get("status") == "unbacked_preprobe_archived"
+        and receipt.get("original_epoch") == epoch_id
+        and receipt.get("original_sha256") == digest
+        and receipt.get("retry_epoch") == expected
+        and receipt.get("historical_certified") is False
+        and receipt.get("learning_credit") is False
+        and receipt.get("original_pointer_preserved") is True
+        and len(receipt.get("missing_run_ids") or []) == 1
+        and (
+            not receipt.get("local_run_present")
+            or (
+                isinstance(receipt.get("source_local_sha256"), str)
+                and (root / "original-local.sqlite3").is_file()
+                and not (root / "original-local.sqlite3").is_symlink()
+                and _hash_file(root / "original-local.sqlite3")
+                == receipt["source_local_sha256"]
+            )
+        )
+    ):
+        raise NotReady("abandoned_preprobe_receipt_invalid")
+    return expected
+
+
 def _quarantined_epoch(r5):
     """Use a separate learning namespace only after an immutable forensic receipt.
 
@@ -95,7 +147,7 @@ def _quarantined_epoch(r5):
         and receipt.get("epoch") == "recovery-" + digest[:16]
     ):
         return None
-    epoch = receipt["epoch"]
+    epoch = _active_epoch_after_abandonment(original.parent, receipt["epoch"])
     return {
         "id": epoch,
         "local": root / ("prospective_" + epoch + ".json"),
