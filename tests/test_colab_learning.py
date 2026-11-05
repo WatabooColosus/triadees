@@ -341,6 +341,10 @@ def test_rerender_rebuilds_widgets_but_preserves_verified_context(
     )
     old.context = {"progress": old.progress, "verified_counts": {"neurons": 16}}
     old.auto_apply = True
+    old.last_observation = {
+        "status": "observation_only",
+        "learning_circuit": {"status": "blocked"},
+    }
     old.progress("Tríade ya está encendida")
     new = panel.render(r5, watch=False)
     assert new is not old
@@ -348,79 +352,30 @@ def test_rerender_rebuilds_widgets_but_preserves_verified_context(
     assert new.module is old.module
     assert new.context["verified_counts"] == {"neurons": 16}
     assert new.context["progress"].__self__ is new
-    assert new.auto_apply is True
-    assert new.view[-2].value is True
-    assert "Iniciar aprendizaje verificado" not in [
-        b.description for b in new.view[3].children
+    # No manual operational buttons or auto-update checkbox remain.
+    assert new.auto_apply is False
+    assert [button.description for button in new.view[3].children] == [
+        "Instalar / encender / actualizar"
     ]
-    status_button = next(
-        button
-        for button in new.view[3].children
-        if button.description == "Ver circuito de aprendizaje"
-    )
-    status_button.callback(None)
-    assert "&quot;status&quot;: &quot;observed&quot;" in new.view[-1].value
-    assert "&quot;neuron_id&quot;: 11" in new.view[-1].value
+    assert "learning_circuit" in new.view[-2].value
+    assert "blocked" in new.view[-2].value
 
 
-def test_learning_attach_uses_stable_html_for_legacy_output_widget(monkeypatch):
-    class Widget:
-        def __init__(self, *args, **kwargs):
-            self.children = args[0] if args else ()
-            self.value = kwargs.get("value", "")
-            self.description = kwargs.get("description", "")
-
-        def on_click(self, callback):
-            self.callback = callback
-
-    class LegacyOutput:
-        pass
-
-    widgets = SimpleNamespace(
-        Button=Widget,
-        HTML=Widget,
-        Layout=Widget,
-        Box=Widget,
-    )
-    monkeypatch.setitem(sys.modules, "ipywidgets", widgets)
-    display_calls = []
-    display_module = SimpleNamespace(display=lambda item: display_calls.append(item))
-    monkeypatch.setitem(sys.modules, "IPython", SimpleNamespace(display=display_module))
-    monkeypatch.setitem(sys.modules, "IPython.display", display_module)
-
+def test_learning_attachment_does_not_create_ui_actions():
     class Client:
         def __init__(self):
-            self.view = (
-                None,
-                None,
-                None,
-                Widget((Widget(description="Estado real"),)),
-                None,
-                None,
-                LegacyOutput(),
-            )
-            self.results = []
+            self.view = [None, None, None, SimpleNamespace(children=()), None]
 
         def progress(self, message):
             pass
 
-        def action(self, name):
-            self.results.append(name)
-            return {"status": "observed", "action": name}
-
     client = Client()
+    before = client.view[3].children
     assert learning.attach({"progress": client.progress}) == {
-        "status": "learning_controls_attached"
+        "status": "learning_observation_only",
+        "manual_controls": False,
     }
-    assert display_calls == [client.view[-1]]
-    button = next(
-        item
-        for item in client.view[3].children
-        if item.description == "Ver circuito de aprendizaje"
-    )
-    button.callback(button)
-    assert client.results == ["learning_status"]
-    assert "&quot;status&quot;: &quot;observed&quot;" in client.view[-1].value
+    assert client.view[3].children == before
 
 
 def test_complete_prospective_fixture_preserves_history_and_does_not_claim_causality(
