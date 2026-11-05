@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import contextlib
 import datetime as dt
+import hashlib
 import importlib
 import json
 import math
@@ -48,6 +49,149 @@ def _read(path):
         return {}
 
 
+def _quarantined_epoch(r5):
+    """Use a separate learning namespace only after an immutable forensic receipt.
+
+    An unbacked legacy `done` claim remains unchanged, with no learned credit.
+    No application can silently convert that historical claim to a real run.
+    """
+    root = Path(r5.WORK)
+    proof = _read(root / "restore_proof.json")
+    lineage = str(proof.get("source_sha256") or "")
+    if len(lineage) != 64 or any(ch not in "0123456789abcdef" for ch in lineage):
+        return None
+    original = (
+        Path(r5.BASE)
+        / "operacion_colab_continua"
+        / "aprendizaje"
+        / lineage[:16]
+        / "current.json"
+    )
+    if not original.is_file() or any(
+        p.is_symlink() for p in (original, *original.parents)
+    ):
+        return None
+    digest = hashlib.sha256(original.read_bytes()).hexdigest()
+    receipt_path = original.parent / "quarantine" / digest / "receipt.json"
+    archived = receipt_path.parent / "original.json"
+    if (
+        not receipt_path.is_file()
+        or not archived.is_file()
+        or any(p.is_symlink() for p in (receipt_path, archived))
+    ):
+        return None
+    receipt = _read(receipt_path)
+    restore = _read(root / "control_r7" / "last_restore.json")
+    if not (
+        receipt.get("schema") == "triade.colab.historical_study_quarantine.v1"
+        and receipt.get("status") == "historical_claim_unverified"
+        and receipt.get("source_sha256") == lineage
+        and receipt.get("original_sha256") == digest
+        and receipt.get("historical_certified") is False
+        and receipt.get("historical_promotion_authorized") is False
+        and restore.get("status") == "review_restored_quarantined_history"
+        and receipt.get("selected_review_sha256") == restore.get("sha256")
+        and hashlib.sha256(archived.read_bytes()).hexdigest() == digest
+        and receipt.get("epoch") == "recovery-" + digest[:16]
+    ):
+        return None
+    epoch = receipt["epoch"]
+    return {
+        "id": epoch,
+        "local": root / ("prospective_" + epoch + ".json"),
+        "remote": original.parent / "epochs" / epoch / "current.json",
+        "original_study_id": receipt.get("session_id"),
+        "historical_certified": False,
+    }
+
+
+def _epoch_state(epoch):
+    """Reject split-brain state rather than choose an older local/Drive mirror."""
+    local = _read(epoch["local"])
+    remote = _read(epoch["remote"])
+    if local and remote and local != remote:
+        raise NotReady("fresh_epoch_mirror_conflict")
+    return local or remote
+
+
+def _quarantined_learning_lineage(r5, epoch):
+    """Validate every recorded fresh probe and all terminal claims on startup."""
+    try:
+        state = _epoch_state(epoch)
+    except NotReady:
+        return {"status": "blocked", "reason": "fresh_epoch_mirror_conflict"}
+    if not state:
+        return {
+            "status": "quarantined_fresh_epoch_ready",
+            "historical_certified": False,
+            "new_epoch": epoch["id"],
+        }
+    if state.get("session_id") == epoch["original_study_id"]:
+        return {"status": "blocked", "reason": "fresh_epoch_reused_historical_session"}
+    if state.get("phase") == "done" and not (
+        isinstance(state.get("backup"), dict)
+        and state["backup"].get("study_checkpoint")
+    ):
+        return {"status": "blocked", "reason": "fresh_epoch_checkpoint_missing"}
+    neuron = state.get("neuron_id")
+    if type(neuron) is not int:
+        return {"status": "blocked", "reason": "fresh_epoch_neuron_invalid"}
+    try:
+        with contextlib.closing(_connect(r5.DB)) as conn:
+            tables = _tables(conn)
+            for phase in ("pre", "post"):
+                for item in state.get(phase, []):
+                    run_id = item.get("run_id") if isinstance(item, dict) else None
+                    if not isinstance(run_id, str) or not run_id:
+                        return {"status": "blocked", "reason": "fresh_run_invalid"}
+                    if (
+                        "neuron_functional_assessments" not in tables
+                        or not conn.execute(
+                            "SELECT 1 FROM neuron_functional_assessments "
+                            "WHERE run_id=? AND neuron_id=? AND phase=?",
+                            (run_id, neuron, phase),
+                        ).fetchone()
+                    ):
+                        return {
+                            "status": "regressed",
+                            "reason": "fresh_epoch_run_missing",
+                        }
+            session_id = state.get("session_id")
+            if session_id:
+                if "neuron_education_sessions" not in tables:
+                    return {
+                        "status": "regressed",
+                        "reason": "fresh_epoch_session_missing",
+                    }
+                row = conn.execute(
+                    "SELECT state FROM neuron_education_sessions "
+                    "WHERE session_id=? AND neuron_id=?",
+                    (session_id, neuron),
+                ).fetchone()
+                if row is None:
+                    return {
+                        "status": "regressed",
+                        "reason": "fresh_epoch_session_missing",
+                    }
+                if state.get("phase") == "done":
+                    expected = ((state.get("result") or {}).get("session") or {}).get(
+                        "state"
+                    )
+                    if not expected or row[0] != expected:
+                        return {
+                            "status": "regressed",
+                            "reason": "fresh_epoch_state_rolled_back",
+                        }
+    except (sqlite3.Error, OSError, ValueError):
+        return {"status": "blocked", "reason": "fresh_epoch_unreadable"}
+    return {
+        "status": "quarantined_fresh_epoch_aligned",
+        "historical_certified": False,
+        "new_epoch": epoch["id"],
+        "phase": state.get("phase"),
+    }
+
+
 def _study_memory_lineage(r5):
     """Observe whether a verified Drive study points beyond the active SQLite.
 
@@ -57,6 +201,9 @@ def _study_memory_lineage(r5):
     """
     if not hasattr(r5, "BASE") or not hasattr(r5, "WORK"):
         return {"status": "not_observed"}
+    epoch = _quarantined_epoch(r5)
+    if epoch is not None:
+        return _quarantined_learning_lineage(r5, epoch)
     proof = _read(Path(r5.WORK) / "restore_proof.json")
     source = str(proof.get("source_sha256") or "")
     if len(source) != 64 or any(ch not in "0123456789abcdef" for ch in source):
@@ -793,23 +940,38 @@ def _resolve(db, session_id, run_ids):
 
 def _save(context, state):
     protection = context["protection_module"]
-    path = Path(context["r5"].WORK) / "prospective_learning.json"
+    epoch = _quarantined_epoch(context["r5"])
+    path = (
+        epoch["local"]
+        if epoch
+        else Path(context["r5"].WORK) / "prospective_learning.json"
+    )
+    if epoch and state.get("session_id") == epoch["original_study_id"]:
+        raise NotReady("fresh_epoch_reused_historical_session")
     state["updated_at"] = dt.datetime.now(dt.UTC).isoformat()
     protection._json(path, state)
-    source = protection._paths(context["r5"]).name
-    protection._json(
-        Path(context["r5"].BASE)
-        / "operacion_colab_continua"
-        / "aprendizaje"
-        / source
-        / "current.json",
-        state,
-    )
+    if epoch:
+        # Never overwrite the historical done claim or its exact archived bytes.
+        remote = epoch["remote"]
+    else:
+        source = protection._paths(context["r5"]).name
+        remote = (
+            Path(context["r5"].BASE)
+            / "operacion_colab_continua"
+            / "aprendizaje"
+            / source
+            / "current.json"
+        )
+    protection._json(remote, state)
     return state
 
 
 def _study_state(context):
     r5 = context["r5"]
+    epoch = _quarantined_epoch(r5)
+    if epoch:
+        # Independent real run IDs; do not replay the old done pointer.
+        return _epoch_state(epoch)
     state = _read(Path(r5.WORK) / "prospective_learning.json")
     if state:
         return state
@@ -881,6 +1043,9 @@ def step(context):
         ).run_once(force=True, target_neuron_id=state["neuron_id"])
         if lesson.get("status") != "lesson_prepared":
             raise NotReady("official_curriculum:" + str(lesson.get("status")))
+        epoch = _quarantined_epoch(r5)
+        if epoch and lesson.get("session_id") == epoch["original_study_id"]:
+            raise NotReady("fresh_epoch_reused_historical_session")
         with contextlib.closing(_connect(r5.DB)) as conn:
             stored = conn.execute(
                 "SELECT lesson_json FROM neuron_education_sessions WHERE session_id=?",

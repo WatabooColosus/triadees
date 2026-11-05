@@ -17,6 +17,81 @@ from tools import triade_colab_learning as learning
 from tools import triade_colab_release as adapter
 
 
+def test_recovered_education_starts_fresh_epoch_without_rewriting_old_pointer(tmp_path):
+    from tests.test_colab_control_r7 import (
+        FakeR5,
+        _seed_review_study,
+        _unbacked_legacy_claim,
+        make_db,
+        r7,
+    )
+
+    r5 = FakeR5(tmp_path)
+    make_db(r5.DB)
+    _seed_review_study(r5.DB, post_count=4)
+    old = _unbacked_legacy_claim(r5)
+    historical_bytes = old.read_bytes()
+    candidate = r7._legacy_quarantine_candidate(r5.DB, r5.WORK, r5.BASE, "e" * 64)
+    assert candidate is not None
+    r7._persist_legacy_quarantine(r5.WORK, r5.BASE, candidate)
+    restored = r5.WORK / "control_r7" / "last_restore.json"
+    restored.parent.mkdir(parents=True, exist_ok=True)
+    restored.write_text(
+        json.dumps(
+            {
+                "status": "review_restored_quarantined_history",
+                "sha256": "e" * 64,
+            }
+        )
+    )
+    epoch = learning._quarantined_epoch(r5)
+    assert epoch is not None
+    assert epoch["historical_certified"] is False
+    storage = SimpleNamespace(
+        _json=lambda p, v: (
+            Path(p).parent.mkdir(parents=True, exist_ok=True),
+            Path(p).write_text(json.dumps(v)),
+        )
+    )
+    context = {"r5": r5, "protection_module": storage}
+    assert learning._study_state(context) == {}
+    assert learning._study_memory_lineage(r5)["status"] == (
+        "quarantined_fresh_epoch_ready"
+    )
+    new_state = {"phase": "pre", "neuron_id": 11, "pre": [], "post": []}
+    learning._save(context, new_state)
+    assert old.read_bytes() == historical_bytes
+    assert epoch["remote"].is_file()
+    assert epoch["local"].is_file()
+    assert learning._study_state(context)["phase"] == "pre"
+    assert learning._study_memory_lineage(r5)["status"] == (
+        "quarantined_fresh_epoch_aligned"
+    )
+    assert not (r5.WORK / "prospective_learning.json").exists()
+    epoch["local"].write_text(
+        json.dumps({"phase": "post", "neuron_id": 11, "pre": [], "post": []})
+    )
+    assert learning._study_memory_lineage(r5) == {
+        "status": "blocked",
+        "reason": "fresh_epoch_mirror_conflict",
+    }
+    with pytest.raises(learning.NotReady, match="fresh_epoch_mirror_conflict"):
+        learning._study_state(context)
+    epoch["local"].write_text(epoch["remote"].read_text())
+    forbidden = {
+        "phase": "post",
+        "neuron_id": 11,
+        "session_id": epoch["original_study_id"],
+        "pre": [],
+        "post": [],
+    }
+    with pytest.raises(
+        learning.NotReady, match="fresh_epoch_reused_historical_session"
+    ):
+        learning._save(context, forbidden)
+    assert old.read_bytes() == historical_bytes
+
+
 def test_application_recorder_is_scoped_idempotent_and_preserves_old_sessions(tmp_path):
     db = _db(tmp_path)
     with sqlite3.connect(db) as conn:

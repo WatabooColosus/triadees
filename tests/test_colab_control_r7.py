@@ -639,6 +639,126 @@ def test_prepares_only_local_isolated_fork_with_historical_evidence_quarantined(
         assert receipt["recovery_certified"] is False
 
 
+def _unbacked_legacy_claim(r5):
+    _finished_study_pointer(r5)
+    folder = r5.BASE / "operacion_colab_continua" / "aprendizaje" / ("a" * 16)
+    original = folder / "current.json"
+    state = json.loads(original.read_text())
+    state["rubric_version"] = "functional-probe-1"
+    state["study_id"] = "prospective-real-legacy"
+    state["backup"] = {"status": "encrypted_copy_verified"}
+    original.write_text(json.dumps(state))
+    return original
+
+
+def test_uncertified_legacy_claim_quarantines_without_fabricating_probes():
+    with tempfile.TemporaryDirectory() as root:
+        fake = FakeR5(Path(root))
+        make_db(fake.DB, applications=15, tasks=2500)
+        original = _unbacked_legacy_claim(fake)
+        before_pointer = original.read_bytes()
+        folder = fake.BASE / "operacion_colab_r5" / "ramas_en_revision" / ("a" * 16)
+        folder.mkdir(parents=True)
+        image = folder / "r5-checkpoint.sqlite3"
+        make_db(image, applications=20, tasks=2501)
+        _seed_review_study(image, post_count=4)
+        manifest = {
+            "status": "review_branch_only",
+            "lineage": "90e9a51dd7ffef31",
+            "file": image.name,
+            "source_v2_sha256": "a" * 64,
+            "code_sha": r7.PIN,
+            "sha256": r7._sha(image),
+            "counts": {
+                k: v for k, v in r7._counts(image).items() if k != "neuron_activity"
+            },
+        }
+        (folder / "latest_review.json").write_text(json.dumps(manifest))
+        image.with_suffix(".json").write_text(json.dumps(manifest))
+        previous_v2 = r7._sha(fake.DB)
+        with patch.object(r7, "_check_api", return_value=False):
+            result = r7.Center(fake)._restore_best_before_api()
+        assert result["status"] == "review_restored_quarantined_history"
+        assert result["historical_education_certified"] is False
+        assert (
+            result["education_continuity"]["status"]
+            == "historical_unverified_quarantined"
+        )
+        assert result["education_continuity"]["missing_evidence"] == [
+            {"run_id": "post5", "phase": "post"}
+        ]
+        assert original.read_bytes() == before_pointer
+        assert r7._sha(fake.DB) != previous_v2
+        assert r7._counts(fake.DB)["neuron_education_applications"] == 20
+        quarantine = original.parent / "quarantine" / r7._sha(original)
+        assert (quarantine / "original.json").read_bytes() == before_pointer
+        assert (quarantine / "receipt.json").is_file()
+        with sqlite3.connect(fake.DB) as conn:
+            assert conn.execute(
+                "SELECT state FROM neuron_education_sessions "
+                "WHERE session_id='education-proof'"
+            ).fetchone() == ("lesson_prepared",)
+            assert (
+                conn.execute(
+                    "SELECT COUNT(*) FROM neuron_functional_assessments"
+                ).fetchone()[0]
+                == 9
+            )
+        with unittest.TestCase().assertRaisesRegex(
+            RuntimeError, "Continuidad educativa"
+        ):
+            r7._check_completed_study_evidence(fake.DB, fake.WORK, fake.BASE)
+
+
+def test_certified_or_overwritten_legacy_claim_cannot_be_quarantined():
+    with tempfile.TemporaryDirectory() as root:
+        fake = FakeR5(Path(root))
+        make_db(fake.DB)
+        _seed_review_study(fake.DB, post_count=4)
+        original = _unbacked_legacy_claim(fake)
+        content = json.loads(original.read_text())
+        content["backup"]["study_checkpoint"] = {"certified": True}
+        original.write_text(json.dumps(content))
+        assert (
+            r7._legacy_quarantine_candidate(fake.DB, fake.WORK, fake.BASE, "f" * 64)
+            is None
+        )
+        content["backup"].pop("study_checkpoint")
+        content["phase"] = "checkpoint_pending"
+        original.write_text(json.dumps(content))
+        assert (
+            r7._legacy_quarantine_candidate(fake.DB, fake.WORK, fake.BASE, "f" * 64)
+            is None
+        )
+
+
+def test_quarantined_epoch_blocks_a_lost_new_probe():
+    with tempfile.TemporaryDirectory() as root:
+        fake = FakeR5(Path(root))
+        make_db(fake.DB)
+        _seed_review_study(fake.DB, post_count=4)
+        original = _unbacked_legacy_claim(fake)
+        receipt = r7._legacy_quarantine_candidate(
+            fake.DB, fake.WORK, fake.BASE, "f" * 64
+        )
+        assert receipt is not None
+        r7._persist_legacy_quarantine(fake.WORK, fake.BASE, receipt)
+        epoch = original.parent / "epochs" / receipt["epoch"] / "current.json"
+        epoch.parent.mkdir(parents=True)
+        epoch.write_text(
+            json.dumps(
+                {
+                    "phase": "post",
+                    "neuron_id": 11,
+                    "pre": [{"run_id": "pre1"}],
+                    "post": [{"run_id": "new-post-not-committed"}],
+                }
+            )
+        )
+        with unittest.TestCase().assertRaisesRegex(RuntimeError, "retrocedida"):
+            r7._verify_fresh_epoch(fake.DB, epoch)
+
+
 def test_isolated_fork_refuses_to_write_when_work_is_inside_drive():
     with tempfile.TemporaryDirectory() as root:
         fake = FakeR5(Path(root))

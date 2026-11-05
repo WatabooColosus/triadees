@@ -222,6 +222,276 @@ def _check_completed_study_evidence(db: Path, work: Path, drive: Path):
     return {"status": "finished_study_evidence_present", "runs": len(evidence)}
 
 
+def _study_paths(work, drive):
+    """Return paths under the verified V2 lineage, not a caller-chosen directory."""
+    proof = _read_json(work / "restore_proof.json") or {}
+    source = str(proof.get("source_sha256") or "")
+    if len(source) != 64 or any(char not in "0123456789abcdef" for char in source):
+        raise RuntimeError("Continuidad educativa: linaje V2 no acreditado")
+    root = drive / "operacion_colab_continua" / "aprendizaje" / source[:16]
+    original = root / "current.json"
+    if any(path.is_symlink() for path in (original, *original.parents)):
+        raise RuntimeError("Continuidad educativa: ruta de Drive insegura")
+    return source, root, original
+
+
+def _verify_fresh_epoch(db, epoch):
+    """Reject a newer study whose real run IDs are absent from the selected DB."""
+    if epoch.is_symlink() or any(path.is_symlink() for path in epoch.parents):
+        raise RuntimeError("Continuidad educativa: nueva época con ruta insegura")
+    state = _read_json(epoch)
+    if state is None:
+        if epoch.exists():
+            raise RuntimeError("Continuidad educativa: nueva época ilegible")
+        return {"status": "fresh_epoch_not_started"}
+    if state.get("phase") == "done":
+        backup = state.get("backup") or {}
+        if not isinstance(backup, dict) or not backup.get("study_checkpoint"):
+            raise RuntimeError(
+                "Continuidad educativa: nueva época sin checkpoint certificado"
+            )
+    neuron = state.get("neuron_id")
+    if type(neuron) is not int:
+        raise RuntimeError("Continuidad educativa: neurona de nueva época inválida")
+    refs = []
+    for phase in ("pre", "post"):
+        for entry in state.get(phase, []):
+            run_id = entry.get("run_id") if isinstance(entry, dict) else None
+            if not isinstance(run_id, str) or not run_id:
+                raise RuntimeError("Continuidad educativa: ejecución nueva inválida")
+            refs.append((run_id, neuron, phase))
+    if len({ref[0] for ref in refs}) != len(refs):
+        raise RuntimeError("Continuidad educativa: ejecución nueva duplicada")
+    with contextlib.closing(
+        sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=20)
+    ) as conn:
+        tables = {
+            row[0]
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        if refs and "neuron_functional_assessments" not in tables:
+            raise RuntimeError(
+                "Continuidad educativa: faltan evaluaciones de nueva época"
+            )
+        for ref in refs:
+            if (
+                conn.execute(
+                    "SELECT 1 FROM neuron_functional_assessments "
+                    "WHERE run_id=? AND neuron_id=? AND phase=?",
+                    ref,
+                ).fetchone()
+                is None
+            ):
+                raise RuntimeError(
+                    "Continuidad educativa: nueva época retrocedida; run_id=" + ref[0]
+                )
+        session_id = state.get("session_id")
+        if session_id:
+            if "neuron_education_sessions" not in tables:
+                raise RuntimeError("Continuidad educativa: sesiones nuevas ausentes")
+            row = conn.execute(
+                "SELECT state FROM neuron_education_sessions WHERE session_id=? "
+                "AND neuron_id=?",
+                (session_id, neuron),
+            ).fetchone()
+            if row is None:
+                raise RuntimeError("Continuidad educativa: sesión nueva ausente")
+            if state.get("phase") == "done":
+                expected = ((state.get("result") or {}).get("session") or {}).get(
+                    "state"
+                )
+                if not expected or row[0] != expected:
+                    raise RuntimeError(
+                        "Continuidad educativa: sesión nueva retrocedida"
+                    )
+    return {"status": "fresh_epoch_evidence_present", "runs": len(refs)}
+
+
+def _verify_fresh_epoch_mirrors(db, work, folder, epoch_id):
+    """Both mirrors and the selected SQLite must agree before any restore."""
+    remote = folder / "epochs" / epoch_id / "current.json"
+    local = work / ("prospective_" + epoch_id + ".json")
+    if local.is_file() and remote.is_file() and _read_json(local) != _read_json(remote):
+        raise RuntimeError("Continuidad educativa: nueva época local/Drive divergente")
+    active = remote if remote.is_file() else local
+    return _verify_fresh_epoch(db, active)
+
+
+def _legacy_quarantine_candidate(db, work, drive, review_sha):
+    """Admit an unbacked 2026-era done *claim*, never a certified finished lesson.
+
+    Strictly distinguishes a false/uncertified Drive pointer from committed
+    functional data. Does not write the original pointer, database or Drive.
+    """
+    source, _folder, original = _study_paths(work, drive)
+    if not original.is_file() or original.stat().st_size > 200_000:
+        return None
+    state = _read_json(original)
+    backup = state.get("backup") if state else None
+    result = state.get("result") if state else None
+    if not (
+        state.get("phase") == "done"
+        and state.get("rubric_version") == "functional-probe-1"
+        and str(state.get("study_id", "")).startswith("prospective-")
+        and isinstance(backup, dict)
+        and backup.get("status") == "encrypted_copy_verified"
+        and not backup.get("study_checkpoint")
+        and isinstance(result, dict)
+        and (result.get("session") or {}).get("state") == "applied_neutral"
+        and len(state.get("pre") or []) == 5
+        and len(state.get("post") or []) == 5
+    ):
+        return None
+    session_id = state.get("session_id")
+    neuron = state.get("neuron_id")
+    if not isinstance(session_id, str) or not session_id or type(neuron) is not int:
+        return None
+    refs = []
+    for phase in ("pre", "post"):
+        for entry in state[phase]:
+            run_id = entry.get("run_id") if isinstance(entry, dict) else None
+            if not isinstance(run_id, str) or not run_id:
+                return None
+            refs.append((run_id, neuron, phase))
+    if len(set(refs)) != 10 or len({x[0] for x in refs}) != 10:
+        return None
+    with contextlib.closing(
+        sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=20)
+    ) as conn:
+        tables = {
+            row[0]
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        if not {"neuron_functional_assessments", "neuron_education_sessions"}.issubset(
+            tables
+        ):
+            return None
+        row = conn.execute(
+            "SELECT state FROM neuron_education_sessions "
+            "WHERE session_id=? AND neuron_id=?",
+            (session_id, neuron),
+        ).fetchone()
+        if not row or row[0] != "lesson_prepared":
+            return None
+        missing = [
+            {"run_id": run_id, "phase": phase}
+            for run_id, neuron_id, phase in refs
+            if conn.execute(
+                "SELECT 1 FROM neuron_functional_assessments "
+                "WHERE run_id=? AND neuron_id=? AND phase=?",
+                (run_id, neuron_id, phase),
+            ).fetchone()
+            is None
+        ]
+    # Only the specifically diagnosed final post-probe dropout qualifies.
+    if (
+        len(missing) != 1
+        or missing[0]["phase"] != "post"
+        or missing[0]["run_id"] != state["post"][-1].get("run_id")
+    ):
+        return None
+    original_hash = _sha(original)
+    return {
+        "schema": "triade.colab.historical_study_quarantine.v1",
+        "status": "historical_claim_unverified",
+        "source_sha256": source,
+        "original_sha256": original_hash,
+        "selected_review_sha256": review_sha,
+        "session_id": session_id,
+        "neuron_id": neuron,
+        "actual_state": "lesson_prepared",
+        "claimed_state": "applied_neutral",
+        "missing_evidence": missing,
+        "epoch": "recovery-" + original_hash[:16],
+        "historical_certified": False,
+        "historical_promotion_authorized": False,
+        "original_pointer_preserved": True,
+    }
+
+
+def _persist_legacy_quarantine(work, drive, record):
+    """Append-only evidence archive; NEVER overwrites current.json or DB."""
+    source, folder, original = _study_paths(work, drive)
+    if source != record["source_sha256"] or _sha(original) != record["original_sha256"]:
+        raise RuntimeError("Continuidad educativa: puntero original cambió")
+    root = folder / "quarantine" / record["original_sha256"]
+    archive = root / "original.json"
+    receipt = root / "receipt.json"
+    if any(part.is_symlink() for part in (root, *root.parents)):
+        raise RuntimeError("Continuidad educativa: cuarentena insegura")
+    root.mkdir(parents=True, exist_ok=True)
+    data = original.read_bytes()
+    if hashlib.sha256(data).hexdigest() != record["original_sha256"]:
+        raise RuntimeError("Continuidad educativa: evidencia original cambió")
+    for path, payload in (
+        (archive, data),
+        (receipt, (json.dumps(record, sort_keys=True, indent=2) + "\n").encode()),
+    ):
+        if path.is_file():
+            if path.is_symlink() or path.read_bytes() != payload:
+                raise RuntimeError("Continuidad educativa: cuarentena alterada")
+            continue
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError as exc:
+            raise RuntimeError(
+                "Continuidad educativa: archivo de cuarentena en conflicto"
+            ) from exc
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+    if _sha(archive) != record["original_sha256"]:
+        raise RuntimeError("Continuidad educativa: archivo histórico divergente")
+    return receipt
+
+
+def _quarantine_status(db, work, drive):
+    """Only a same-lineage immutable receipt and audited restore may allow a new epoch."""
+    source, folder, original = _study_paths(work, drive)
+    if not original.is_file():
+        return None
+    digest = _sha(original)
+    receipt = _read_json(folder / "quarantine" / digest / "receipt.json")
+    restore = _read_json(work / "control_r7" / "last_restore.json")
+    if not receipt or not restore:
+        return None
+    if (
+        receipt.get("schema") != "triade.colab.historical_study_quarantine.v1"
+        or receipt.get("status") != "historical_claim_unverified"
+        or receipt.get("source_sha256") != source
+        or receipt.get("original_sha256") != digest
+        or not receipt.get("original_pointer_preserved")
+        or receipt.get("historical_certified") is not False
+        or receipt.get("historical_promotion_authorized") is not False
+        or restore.get("status") != "review_restored_quarantined_history"
+        or restore.get("sha256") != receipt.get("selected_review_sha256")
+        or _sha(folder / "quarantine" / digest / "original.json") != digest
+    ):
+        return None
+    if not _dominates(_counts(db), restore["counts"]):
+        return None
+    with contextlib.closing(
+        sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=20)
+    ) as conn:
+        row = conn.execute(
+            "SELECT state FROM neuron_education_sessions "
+            "WHERE session_id=? AND neuron_id=?",
+            (receipt["session_id"], receipt["neuron_id"]),
+        ).fetchone()
+    if row is None or row[0] != "lesson_prepared":
+        return None
+    new_study = _verify_fresh_epoch_mirrors(db, work, folder, receipt["epoch"])
+    return {
+        "status": "historical_unverified_quarantined",
+        "historical_certified": False,
+        "historical_session": receipt["session_id"],
+        "missing_evidence": receipt["missing_evidence"],
+        "new_epoch": receipt["epoch"],
+        "new_study": new_study,
+    }
+
+
 def _sha(path):
     h = hashlib.sha256()
     with open(path, "rb") as data:
@@ -624,8 +894,8 @@ class Center:
             except (RuntimeError, sqlite3.Error) as ex:
                 result["drive_last_guarded_backup"] = "error: " + str(ex)[:160]
         # A successful SQLite check alone does not prove that completed
-        # education runs survived a restart. Show this as a separate read-only
-        # status; never mutate Drive or relax the restoration gate.
+        # education runs survived a restart. Distinguish a quarantined legacy
+        # claim from a certified completed historical education session.
         if (
             self.db.is_file()
             and self.drive.is_dir()
@@ -636,7 +906,11 @@ class Center:
                     self.db, self.work, self.drive
                 )
             except (OSError, RuntimeError, sqlite3.Error) as exc:
-                result["education_continuity"] = {
+                try:
+                    quarantined = _quarantine_status(self.db, self.work, self.drive)
+                except (OSError, RuntimeError, sqlite3.Error, ValueError, KeyError):
+                    quarantined = None
+                result["education_continuity"] = quarantined or {
                     "status": "regressed_blocked",
                     "reason": str(exc)[:300],
                 }
@@ -702,7 +976,26 @@ class Center:
             )
         # Check each completed run and terminal session before touching the live
         # SQLite destination. Count-dominant images can still omit committed work.
-        _check_completed_study_evidence(chosen["file"], self.work, self.drive)
+        historical_quarantine = None
+        try:
+            _check_completed_study_evidence(chosen["file"], self.work, self.drive)
+        except RuntimeError:
+            # A *legacy uncertified pointer* can be archived and superseded,
+            # not certified. This applies to no valid completed checkpoint.
+            # Do not discard a real finished study in the local V2 image.
+            try:
+                _check_completed_study_evidence(self.db, self.work, self.drive)
+            except RuntimeError:
+                historical_quarantine = _legacy_quarantine_candidate(
+                    chosen["file"], self.work, self.drive, chosen["sha256"]
+                )
+            if historical_quarantine is None:
+                raise
+        if historical_quarantine is not None:
+            _source, folder, _ = _study_paths(self.work, self.drive)
+            _verify_fresh_epoch_mirrors(
+                chosen["file"], self.work, folder, historical_quarantine["epoch"]
+            )
         # WAL/SHM presence alone is normal, including after read-only checks.
         # Let SQLite preserve committed WAL state and restore transactionally;
         # never replace the database inode underneath existing sidecars/readers.
@@ -720,12 +1013,20 @@ class Center:
         self.r5._owner_account_status(staged)
         if _api_port_open() or _counts(self.db) != prior:
             raise RuntimeError("La Bodega cambió durante la preparación; sin restaurar")
+        if historical_quarantine is not None:
+            # Archive immutable original claim BEFORE any SQLite mutation.
+            _persist_legacy_quarantine(self.work, self.drive, historical_quarantine)
         _sqlite_backup(staged, self.db)
         if _counts(self.db) != current:
             raise RuntimeError("Imagen restaurada no coincide; no arrancar API")
         self.r5.check_working_identity()
         receipt = {
-            "status": "review_restored_validated",
+            "status": (
+                "review_restored_quarantined_history"
+                if historical_quarantine is not None
+                else "review_restored_validated"
+            ),
+            "historical_education_certified": historical_quarantine is None,
             "file": chosen["file"].name,
             "sha256": chosen["sha256"],
             "backup_original": str(backup),
@@ -733,6 +1034,12 @@ class Center:
             "counts": current,
         }
         self._write_local(self.work / "control_r7" / "last_restore.json", receipt)
+        if historical_quarantine is not None:
+            receipt["education_continuity"] = _quarantine_status(
+                self.db, self.work, self.drive
+            )
+            if receipt["education_continuity"] is None:
+                raise RuntimeError("Restauración pendiente: cuarentena no acreditada")
         return receipt
 
     @staticmethod
