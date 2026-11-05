@@ -520,7 +520,10 @@ def test_complete_prospective_fixture_preserves_history_and_does_not_claim_causa
         _json=save,
         _paths=lambda r: tmp_path / "scope",
         _backend_environment=lambda r: None,
-        repair=lambda r: {"status": "fixture_backup"},
+        repair=lambda r, **kwargs: {
+            "status": "encrypted_copy_verified",
+            "study_checkpoint": {"verified_run_count": 10},
+        },
     )
     context = {"r5": r5, "protection_module": protection}
     for _ in range(12):
