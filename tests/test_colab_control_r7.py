@@ -642,9 +642,7 @@ def test_prepares_only_local_isolated_fork_with_historical_evidence_quarantined(
 
 def _unbacked_legacy_claim(r5):
     _finished_study_pointer(r5)
-    folder = (
-        r5.BASE / "operacion_colab_continua" / "aprendizaje" / ("a" * 16)
-    )
+    folder = r5.BASE / "operacion_colab_continua" / "aprendizaje" / ("a" * 16)
     original = folder / "current.json"
     state = json.loads(original.read_text())
     state["rubric_version"] = "functional-probe-1"
@@ -683,16 +681,17 @@ def test_uncertified_legacy_claim_quarantines_without_fabricating_probes():
             result = r7.Center(fake)._restore_best_before_api()
         assert result["status"] == "review_restored_quarantined_history"
         assert result["historical_education_certified"] is False
-        assert result["education_continuity"]["status"] == "historical_unverified_quarantined"
+        assert (
+            result["education_continuity"]["status"]
+            == "historical_unverified_quarantined"
+        )
         assert result["education_continuity"]["missing_evidence"] == [
             {"run_id": "post5", "phase": "post"}
         ]
         assert original.read_bytes() == before_pointer
         assert r7._sha(fake.DB) != previous_v2
         assert r7._counts(fake.DB)["neuron_education_applications"] == 20
-        quarantine = (
-            original.parent / "quarantine" / r7._sha(original)
-        )
+        quarantine = original.parent / "quarantine" / r7._sha(original)
         assert (quarantine / "original.json").read_bytes() == before_pointer
         assert (quarantine / "receipt.json").is_file()
         with sqlite3.connect(fake.DB) as conn:
@@ -700,9 +699,12 @@ def test_uncertified_legacy_claim_quarantines_without_fabricating_probes():
                 "SELECT state FROM neuron_education_sessions "
                 "WHERE session_id='education-proof'"
             ).fetchone() == ("lesson_prepared",)
-            assert conn.execute(
-                "SELECT COUNT(*) FROM neuron_functional_assessments"
-            ).fetchone()[0] == 9
+            assert (
+                conn.execute(
+                    "SELECT COUNT(*) FROM neuron_functional_assessments"
+                ).fetchone()[0]
+                == 9
+            )
         with unittest.TestCase().assertRaisesRegex(
             RuntimeError, "Continuidad educativa"
         ):
@@ -718,15 +720,17 @@ def test_certified_or_overwritten_legacy_claim_cannot_be_quarantined():
         content = json.loads(original.read_text())
         content["backup"]["study_checkpoint"] = {"certified": True}
         original.write_text(json.dumps(content))
-        assert r7._legacy_quarantine_candidate(
-            fake.DB, fake.WORK, fake.BASE, "f" * 64
-        ) is None
+        assert (
+            r7._legacy_quarantine_candidate(fake.DB, fake.WORK, fake.BASE, "f" * 64)
+            is None
+        )
         content["backup"].pop("study_checkpoint")
         content["phase"] = "checkpoint_pending"
         original.write_text(json.dumps(content))
-        assert r7._legacy_quarantine_candidate(
-            fake.DB, fake.WORK, fake.BASE, "f" * 64
-        ) is None
+        assert (
+            r7._legacy_quarantine_candidate(fake.DB, fake.WORK, fake.BASE, "f" * 64)
+            is None
+        )
 
 
 def test_quarantined_epoch_blocks_a_lost_new_probe():
