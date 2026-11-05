@@ -411,9 +411,7 @@ if __name__ == "__main__":
 
 def _seed_review_study(db, *, post_count):
     with sqlite3.connect(db) as conn:
-        conn.execute(
-            "ALTER TABLE neuron_education_sessions ADD COLUMN session_id TEXT"
-        )
+        conn.execute("ALTER TABLE neuron_education_sessions ADD COLUMN session_id TEXT")
         conn.execute(
             "ALTER TABLE neuron_education_sessions ADD COLUMN neuron_id INTEGER"
         )
@@ -430,10 +428,7 @@ def _seed_review_study(db, *, post_count):
         )
         conn.executemany(
             "INSERT INTO neuron_functional_assessments VALUES (?,11,?)",
-            [
-                (f"pre{i}", "pre")
-                for i in range(1, 6)
-            ]
+            [(f"pre{i}", "pre") for i in range(1, 6)]
             + [(f"post{i}", "post") for i in range(1, post_count + 1)],
         )
 
@@ -461,22 +456,12 @@ def _finished_study_pointer(r5):
     )
 
 
-def _refresh_review_hash(folder, image):
-    manifest_file = folder / "latest_review.json"
-    manifest = json.loads(manifest_file.read_text())
-    manifest["sha256"] = r7._sha(image)
-    manifest_file.write_text(json.dumps(manifest))
-    image.with_suffix(".json").write_text(json.dumps(manifest))
-
-
 def test_restore_blocks_count_dominant_checkpoint_that_lost_finished_run():
     with tempfile.TemporaryDirectory() as root:
         fake = FakeR5(Path(root))
         make_db(fake.DB, applications=15, tasks=2500)
         source = r7.Center(fake)
-        folder = (
-            fake.BASE / "operacion_colab_r5" / "ramas_en_revision" / ("a" * 16)
-        )
+        folder = fake.BASE / "operacion_colab_r5" / "ramas_en_revision" / ("a" * 16)
         folder.mkdir(parents=True)
         image = folder / "r5-checkpoint.sqlite3"
         make_db(image, applications=20, tasks=2501)
@@ -491,9 +476,7 @@ def test_restore_blocks_count_dominant_checkpoint_that_lost_finished_run():
             "code_sha": r7.PIN,
             "sha256": r7._sha(image),
             "counts": {
-                k: v
-                for k, v in r7._counts(image).items()
-                if k != "neuron_activity"
+                k: v for k, v in r7._counts(image).items() if k != "neuron_activity"
             },
         }
         (folder / "latest_review.json").write_text(json.dumps(manifest))
@@ -501,7 +484,9 @@ def test_restore_blocks_count_dominant_checkpoint_that_lost_finished_run():
         before = r7._sha(fake.DB)
         with (
             patch.object(r7, "_check_api", return_value=False),
-            unittest.TestCase().assertRaisesRegex(RuntimeError, "Continuidad educativa"),
+            unittest.TestCase().assertRaisesRegex(
+                RuntimeError, "Continuidad educativa"
+            ),
         ):
             source._restore_best_before_api()
         assert r7._sha(fake.DB) == before
@@ -513,9 +498,7 @@ def test_restore_accepts_snapshot_with_verified_finished_run_ids():
         fake = FakeR5(Path(root))
         make_db(fake.DB, applications=15, tasks=2500)
         center = r7.Center(fake)
-        folder = (
-            fake.BASE / "operacion_colab_r5" / "ramas_en_revision" / ("a" * 16)
-        )
+        folder = fake.BASE / "operacion_colab_r5" / "ramas_en_revision" / ("a" * 16)
         folder.mkdir(parents=True)
         image = folder / "r5-checkpoint.sqlite3"
         make_db(image, applications=20, tasks=2501)
@@ -530,9 +513,7 @@ def test_restore_accepts_snapshot_with_verified_finished_run_ids():
             "code_sha": r7.PIN,
             "sha256": r7._sha(image),
             "counts": {
-                k: v
-                for k, v in r7._counts(image).items()
-                if k != "neuron_activity"
+                k: v for k, v in r7._counts(image).items() if k != "neuron_activity"
             },
         }
         (folder / "latest_review.json").write_text(json.dumps(manifest))
@@ -540,6 +521,7 @@ def test_restore_accepts_snapshot_with_verified_finished_run_ids():
         with patch.object(r7, "_check_api", return_value=False):
             restored = center._restore_best_before_api()
         assert restored["status"] == "review_restored_validated"
-        assert r7._check_completed_study_evidence(
-            fake.DB, fake.WORK, fake.BASE
-        ) == {"status": "finished_study_evidence_present", "runs": 10}
+        assert r7._check_completed_study_evidence(fake.DB, fake.WORK, fake.BASE) == {
+            "status": "finished_study_evidence_present",
+            "runs": 10,
+        }
