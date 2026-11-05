@@ -307,6 +307,16 @@ def _verify_fresh_epoch(db, epoch):
     return {"status": "fresh_epoch_evidence_present", "runs": len(refs)}
 
 
+def _verify_fresh_epoch_mirrors(db, work, folder, epoch_id):
+    """Both mirrors and the selected SQLite must agree before any restore."""
+    remote = folder / "epochs" / epoch_id / "current.json"
+    local = work / ("prospective_" + epoch_id + ".json")
+    if local.is_file() and remote.is_file() and _read_json(local) != _read_json(remote):
+        raise RuntimeError("Continuidad educativa: nueva época local/Drive divergente")
+    active = remote if remote.is_file() else local
+    return _verify_fresh_epoch(db, active)
+
+
 def _legacy_quarantine_candidate(db, work, drive, review_sha):
     """Admit an unbacked 2026-era done *claim*, never a certified finished lesson.
 
@@ -467,8 +477,9 @@ def _quarantine_status(db, work, drive):
         ).fetchone()
     if row is None or row[0] != "lesson_prepared":
         return None
-    epoch = folder / "epochs" / receipt["epoch"] / "current.json"
-    new_study = _verify_fresh_epoch(db, epoch)
+    new_study = _verify_fresh_epoch_mirrors(
+        db, work, folder, receipt["epoch"]
+    )
     return {
         "status": "historical_unverified_quarantined",
         "historical_certified": False,
@@ -980,9 +991,8 @@ class Center:
                 raise
         if historical_quarantine is not None:
             _source, folder, _ = _study_paths(self.work, self.drive)
-            _verify_fresh_epoch(
-                chosen["file"],
-                folder / "epochs" / historical_quarantine["epoch"] / "current.json",
+            _verify_fresh_epoch_mirrors(
+                chosen["file"], self.work, folder, historical_quarantine["epoch"]
             )
         # WAL/SHM presence alone is normal, including after read-only checks.
         # Let SQLite preserve committed WAL state and restore transactionally;
