@@ -414,8 +414,21 @@ def _enforce_observation_panel(context):
             break
     if chosen is None:
         return {"status": "lifecycle_control_not_found"}
-    actions.children = (chosen,)
-    return {"status": "single_lifecycle_control", "visible_buttons": 1}
+    opener = next(
+        (
+            item
+            for item in children
+            if "abrir tr" in str(getattr(item, "description", "")).lower()
+        ),
+        None,
+    )
+    # Keep the existing notebook's navigation control, but do not synthesize
+    # one with an untrusted callback. The current panel creates its own gate.
+    actions.children = (chosen, opener) if opener is not None else (chosen,)
+    return {
+        "status": "lifecycle_and_open_controls",
+        "visible_buttons": len(actions.children),
+    }
 
 
 def _attach_panel_components(context):
@@ -505,6 +518,8 @@ def verify(context):
         and observed.get("ollama_http_200") is True
         and observed.get("bodega", "").startswith("SQLite ok")
         and observed.get("known_regression") is None
+        and (observed.get("education_continuity") or {}).get("status")
+        != "regressed_blocked"
         and observed.get("release", "").startswith("R6.3.1 candidata")
     )
     if ready:
@@ -552,6 +567,11 @@ def recover(context, error):
 
 
 def open_frontend(context):
+    if verify(context) is not True:
+        raise RuntimeError(
+            "Abrir Tríade bloqueado: API, Ollama, identidad y versión "
+            "deben estar verificadas"
+        )
     context["r5"].open_frontend()
     return {"status": "frontend_requested"}
 

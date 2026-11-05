@@ -456,6 +456,21 @@ def _finished_study_pointer(r5):
     )
 
 
+def test_education_status_exposes_missing_real_evidence_without_mutation():
+    with tempfile.TemporaryDirectory() as root:
+        fake = FakeR5(Path(root))
+        make_db(fake.DB)
+        _seed_review_study(fake.DB, post_count=4)
+        _finished_study_pointer(fake)
+        before = r7._sha(fake.DB)
+        center = r7.Center(fake)
+        report = center.status()
+        assert report["education_continuity"]["status"] == "regressed_blocked"
+        assert "education-proof" in report["education_continuity"]["reason"]
+        assert report["bodega"].startswith("SQLite ok")
+        assert r7._sha(fake.DB) == before
+
+
 def test_restore_blocks_count_dominant_checkpoint_that_lost_finished_run():
     with tempfile.TemporaryDirectory() as root:
         fake = FakeR5(Path(root))
