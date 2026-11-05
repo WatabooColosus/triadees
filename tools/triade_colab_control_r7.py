@@ -256,6 +256,146 @@ class Center:
         self.drive = Path(self.r5.BASE)
         self.db = Path(self.r5.DB)
 
+    def prepare_isolated_recovery(self):
+        """Create an offline local fork of a verified Drive review image.
+
+        Never alters V2, its review source, current.json, the canonical SQLite
+        database, or any persistent Drive directory. No API, worker, model,
+        learning pipeline, backup writer, or promotion is started.
+        """
+        with self.lock:
+            self._sync_paths()
+            if not self.drive.is_dir() or self.drive.is_symlink():
+                raise RuntimeError("Drive no está montado de forma segura")
+            if not self.work.is_dir() or self.work.is_symlink():
+                raise RuntimeError("Directorio local de trabajo no acreditado")
+            work = self.work.resolve()
+            drive = self.drive.resolve()
+            if work == drive or work.is_relative_to(drive):
+                raise RuntimeError("Recuperación aislada nunca se escribe en Drive")
+            restore_proof = _read_json(self.work / "restore_proof.json") or {}
+            source_lineage = str(restore_proof.get("source_sha256") or "")
+            if len(source_lineage) != 64 or any(
+                character not in "0123456789abcdef" for character in source_lineage
+            ):
+                raise RuntimeError("Linaje verificado requerido para recuperación aislada")
+            self.r5.check_working_identity()
+            candidate = self._checkpoint_index()
+            if candidate is None:
+                raise RuntimeError("No existe respaldo de revisión con SHA e identidad")
+            source = candidate["file"]
+            before_hash = _sha(source)
+            original_hash = _sha(self.db) if self.db.is_file() else None
+            study = (
+                self.drive
+                / "operacion_colab_continua"
+                / "aprendizaje"
+                / source_lineage[:16]
+                / "current.json"
+            )
+            if any(path.is_symlink() for path in (study, *study.parents)):
+                raise RuntimeError("Evidencia histórica con ruta insegura")
+            evidence = _read_json(study)
+            if evidence is None or evidence.get("phase") != "done":
+                raise RuntimeError("Estudio finalizado de Drive no acreditado")
+            session_id = evidence.get("session_id")
+            neuron_id = evidence.get("neuron_id")
+            if not isinstance(session_id, str) or type(neuron_id) is not int:
+                raise RuntimeError("Evidencia educativa no identificable")
+            references = []
+            for phase in ("pre", "post"):
+                records = evidence.get(phase)
+                if not isinstance(records, list) or not records:
+                    raise RuntimeError("Evidencia de pruebas incompleta")
+                for record in records:
+                    run_id = record.get("run_id") if isinstance(record, dict) else None
+                    if not isinstance(run_id, str) or not run_id:
+                        raise RuntimeError("Identificador de ejecución inválido")
+                    references.append((run_id, phase))
+            if len({run_id for run_id, _ in references}) != len(references):
+                raise RuntimeError("Evidencia duplicada: no se puede bifurcar")
+            # Build exclusively below the local WORK directory. Use an
+            # unguessable name and never replace an earlier recovery.
+            import uuid
+
+            base = work / "isolated_recovery"
+            if base.is_symlink():
+                raise RuntimeError("Recuperación aislada con enlace inseguro")
+            base.mkdir(mode=0o700, exist_ok=True)
+            os.chmod(base, 0o700)
+            destination = base / ("fork-" + uuid.uuid4().hex)
+            destination.mkdir(mode=0o700)
+            isolated = destination / "triade-isolated.sqlite3"
+            shutil.copyfile(source, isolated, follow_symlinks=False)
+            os.chmod(isolated, 0o600)
+            if (
+                _sha(isolated) != before_hash
+                or _counts(isolated) != candidate["counts"]
+                or _sha(source) != before_hash
+            ):
+                raise RuntimeError("La copia aislada no coincide con el respaldo")
+            self.r5._owner_account_status(isolated)
+            if original_hash is not None and _sha(self.db) != original_hash:
+                raise RuntimeError("Base local original cambió: abortar")
+            with contextlib.closing(
+                sqlite3.connect(
+                    isolated.resolve().as_uri() + "?mode=ro", uri=True, timeout=20
+                )
+            ) as connection:
+                actual_session = connection.execute(
+                    "SELECT state FROM neuron_education_sessions "
+                    "WHERE session_id=? AND neuron_id=?",
+                    (session_id, neuron_id),
+                ).fetchone()
+                available = {
+                    (run_id, phase)
+                    for run_id, phase in connection.execute(
+                        "SELECT run_id,phase FROM neuron_functional_assessments "
+                        "WHERE neuron_id=?",
+                        (neuron_id,),
+                    )
+                }
+            missing = [
+                {"run_id": run_id, "phase": phase}
+                for run_id, phase in references
+                if (run_id, phase) not in available
+            ]
+            expected_session = (evidence.get("result") or {}).get("session") or {}
+            expected_state = expected_session.get("state")
+            observed_state = actual_session[0] if actual_session else None
+            receipt = {
+                "schema": "triade.colab.isolated_recovery.v1",
+                "status": "isolated_fork_prepared",
+                "original_bodega_overwritten": False,
+                "drive_modified": False,
+                "api_started": False,
+                "workers_started": False,
+                "study_promoted": False,
+                "learning_authorized": False,
+                "recovery_certified": False,
+                "source_image": source.name,
+                "source_sha256": before_hash,
+                "v2_lineage_sha256": source_lineage,
+                "isolated_db": str(isolated),
+                "isolated_db_sha256": _sha(isolated),
+                "counts": candidate["counts"],
+                "historical_study": {
+                    "session_id": session_id,
+                    "neuron_id": neuron_id,
+                    "expected_state": expected_state,
+                    "observed_state": observed_state,
+                    "run_refs_expected": len(references),
+                    "run_refs_found": len(references) - len(missing),
+                    "missing_refs": missing,
+                    "status": "quarantined_unverified"
+                    if missing or observed_state != expected_state
+                    else "matched_but_not_cross_session_certified",
+                },
+                "next_step": "independent_learning_canary_only_after_sandbox_runtime_audit",
+            }
+            self._write_local(destination / "isolation_receipt.json", receipt)
+            return receipt
+
     def _origin_verified(self):
         self._sync_paths()
         if not (self.root / ".git").is_dir():
