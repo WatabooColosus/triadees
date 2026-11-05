@@ -278,7 +278,9 @@ class Center:
             if len(source_lineage) != 64 or any(
                 character not in "0123456789abcdef" for character in source_lineage
             ):
-                raise RuntimeError("Linaje verificado requerido para recuperación aislada")
+                raise RuntimeError(
+                    "Linaje verificado requerido para recuperación aislada"
+                )
             self.r5.check_working_identity()
             candidate = self._checkpoint_index()
             if candidate is None:
