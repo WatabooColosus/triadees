@@ -10,6 +10,8 @@ import functools
 import hashlib
 import json
 import os
+import sqlite3
+import tempfile
 import threading
 import time
 import urllib.request
@@ -215,6 +217,100 @@ def _persist(backup, file, persistent, fp):
     }
 
 
+def _verify_archived_study(backup, file, study):
+    """Confirm the encrypted checkpoint retains real pre/post rows and terminal state.
+
+    Never infer missing rows from the study JSON. Restore only to a temporary
+    isolated database and reject any mismatch before publishing a Drive receipt.
+    """
+    if study.get("phase") != "checkpoint_pending":
+        raise RuntimeError("prospective_checkpoint_not_pending")
+    session_id = study.get("session_id")
+    neuron_id = study.get("neuron_id")
+    expected_session = (study.get("result") or {}).get("session") or {}
+    expected_state = expected_session.get("state")
+    if (
+        not isinstance(session_id, str)
+        or not session_id
+        or type(neuron_id) is not int
+        or not isinstance(expected_state, str)
+        or not expected_state
+        or expected_state == "lesson_prepared"
+    ):
+        raise RuntimeError("prospective_checkpoint_invalid_session")
+    run_proofs = []
+    for phase in ("pre", "post"):
+        cases = study.get(phase)
+        if not isinstance(cases, list) or not cases:
+            raise RuntimeError("prospective_checkpoint_invalid_cases")
+        for proof in cases:
+            if not isinstance(proof, dict):
+                raise TypeError("prospective_checkpoint_invalid_cases")
+            run_id, case_id, score = (
+                proof.get("run_id"),
+                proof.get("case_id"),
+                proof.get("score"),
+            )
+            if (
+                not isinstance(run_id, str)
+                or not run_id
+                or not isinstance(case_id, str)
+                or type(score) not in (float, int)
+            ):
+                raise RuntimeError("prospective_checkpoint_invalid_cases")
+            run_proofs.append((run_id, phase, case_id, float(score)))
+    if len({run_id for run_id, _, _, _ in run_proofs}) != len(run_proofs):
+        raise RuntimeError("prospective_checkpoint_duplicate_run")
+    with tempfile.TemporaryDirectory(prefix="triade-study-proof-") as directory:
+        extracted = Path(directory) / "restored-checkpoint.sqlite3"
+        result = backup.restore_to_sandbox(file, extracted)
+        if result.get("status") != "restored_sandbox" or result.get(
+            "production_overwritten"
+        ):
+            raise RuntimeError("prospective_checkpoint_restore_unverified")
+        with sqlite3.connect(
+            extracted.resolve().as_uri() + "?mode=ro", uri=True
+        ) as conn:
+            row = conn.execute(
+                "SELECT state,post_score FROM neuron_education_sessions "
+                "WHERE session_id=? AND neuron_id=?",
+                (session_id, neuron_id),
+            ).fetchone()
+            if row is None or row[0] != expected_state:
+                raise RuntimeError("prospective_checkpoint_session_mismatch")
+            measured_post = expected_session.get("post_score")
+            if measured_post is not None and (
+                row[1] is None or abs(float(row[1]) - float(measured_post)) > 1e-6
+            ):
+                raise RuntimeError("prospective_checkpoint_session_score_mismatch")
+            for run_id, phase, case_id, score in run_proofs:
+                found = conn.execute(
+                    "SELECT phase,case_id,score,session_id "
+                    "FROM neuron_functional_assessments "
+                    "WHERE run_id=? AND neuron_id=?",
+                    (run_id, neuron_id),
+                ).fetchone()
+                if (
+                    found is None
+                    or found[0] != phase
+                    or found[1] != case_id
+                    or found[2] is None
+                    or abs(float(found[2]) - score) > 1e-6
+                    or (phase == "post" and found[3] != session_id)
+                ):
+                    raise RuntimeError(
+                        "prospective_checkpoint_run_missing_or_mismatched"
+                    )
+    return {
+        "verified_run_count": len(run_proofs),
+        "study_id": str(study.get("study_id") or ""),
+        "session_id": session_id,
+        "runs_sha256": hashlib.sha256(
+            "\n".join(sorted(item[0] for item in run_proofs)).encode()
+        ).hexdigest(),
+    }
+
+
 def _paths(r5):
     proof = _read(Path(r5.WORK) / "restore_proof.json")
     source = str(proof.get("source_sha256", ""))
@@ -230,7 +326,7 @@ def _paths(r5):
 
 def _serialized(fn):
     @functools.wraps(fn)
-    def call(r5):
+    def call(r5, **kwargs):
         import fcntl
 
         path = Path(r5.WORK) / "encrypted_backup.lock"
@@ -238,14 +334,19 @@ def _serialized(fn):
             raise RuntimeError("backup_path_symlink_blocked")
         with path.open("a") as stream:
             fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
-            return fn(r5)
+            return fn(r5, **kwargs)
 
     return call
 
 
 @_serialized
-def repair(r5):
-    """One legitimate backup, tested in temporary storage; never DB restore."""
+def repair(r5, *, require_fresh=False, study_state=None):
+    """One legitimate backup, tested in temporary storage; never DB restore.
+
+    A completed prospective study cannot reuse a prior cooldown backup.
+    """
+    if require_fresh and not isinstance(study_state, dict):
+        raise RuntimeError("fresh_study_proof_required")
     r5._owner_account_status(r5.DB)
     persistent = _paths(r5)
     local, fp, resolution = provision(r5, persistent)
@@ -267,11 +368,12 @@ def repair(r5):
     os.environ["TRIADE_BACKUP_KEY_FILE"] = str(local)
     os.environ.pop("TRIADE_BACKUP_KEY", None)
     backup = _backup_instance(r5)
-    created = backup.create()
+    created = backup.create(force=require_fresh)
     if created.get("status") == "completed":
         file = backup.backup_dir / created["file"]
     elif (
-        created.get("status") == "blocked"
+        not require_fresh
+        and created.get("status") == "blocked"
         and created.get("reason") == "backup_cooldown_active"
     ):
         file = Path(created["latest"])
@@ -281,12 +383,16 @@ def repair(r5):
                 raise RuntimeError("new_domain_backup_creation_not_verified")
             file = backup.backup_dir / created["file"]
     else:
-        raise RuntimeError("backup_creation_not_verified")
+        raise RuntimeError("fresh_backup_creation_not_verified")
+    study_proof = (
+        _verify_archived_study(backup, file, study_state) if require_fresh else None
+    )
     receipt = {
         "status": "encrypted_copy_verified",
         "key_resolution": resolution,
         "legacy_encrypted_backups_recovery": "not_certified",
         **_persist(backup, file, persistent, fp),
+        "study_checkpoint": study_proof,
         "backend_key_activation": "await_next_planner_cycle",
     }
     _json(persistent / "status.json", receipt)

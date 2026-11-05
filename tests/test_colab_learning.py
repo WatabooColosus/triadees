@@ -520,7 +520,10 @@ def test_complete_prospective_fixture_preserves_history_and_does_not_claim_causa
         _json=save,
         _paths=lambda r: tmp_path / "scope",
         _backend_environment=lambda r: None,
-        repair=lambda r: {"status": "fixture_backup"},
+        repair=lambda r, **kwargs: {
+            "status": "encrypted_copy_verified",
+            "study_checkpoint": {"verified_run_count": 10},
+        },
     )
     context = {"r5": r5, "protection_module": protection}
     for _ in range(12):
@@ -1000,3 +1003,76 @@ def test_study_memory_lineage_requires_verified_source_and_valid_pointer(tmp_pat
         "status": "blocked",
         "reason": "invalid_study_pointer",
     }
+
+
+def test_checkpoint_pending_never_claims_done_when_fresh_backup_fails(
+    tmp_path,
+):
+    from triade.neurons.functional_evidence import VERSION, ensure_schema
+    from triade.runtime.task_leases import AutonomousTaskStore
+
+    db, neuron = _database(tmp_path)
+    AutonomousTaskStore(db)
+    with sqlite3.connect(db) as conn:
+        ensure_schema(conn)
+        for run_id, phase in (("fixture-pre", "pre"), ("fixture-post", "post")):
+            conn.execute(
+                "INSERT INTO neuron_functional_assessments "
+                "(run_id,neuron_id,case_id,domain,phase,session_id,"
+                "score,rubric_version,answer_digest,created_at) "
+                "VALUES (?,?,?,?,?,?,0.0,?,?,?)",
+                (
+                    run_id,
+                    neuron,
+                    "py1",
+                    "python_text",
+                    phase,
+                    "fixture-session" if phase == "post" else None,
+                    VERSION,
+                    "a" * 64,
+                    "2026-01-01",
+                ),
+            )
+    work = tmp_path / "study-work"
+    work.mkdir()
+    state = {
+        "phase": "checkpoint_pending",
+        "rubric_version": VERSION,
+        "suite": "python_text",
+        "session_id": "fixture-session",
+        "neuron_id": neuron,
+        "pre": [{"run_id": "fixture-pre", "case_id": "py1", "score": 0.0}],
+        "post": [{"run_id": "fixture-post", "case_id": "py1", "score": 0.0}],
+        "result": {"session": {"state": "applied_neutral", "post_score": 0.0}},
+    }
+    (work / "prospective_learning.json").write_text(json.dumps(state))
+    attempts = []
+
+    def fail_backup(r5, **kwargs):
+        attempts.append(kwargs)
+        raise RuntimeError("fresh_backend_checkpoint_failed")
+
+    r5 = SimpleNamespace(
+        DB=db,
+        WORK=work,
+        ROOT=tmp_path,
+        BASE=tmp_path / "empty-drive",
+        _owner_account_status=lambda db: None,
+    )
+    context = {
+        "r5": r5,
+        "protection_module": SimpleNamespace(
+            _backend_environment=lambda r: None,
+            _paths=lambda r: tmp_path / "scope",
+            repair=fail_backup,
+        ),
+    }
+    with pytest.raises(RuntimeError, match="fresh_backend_checkpoint_failed"):
+        learning.step(context)
+    assert len(attempts) == 1
+    assert attempts[0]["require_fresh"] is True
+    assert attempts[0]["study_state"]["phase"] == "checkpoint_pending"
+    assert (
+        json.loads((work / "prospective_learning.json").read_text())["phase"]
+        == "checkpoint_pending"
+    )
