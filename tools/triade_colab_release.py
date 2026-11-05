@@ -434,6 +434,7 @@ def _enforce_observation_panel(context):
     if callable(observer) and not getattr(
         actions, "_triade_lifecycle_observer_installed", False
     ):
+
         def maintain_controls(change):
             if change.get("name") != "children":
                 return
@@ -505,7 +506,10 @@ def _start_autonomous_monitor(context, *, interval_seconds=600):
         target=observe, name="triade-low-resource-auto-audit", daemon=True
     )
     r5._triade_auto_ops = {
-        "stop": stop, "thread": thread, "state": state, "check": check
+        "stop": stop,
+        "thread": thread,
+        "state": state,
+        "check": check,
     }
     thread.start()
     return dict(state)
