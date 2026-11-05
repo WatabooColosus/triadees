@@ -380,22 +380,22 @@ class Client:
                 and isolated["isolated_canary"].get("status") == "passed"
                 and recovery.get("memory_replaced_by_recovery") is False
             ):
-                # A guarded quarantine is a *completed recovery action*, not
-                # a certified runtime. Do not write installed.json, start API,
-                # or claim this release is running.
+                # Some outer notebooks assume any non-raising install call is
+                # a successful start. Preserve a hard failure until the API
+                # and educational lineage are truly certified; the detailed
+                # isolated recovery is still available in last_observation.
+                recovery["recovery_status"] = "isolated_recovery_pending"
+                self.last_observation = recovery
+                self.on_observation(recovery)
                 self.progress(
                     "Recuperación aislada verificada; API y aprendizaje "
                     "principal detenidos por evidencia educativa incompleta"
                 )
-                return {
-                    "status": "isolated_recovery_pending",
-                    "runtime_ready": False,
-                    "release_activated": False,
-                    "version_attempted": manifest["version"],
-                    "installed_receipt_written": False,
-                    "reason": "education_continuity_regressed",
-                    "isolated_recovery": isolated,
-                }
+                raise RuntimeError(
+                    "Arranque principal bloqueado: copia forense y prueba SQLite "
+                    "aisladas verificadas. La sesión educativa sigue incompleta; "
+                    "no se publicó la versión ni se alteró la Bodega."
+                ) from None
             raise RuntimeError(
                 f"No se activó la publicación: {self.last_error}; recuperación: {recovery}"
             ) from exc
