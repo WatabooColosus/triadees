@@ -105,9 +105,22 @@ def _quarantined_epoch(r5):
     }
 
 
+
+def _epoch_state(epoch):
+    """Reject split-brain state rather than choose an older local/Drive mirror."""
+    local = _read(epoch["local"])
+    remote = _read(epoch["remote"])
+    if local and remote and local != remote:
+        raise NotReady("fresh_epoch_mirror_conflict")
+    return local or remote
+
+
 def _quarantined_learning_lineage(r5, epoch):
     """Validate every recorded fresh probe and all terminal claims on startup."""
-    state = _read(epoch["local"]) or _read(epoch["remote"])
+    try:
+        state = _epoch_state(epoch)
+    except NotReady:
+        return {"status": "blocked", "reason": "fresh_epoch_mirror_conflict"}
     if not state:
         return {
             "status": "quarantined_fresh_epoch_ready",
@@ -955,7 +968,7 @@ def _study_state(context):
     epoch = _quarantined_epoch(r5)
     if epoch:
         # Independent real run IDs; do not replay the old done pointer.
-        return _read(epoch["local"]) or _read(epoch["remote"])
+        return _epoch_state(epoch)
     state = _read(Path(r5.WORK) / "prospective_learning.json")
     if state:
         return state
