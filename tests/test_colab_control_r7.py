@@ -786,9 +786,15 @@ def _make_unbacked_single_pre_epoch(fake):
         "rubric_version": "functional-probe-1",
         "neuron_id": 11,
         "study_id": "prospective-a-new-real-attempt",
-        "pre": [{"run_id": run_id, "case_id": "vis1", "score": 0.0,
-                 "experimental_material_ids": [],
-                 "production_application_certified": False}],
+        "pre": [
+            {
+                "run_id": run_id,
+                "case_id": "vis1",
+                "score": 0.0,
+                "experimental_material_ids": [],
+                "production_application_certified": False,
+            }
+        ],
         "post": [],
         "stable_promotion_authorized": False,
         "causal_improvement_certified": False,
@@ -812,7 +818,8 @@ def test_orphaned_pre_run_is_archived_without_fabricating_or_rewriting_history()
         assert continuity["status"] == "historical_unverified_quarantined"
         assert continuity["historical_certified"] is False
         assert continuity["abandoned_pre_probe"] == {
-            "status": "unbacked_archived", "missing_run_ids": [run_id]
+            "status": "unbacked_archived",
+            "missing_run_ids": [run_id],
         }
         assert continuity["new_study"] == {"status": "fresh_epoch_not_started"}
         assert continuity["new_epoch"].startswith("retry-")
@@ -827,10 +834,13 @@ def test_orphaned_pre_run_is_archived_without_fabricating_or_rewriting_history()
         assert receipt["learning_credit"] is False
         assert receipt["selected_review_sha256"] == r7._sha(review)
         with sqlite3.connect(fake.DB) as conn:
-            assert conn.execute(
-                "SELECT COUNT(*) FROM neuron_functional_assessments WHERE run_id=?",
-                (run_id,),
-            ).fetchone()[0] == 0
+            assert (
+                conn.execute(
+                    "SELECT COUNT(*) FROM neuron_functional_assessments WHERE run_id=?",
+                    (run_id,),
+                ).fetchone()[0]
+                == 0
+            )
         # Retry the same running local image with no dominated review.
         with patch.object(r7, "_check_api", return_value=False):
             reused = r7.Center(fake)._restore_best_before_api()
@@ -947,17 +957,23 @@ def test_existing_local_probe_is_archived_as_real_sqlite_before_review_restore()
         assert archived_db.is_file()
         assert r7._sha(archived_db) == receipt["source_local_sha256"]
         with sqlite3.connect(archived_db) as conn:
-            assert conn.execute(
-                "SELECT COUNT(*) FROM neuron_functional_assessments WHERE run_id=?",
-                (run_id,),
-            ).fetchone()[0] == 1
+            assert (
+                conn.execute(
+                    "SELECT COUNT(*) FROM neuron_functional_assessments WHERE run_id=?",
+                    (run_id,),
+                ).fetchone()[0]
+                == 1
+            )
         # The old real proof remains in an immutable Drive SQLite; it was not
         # reproduced or re-certified in the selected active review snapshot.
         with sqlite3.connect(fake.DB) as conn:
-            assert conn.execute(
-                "SELECT COUNT(*) FROM neuron_functional_assessments WHERE run_id=?",
-                (run_id,),
-            ).fetchone()[0] == 0
+            assert (
+                conn.execute(
+                    "SELECT COUNT(*) FROM neuron_functional_assessments WHERE run_id=?",
+                    (run_id,),
+                ).fetchone()[0]
+                == 0
+            )
         assert report["education_continuity"]["new_epoch"].startswith("retry-")
         assert r7._sha(original) == original_sha
         assert r7._sha(epoch) == epoch_sha
