@@ -85,7 +85,9 @@ def test_recovered_education_starts_fresh_epoch_without_rewriting_old_pointer(tm
         "pre": [],
         "post": [],
     }
-    with pytest.raises(learning.NotReady, match="fresh_epoch_reused_historical_session"):
+    with pytest.raises(
+        learning.NotReady, match="fresh_epoch_reused_historical_session"
+    ):
         learning._save(context, forbidden)
     assert old.read_bytes() == historical_bytes
 
