@@ -105,7 +105,6 @@ def _quarantined_epoch(r5):
     }
 
 
-
 def _epoch_state(epoch):
     """Reject split-brain state rather than choose an older local/Drive mirror."""
     local = _read(epoch["local"])
