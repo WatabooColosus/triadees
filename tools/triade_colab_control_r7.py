@@ -342,6 +342,16 @@ def _abandoned_pre_receipt(folder, epoch_id):
         and receipt.get("learning_credit") is False
         and archived.is_file()
         and _sha(archived) == digest
+        and (
+            not receipt.get("local_run_present")
+            or (
+                receipt.get("source_local_sha256")
+                and (archive_root / "original-local.sqlite3").is_file()
+                and not (archive_root / "original-local.sqlite3").is_symlink()
+                and _sha(archive_root / "original-local.sqlite3")
+                == receipt["source_local_sha256"]
+            )
+        )
     ):
         raise RuntimeError("Continuidad educativa: abandono de época no verificable")
     return receipt
@@ -352,7 +362,7 @@ def _active_fresh_epoch(folder, epoch_id):
     return receipt["retry_epoch"] if receipt else epoch_id
 
 
-def _orphaned_pre_candidate(db, work, folder, epoch_id, review_sha):
+def _orphaned_pre_candidate(db, work, folder, epoch_id, review_sha, local_db):
     """Only a single unbacked PRE probe can be archived, never certified.
 
     A post probe, completed lesson, pending checkpoint or a conflicting local
@@ -407,6 +417,21 @@ def _orphaned_pre_candidate(db, work, folder, epoch_id, review_sha):
         ).fetchone()
     if recorded:
         return None
+    with contextlib.closing(
+        sqlite3.connect(local_db.resolve().as_uri() + "?mode=ro", uri=True, timeout=20)
+    ) as conn:
+        local_tables = {
+            row[0]
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        local_recorded = bool(
+            "neuron_functional_assessments" in local_tables
+            and conn.execute(
+                "SELECT 1 FROM neuron_functional_assessments "
+                "WHERE run_id=? AND neuron_id=? AND phase='pre'",
+                (proof["run_id"], state["neuron_id"]),
+            ).fetchone()
+        )
     digest = _sha(pointer)
     return {
         "schema": "triade.colab.preprobe_abandonment.v1",
@@ -416,13 +441,14 @@ def _orphaned_pre_candidate(db, work, folder, epoch_id, review_sha):
         "retry_epoch": "retry-" + digest[:16],
         "selected_review_sha256": review_sha,
         "missing_run_ids": [proof["run_id"]],
+        "local_run_present": local_recorded,
         "historical_certified": False,
         "learning_credit": False,
         "original_pointer_preserved": True,
     }
 
 
-def _persist_pre_abandonment(folder, receipt):
+def _persist_pre_abandonment(folder, receipt, local_backup):
     """Append-only archive before replacing the local working SQLite snapshot."""
     pointer = folder / "epochs" / receipt["original_epoch"] / "current.json"
     if pointer.is_symlink() or _sha(pointer) != receipt["original_sha256"]:
@@ -434,6 +460,27 @@ def _persist_pre_abandonment(folder, receipt):
     data = pointer.read_bytes()
     if hashlib.sha256(data).hexdigest() != receipt["original_sha256"]:
         raise RuntimeError("Continuidad educativa: época original no coincide")
+    if receipt["local_run_present"]:
+        # An existing genuine pre-run in local SQLite is not silently erased.
+        # Preserve the complete consistent SQLite backup in Drive append-only.
+        sha = receipt.get("source_local_sha256")
+        if not sha or _sha(local_backup) != sha:
+            raise RuntimeError("Continuidad educativa: backup local no comprobado")
+        archived_db = archive_root / "original-local.sqlite3"
+        if archived_db.is_file():
+            if archived_db.is_symlink() or _sha(archived_db) != sha:
+                raise RuntimeError("Continuidad educativa: SQLite local archivada divergente")
+        else:
+            try:
+                fd = os.open(archived_db, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            except FileExistsError as exc:
+                raise RuntimeError("Continuidad educativa: SQLite archivada en conflicto") from exc
+            with os.fdopen(fd, "wb") as stream, open(local_backup, "rb") as source:
+                shutil.copyfileobj(source, stream, 1 << 20)
+                stream.flush()
+                os.fsync(stream.fileno())
+            if _sha(archived_db) != sha:
+                raise RuntimeError("Continuidad educativa: copia local archivada incompleta")
     for path, payload in (
         (archive_root / "original.json", data),
         (
@@ -1163,7 +1210,7 @@ class Center:
                 # the latest SHA-verified snapshot.
                 abandoned_pre = _orphaned_pre_candidate(
                     chosen["file"], self.work, folder,
-                    historical_quarantine["epoch"], chosen["sha256"]
+                    historical_quarantine["epoch"], chosen["sha256"], self.db
                 )
                 if abandoned_pre is None:
                     raise
@@ -1192,9 +1239,24 @@ class Center:
             _persist_legacy_quarantine(self.work, self.drive, historical_quarantine)
         if abandoned_pre is not None:
             # A verified pre-restore local SQLite backup already exists above.
-            # Preserve the unfinished Drive pointer verbatim in an append-only
-            # archive and choose an independent epoch with fresh run IDs.
-            _persist_pre_abandonment(folder, abandoned_pre)
+            # If it contains the PRE probe, archive the actual DB on Drive
+            # before replacement. Otherwise archive only the exact pointer.
+            if abandoned_pre["local_run_present"]:
+                run_id = abandoned_pre["missing_run_ids"][0]
+                with contextlib.closing(
+                    sqlite3.connect(
+                        backup.resolve().as_uri() + "?mode=ro", uri=True, timeout=20
+                    )
+                ) as conn:
+                    evidence = conn.execute(
+                        "SELECT 1 FROM neuron_functional_assessments WHERE run_id=? "
+                        "AND phase='pre'",
+                        (run_id,),
+                    ).fetchone()
+                if not evidence:
+                    raise RuntimeError("Continuidad educativa: backup local perdió prueba")
+                abandoned_pre["source_local_sha256"] = _sha(backup)
+            _persist_pre_abandonment(folder, abandoned_pre, backup)
         _sqlite_backup(staged, self.db)
         if _counts(self.db) != current:
             raise RuntimeError("Imagen restaurada no coincide; no arrancar API")
