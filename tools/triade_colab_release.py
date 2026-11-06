@@ -596,6 +596,7 @@ def _configure_cpu_bootstrap(context):
         "effective_cpu_count": cores,
         "low_cpu_guard": low_cpu,
         "worker_concurrency": os.environ.get("TRIADE_WORKER_CONCURRENCY", "1"),
+        "worker_serialized": os.environ.get("TRIADE_WORKER_CONCURRENCY") == "0",
         "existing_service_restarted": False,
     }
 
@@ -718,6 +719,7 @@ def open_frontend(context):
 def status(context):
     result = _center(context).status()
     result["autonomous_monitor"] = _autonomous_monitor_status(context["r5"])
+    result["cpu_policy"] = context.get("cpu_policy", {"status": "not_observed"})
     protection = _protection(context)
     if protection is not None:
         result["backup_protection"] = protection.status(context["r5"])
