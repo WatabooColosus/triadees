@@ -805,3 +805,89 @@ def test_legacy_controller_render_has_lifecycle_and_open_buttons():
     assert 'button("Abrir Tríade", open_verified_frontend' in source
     assert 'button("Guardar copia verificada"' not in source
     assert 'button("Auditar actividad real' not in source
+
+
+def test_legacy_panel_remains_two_controls_after_widget_refresh():
+    callbacks = []
+
+    class LegacyActions:
+        def __init__(self):
+            self.children = (
+                SimpleNamespace(description="Estado real"),
+                SimpleNamespace(description="ENCENDER / ACTUALIZAR TRÍADE"),
+                SimpleNamespace(description="Abrir Tríade"),
+                SimpleNamespace(description="Guardar memoria"),
+            )
+
+        def observe(self, fn, names):
+            assert names == "children"
+            callbacks.append(fn)
+
+        def repaint(self, children):
+            self.children = children
+            for callback in callbacks:
+                callback({"name": "children", "new": children})
+
+    actions = LegacyActions()
+    owner = SimpleNamespace(view=(None, None, None, actions))
+    context = {"progress": SimpleNamespace(__self__=owner)}
+    first = adapter._enforce_observation_panel(context)
+    assert first["visible_buttons"] == 2
+    assert len(callbacks) == 1
+    original_controls = actions.children
+    actions.repaint(
+        (
+            *original_controls,
+            SimpleNamespace(description="Guardar memoria"),
+            SimpleNamespace(description="Auditar actividad"),
+        )
+    )
+    assert actions.children == original_controls
+    # The permanent Colab notebook legitimately replaces the lifecycle button
+    # with its verified release-refresh wrapper after installer completion.
+    refreshed = SimpleNamespace(description="ENCENDER / ACTUALIZAR TRÍADE")
+    actions.repaint(
+        (refreshed, original_controls[1], SimpleNamespace(description="Auditar"))
+    )
+    assert actions.children == (refreshed, original_controls[1])
+    # Reapplying release components must not duplicate the same hook.
+    adapter._enforce_observation_panel(context)
+    assert len(callbacks) == 1
+
+
+def test_autonomous_audit_is_one_read_only_observer_and_cpu_bounded(monkeypatch):
+    observations = []
+    r5 = SimpleNamespace()
+    auditor = SimpleNamespace(
+        audit=lambda r5_arg, seconds, emit: (
+            observations.append((r5_arg, seconds, emit))
+            or {"audit_version": "schema-aware-2"}
+        )
+    )
+    monkeypatch.setattr(adapter, "_auditor", lambda context: auditor)
+    monkeypatch.setattr(adapter.os, "cpu_count", lambda: 4)
+    monkeypatch.setattr(adapter.os, "getloadavg", lambda: (3.5, 1.0, 1.0))
+    first = adapter._start_autonomous_monitor({"r5": r5}, interval_seconds=3600)
+    try:
+        assert first["status"] == "scheduled"
+        assert first["cross_session_certified"] is False
+        assert first["backup_writer_started"] is False
+        second = adapter._start_autonomous_monitor({"r5": r5}, interval_seconds=3600)
+        assert second["status"] == "already_running"
+        handle = r5._triade_auto_ops
+        handle["check"]()
+        assert handle["state"]["status"] == "deferred_cpu_pressure"
+        assert handle["state"]["cpu_count_observed"] == 4
+        assert observations == []
+        monkeypatch.setattr(adapter.os, "getloadavg", lambda: (0.8, 0.5, 0.1))
+        handle["check"]()
+        assert handle["state"]["status"] == "audited_read_only"
+        assert handle["state"]["audit_version"] == "schema-aware-2"
+        assert observations == [(r5, 15, False)]
+        status = adapter._autonomous_monitor_status(r5)
+        assert status["observer_alive"] is True
+        assert status["cross_session_certified"] is False
+    finally:
+        r5._triade_auto_ops["stop"].set()
+        r5._triade_auto_ops["thread"].join(timeout=2)
+    assert adapter._autonomous_monitor_status(r5)["observer_alive"] is False
