@@ -2,16 +2,16 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 41,
-  "version": "R7.17.17-guarded-quarantine-review-transition",
+  "sequence": 42,
+  "version": "R7.17.18-autonomous-panel-cpu-observer",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "beeb63576a029c87983c966e76848276a325da09",
+  "commit": "a7d6c8573a1e79fa5a0cbd40fc53f8b4586c282b",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
-      "sha256": "4d4d728d577336b1d071f700fafd119ae946eaa196d868d4090af9805c5df23f"
+      "sha256": "ddfbde5cb3feef1165192fd72707f9f32c00320d4e5fa1841a57ce994017cb7c"
     },
     "controller": {
       "path": "tools/triade_colab_control_r7.py",
