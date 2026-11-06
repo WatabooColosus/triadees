@@ -891,3 +891,29 @@ def test_autonomous_audit_is_one_read_only_observer_and_cpu_bounded(monkeypatch)
         r5._triade_auto_ops["stop"].set()
         r5._triade_auto_ops["thread"].join(timeout=2)
     assert adapter._autonomous_monitor_status(r5)["observer_alive"] is False
+
+
+def test_small_colab_cpu_guard_is_automatic_and_does_not_restart(monkeypatch):
+    for variable in (
+        "TRIADE_WORKER_CONCURRENCY",
+        "OLLAMA_NUM_PARALLEL",
+        "OLLAMA_MAX_LOADED_MODELS",
+        "OMP_NUM_THREADS",
+    ):
+        monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setattr(adapter.os, "sched_getaffinity", lambda pid: {0, 1})
+    policy = adapter._configure_cpu_bootstrap({})
+    assert policy["effective_cpu_count"] == 2
+    assert policy["low_cpu_guard"] is True
+    assert policy["worker_serialized"] is True
+    assert policy["existing_service_restarted"] is False
+    assert adapter.os.environ["TRIADE_WORKER_CONCURRENCY"] == "0"
+    assert adapter.os.environ["OLLAMA_NUM_PARALLEL"] == "1"
+
+
+def test_colab_cpu_guard_respects_explicit_override(monkeypatch):
+    monkeypatch.setenv("TRIADE_WORKER_CONCURRENCY", "1")
+    monkeypatch.setattr(adapter.os, "sched_getaffinity", lambda pid: {0, 1})
+    policy = adapter._configure_cpu_bootstrap({})
+    assert policy["worker_concurrency"] == "1"
+    assert policy["worker_serialized"] is False
