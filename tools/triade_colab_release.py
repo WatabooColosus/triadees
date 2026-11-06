@@ -579,7 +579,30 @@ def _attach_panel_components(context):
     return result
 
 
+def _configure_cpu_bootstrap(context):
+    """Conservative worker pool on small Colab runtimes; no live service restart."""
+    try:
+        cores = len(os.sched_getaffinity(0))
+    except (AttributeError, OSError):
+        cores = os.cpu_count() or 1
+    cores = max(1, cores)
+    low_cpu = cores <= 2
+    if low_cpu:
+        os.environ.setdefault("TRIADE_WORKER_CONCURRENCY", "0")
+        os.environ.setdefault("OLLAMA_NUM_PARALLEL", "1")
+        os.environ.setdefault("OLLAMA_MAX_LOADED_MODELS", "1")
+        os.environ.setdefault("OMP_NUM_THREADS", "1")
+    return {
+        "effective_cpu_count": cores,
+        "low_cpu_guard": low_cpu,
+        "worker_concurrency": os.environ.get("TRIADE_WORKER_CONCURRENCY", "1"),
+        "worker_serialized": os.environ.get("TRIADE_WORKER_CONCURRENCY") == "0",
+        "existing_service_restarted": False,
+    }
+
+
 def install(context):
+    context["cpu_policy"] = _configure_cpu_bootstrap(context)
     # A diagnostic-only release can attach to a verified running session.
     # Do not invoke dependency installation, restoration or guardian startup.
     if verify(context):
@@ -696,6 +719,7 @@ def open_frontend(context):
 def status(context):
     result = _center(context).status()
     result["autonomous_monitor"] = _autonomous_monitor_status(context["r5"])
+    result["cpu_policy"] = context.get("cpu_policy", {"status": "not_observed"})
     protection = _protection(context)
     if protection is not None:
         result["backup_protection"] = protection.status(context["r5"])

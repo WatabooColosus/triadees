@@ -677,6 +677,8 @@ def render(r5, *, watch=True):
                     "known_regression",
                     "education_continuity",
                     "backup_protection",
+                    "cpu_policy",
+                    "autonomous_monitor",
                     "learning_circuit",
                     "isolated_recovery",
                     "memory_replaced_by_recovery",
