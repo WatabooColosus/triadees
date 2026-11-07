@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#090d19">
+  <meta name="description" content="Tríade Ω · Observatorio público y laboratorio de planificación de Agencia Digital Wataboo.">
+  <meta name="color-scheme" content="dark">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/ui.css">
+  <title>Tríade Ω · Centro de Control</title>
+  <script src="/ui.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#principal">Saltar al contenido</a>
+  <div class="bg-orb orb-one" aria-hidden="true"></div><div class="bg-orb orb-two" aria-hidden="true"></div>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="#inicio" aria-label="Tríade Omega, ir al inicio">
+        <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+        <span class="brand-copy"><strong>TRÍADE <em>Ω</em></strong><small>WATABOO · CENTRO COGNITIVO</small></span>
+      </a>
+      <div class="top-actions">
+        <span class="online-pill" id="online-pill"><span class="status-dot"></span><span id="online-label">Comprobando enlace</span></span>
+        <button id="install-button" class="icon-btn" type="button" hidden aria-label="Instalar en el dispositivo" title="Instalar en la tablet"> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 17v3h14v-3"/></svg></button>
+      </div>
+    </header>
+    <nav class="nav" aria-label="Secciones del centro">
+      <a href="#inicio" class="nav-link active">Resumen</a>
+      <a href="#nucleos" class="nav-link">Núcleos</a>
+      <a href="#laboratorio" class="nav-link">Laboratorio</a>
+      <a href="#evidencia" class="nav-link">Evidencia</a>
+    </nav>
+
+    <main id="principal">
+      <section class="hero panel" id="inicio" aria-labelledby="welcome">
+        <div class="hero-copy">
+          <div class="eyebrow"><span class="eyebrow-line"></span> INICIALIZACIÓN · INSTANCIA PÚBLICA 0.2</div>
+          <h1 id="welcome">Una Tríade.<br><span>Un espacio para evolucionar.</span></h1>
+          <p>Bienvenido al centro de observación y planificación de Tríade Ω. Una primera interfaz funcional para tu tablet, conectada a herramientas MCP verificables.</p>
+          <div class="hero-buttons">
+            <a class="btn btn-primary" href="#laboratorio">Iniciar un ciclo <span aria-hidden="true">↗</span></a>
+            <button id="refresh-all" class="btn btn-quiet" type="button"><span aria-hidden="true">↻</span> Verificar sistema</button>
+          </div>
+          <div class="hero-foot"><span class="tiny-led"></span> ORIGEN: AGENCIA DIGITAL WATABOO <span class="separator">/</span> MODO: SOLO LECTURA PÚBLICA</div>
+        </div>
+        <div class="sigil-wrap" aria-hidden="true">
+          <div class="orbit orbit-a"></div><div class="orbit orbit-b"></div><div class="orbit orbit-c"></div>
+          <div class="sigil"><span class="node n1"></span><span class="node n2"></span><span class="node n3"></span><span class="connector c1"></span><span class="connector c2"></span><span class="connector c3"></span><span class="core"></span></div>
+          <span class="sigil-label">Ω</span>
+        </div>
+      </section>
+
+      <section class="metrics" aria-label="Estado de subsistemas">
+        <article class="metric panel">
+          <div class="metric-head"><span class="kicker">01 / PASARELA</span><span class="metric-symbol green">●</span></div>
+          <div class="metric-value" id="gateway-state">Verificando</div>
+          <p id="gateway-subtitle">Consultando el observatorio público</p>
+        </article>
+        <article class="metric panel">
+          <div class="metric-head"><span class="kicker">02 / MOTOR ORIGINAL</span><span class="metric-symbol amber">◈</span></div>
+          <div class="metric-value">No conectado</div>
+          <p>Modelos y workers originales fuera de esta instancia</p>
+        </article>
+        <article class="metric panel">
+          <div class="metric-head"><span class="kicker">03 / MEMORIA ORIGINAL</span><span class="metric-symbol violet">◇</span></div>
+          <div class="metric-value">Protegida</div>
+          <p>Bodega de Drive no accesible desde el panel público</p>
+        </article>
+      </section>
+
+      <section class="section" id="nucleos" aria-labelledby="nuc-title">
+        <div class="section-top"><div><div class="eyebrow">ARQUITECTURA TRIÁDICA</div><h2 id="nuc-title">Los tres núcleos</h2></div><p>Funciones coordinadas para razonar, comprender y registrar sin confundir simulación con aprendizaje certificado.</p></div>
+        <div class="nuc-grid">
+          <article class="nuc panel">
+            <div class="nuc-top"><span class="nuc-icon ico-cyan">✦</span><span class="tag">NÚCLEO 01</span></div>
+            <h3>Neurona Central</h3><p>Organiza objetivos, pruebas y evidencias. Diseña el camino antes de actuar.</p><div class="nuc-bottom"><span class="line cyan"></span> INVESTIGACIÓN · VERIFICACIÓN</div>
+          </article>
+          <article class="nuc panel">
+            <div class="nuc-top"><span class="nuc-icon ico-purple">♡</span><span class="tag">NÚCLEO 02</span></div>
+            <h3>Hipotálamo Emocional</h3><p>Considera necesidades humanas, riesgos, motivaciones y claridad en cada decisión.</p><div class="nuc-bottom"><span class="line purple"></span> CONTEXTO · EMPATÍA</div>
+          </article>
+          <article class="nuc panel">
+            <div class="nuc-top"><span class="nuc-icon ico-amber">▤</span><span class="tag">NÚCLEO 03</span></div>
+            <h3>Bodega de Almacenamiento</h3><p>En este observatorio, tus planes solo pueden guardarse localmente en la tablet.</p><div class="nuc-bottom"><span class="line amber-bg"></span> HISTORIAL LOCAL · NO ES DRIVE</div>
+          </article>
+        </div>
+      </section>
+
+      <section class="workspace section" id="laboratorio" aria-labelledby="lab-title">
+        <div class="section-top"><div><div class="eyebrow">INTERACCIÓN CON HERRAMIENTAS REALES</div><h2 id="lab-title">Laboratorio de ciclos</h2></div><span class="lab-chip">EXPERIMENTAL · PLANIFICACIÓN</span></div>
+        <div class="workspace-grid">
+          <div class="composer panel">
+            <div class="composer-label"><span class="compose-led"></span> FORMULAR UNA MISIÓN</div>
+            <label for="objective">¿Qué quieres investigar, planificar o mejorar?</label>
+            <form id="plan-form">
+              <textarea id="objective" name="objective" maxlength="500" rows="5" required placeholder="Ej.: Analiza los obstáculos de aprendizaje de Tríade Ω y crea un plan de pruebas para corregirlos sin forzar gates."></textarea>
+              <div class="textarea-footer"><small>Evita compartir claves o datos privados. La consulta se procesa en el servicio público.</small><span id="char-counter">0 / 500</span></div>
+              <button type="submit" class="btn btn-primary full" id="plan-button">Generar plan triádico <span aria-hidden="true">✧</span></button>
+            </form>
+            <div id="message" role="status" aria-live="polite"></div>
+          </div>
+          <div class="result panel" id="result-panel" aria-live="polite">
+            <div class="result-head"><span class="kicker">RESULTADO / PLAN</span><span id="result-mode" class="result-mode">LISTO PARA RECIBIR</span></div>
+            <div id="result-empty" class="result-empty"><div class="empty-icon">✳</div><h3>Una misión, tres perspectivas.</h3><p>Describe un objetivo. Tríade lo estructurará en los tres núcleos y mostrará sus pruebas de aceptación.</p></div>
+            <div id="result-content" hidden>
+              <h3 id="result-title">Plan de investigación</h3>
+              <p id="result-objective" class="result-objective"></p>
+              <div class="result-part"><span class="mini-dot color-cyan"></span><div><strong>Neurona Central</strong><p id="result-central"></p></div></div>
+              <div class="result-part"><span class="mini-dot color-purple"></span><div><strong>Hipotálamo Emocional</strong><p id="result-emotional"></p></div></div>
+              <div class="result-part"><span class="mini-dot color-amber"></span><div><strong>Bodega</strong><p id="result-storage"></p></div></div>
+              <p class="gates" id="result-gates"></p>
+              <div class="result-toolbar"><button class="btn btn-small btn-quiet" id="copy-plan" type="button">Copiar plan</button><span class="tag">SIN EJECUCIÓN AUTÓNOMA</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section evidence-grid" id="evidencia" aria-labelledby="evidence-title">
+        <div class="evidence panel">
+          <div class="evidence-head"><div><div class="eyebrow">PROCEDENCIA Y AUDITORÍA</div><h2 id="evidence-title">Evidencia de código</h2></div><button class="refresh-icon" id="refresh-code" type="button" aria-label="Actualizar evidencia">↻</button></div>
+          <p>Consulta verificable del repositorio público. Si GitHub no responde, el estado aparece como no confirmado.</p>
+          <div class="repo"><span class="repo-logo">⌘</span><div><strong>WatabooColosus / triadees</strong><small>Rama principal · GitHub público</small></div></div>
+          <div class="commit-row"><span>Último commit verificado</span><code id="commit-sha">Sin consultar</code></div>
+          <div class="commit-row"><span>Fuente</span><strong id="commit-source">Pendiente</strong></div>
+          <div class="commit-row"><span>Estado</span><strong id="commit-status">Pendiente de lectura</strong></div>
+          <a id="commit-link" class="source-link disabled" href="https://github.com/WatabooColosus/triadees" target="_blank" rel="noopener noreferrer">Ver repositorio público ↗</a>
+        </div>
+        <div class="history panel">
+          <div class="history-head"><div><div class="eyebrow">SOLO EN ESTA TABLET</div><h2>Historial local</h2></div><button id="clear-history" class="text-btn" type="button">Borrar</button></div>
+          <p>Los últimos planes se guardan únicamente en el almacenamiento de este navegador. No son memoria de la Bodega original.</p>
+          <div id="history-list" class="history-list"><p class="history-empty">Todavía no hay planes guardados.</p></div>
+        </div>
+      </section>
+
+      <section class="truth panel" aria-label="Límites del sistema">
+        <span class="truth-icon">ⓘ</span><div><strong>Transparencia del organismo</strong><p>Este entorno es un observatorio MCP y un espacio de planificación. No aloja los modelos originales, no ejecuta workers de aprendizaje, no escribe en Drive y no demuestra singularidad ni aprendizaje autónomo. No se mostrarán resultados inventados como si fueran actividades reales.</p></div>
+      </section>
+    </main>
+    <footer><span>© AGENCIA DIGITAL WATABOO · TRÍADE Ω</span><span>V0.2 · OBSERVATORIO PÚBLICO · HECHO PARA TU TABLET</span></footer>
+  </div>
+</body>
+</html>
