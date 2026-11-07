@@ -476,11 +476,11 @@ def _enforce_observation_panel(context):
         str(getattr(item, "description", "")).strip().lower()
         for item in separate_controls
     }
-    separate_inspections = (
-        len(separate_controls) == 3
-        and separate_labels
-        == {"estado real", "auditar actividad (30 s)", "verificar aprendizaje"}
-    )
+    separate_inspections = len(separate_controls) == 3 and separate_labels == {
+        "estado real",
+        "auditar actividad (30 s)",
+        "verificar aprendizaje",
+    }
     if separate_inspections:
         diagnostics = ()
 
