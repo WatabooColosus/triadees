@@ -1095,10 +1095,10 @@ def test_separate_inspection_surface_survives_legacy_two_button_pruning():
     ]
     primary = SimpleNamespace(children=tuple(lifecycle))
     secondary = SimpleNamespace(children=tuple(inspections))
-    client = SimpleNamespace(
-        view=(None, None, None, primary, secondary, None, None, None),
+    owner = SimpleNamespace(
+        view=(None, None, None, primary, None, None, None),
+        inspection_view=secondary,
     )
-    owner = SimpleNamespace(view=client.view)
     context = {"progress": SimpleNamespace(__self__=owner)}
 
     first = adapter._enforce_observation_panel(context)
@@ -1120,4 +1120,8 @@ def test_separate_inspection_source_is_not_part_of_legacy_action_box():
     assert "lifecycle_actions = [" in source
     assert "inspection_actions = [" in source
     assert "widgets.Box(\n            lifecycle_actions," in source
-    assert "widgets.Box(\n            inspection_actions," in source
+    assert "client.inspection_view = widgets.Box(" in source
+    assert (
+        "display(*client.view[:4], client.inspection_view, *client.view[4:])"
+        in source
+    )
