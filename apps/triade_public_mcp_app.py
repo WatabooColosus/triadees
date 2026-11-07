@@ -41,14 +41,14 @@ def _public_git_status() -> dict[str, Any]:
             response.raise_for_status()
             obj = response.json()
         if not isinstance(obj, dict):
-            raise ValueError("unexpected GitHub JSON")
+            raise TypeError("unexpected GitHub JSON")
         sha = obj.get("sha", "")
         commit = obj.get("commit")
         info = commit if isinstance(commit, dict) else {}
         committer = info.get("committer")
         author = committer if isinstance(committer, dict) else {}
         if not isinstance(sha, str) or len(sha) != 40:
-            raise ValueError("invalid commit SHA")
+            raise TypeError("invalid commit SHA")
         result.update(
             {
                 "verified": True,
