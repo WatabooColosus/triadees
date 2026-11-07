@@ -39,9 +39,7 @@ def _fixture(tmp_path: Path):
         destination = root / actual
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text("# original pinned runtime", encoding="utf-8")
-        files[name] = str(
-            _REPO / "tools/colab_patch_sources" / (name + ".py")
-        )
+        files[name] = str(_REPO / "tools/colab_patch_sources" / (name + ".py"))
     calls: list[str] = []
     r5 = SimpleNamespace(
         ROOT=root,
@@ -84,7 +82,11 @@ def test_release_patches_two_modules_and_verifies_without_touching_bodega(
         assert (tmp_path / "repo" / actual).read_bytes() == Path(
             context["files"][name]
         ).read_bytes()
-    previous = list((tmp_path / "work" / "actualizaciones" / "runtime_path_patches").rglob("encrypted_backup.py"))
+    previous = list(
+        (tmp_path / "work" / "actualizaciones" / "runtime_path_patches").rglob(
+            "encrypted_backup.py"
+        )
+    )
     assert len(previous) == 1
     assert previous[0].read_text(encoding="utf-8") == "# original pinned runtime"
 
