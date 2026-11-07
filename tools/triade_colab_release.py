@@ -407,6 +407,29 @@ def _enforce_observation_panel(context):
     children = getattr(actions, "children", None)
     if children is None:
         return {"status": "non_widget_panel_unchanged"}
+
+    # R7.17.19 installed an observer which hides all inspection buttons.
+    # Unregister ONLY that known callback before upgrading its policy.
+    # Never unregister unrelated notebook observers or touch the runtime.
+    if (
+        getattr(actions, "_triade_lifecycle_observer_installed", False)
+        and getattr(actions, "_triade_inspection_guard_version", 0) != 2
+    ):
+        all_notifiers = getattr(actions, "_trait_notifiers", {}) or {}
+        handlers = all_notifiers.get("children", {}).get("change", ())
+        removed = 0
+        for handler in tuple(handlers):
+            if (
+                getattr(handler, "__name__", "") == "maintain_controls"
+                and "_enforce_observation_panel"
+                in getattr(handler, "__qualname__", "")
+                and callable(getattr(actions, "unobserve", None))
+            ):
+                actions.unobserve(handler, names="children")
+                removed += 1
+        if not removed:
+            return {"status": "panel_refresh_required", "visible_buttons": len(children)}
+        actions._triade_lifecycle_observer_installed = False
     chosen = None
     for item in children:
         label = str(getattr(item, "description", "")).lower()
@@ -441,6 +464,59 @@ def _enforce_observation_panel(context):
         if str(getattr(item, "description", "")).strip().lower()
         in safe_inspections
     )
+
+    # Updating an already-open Colab session must restore the buttons without
+    # asking the owner to run a new cell. The verified Client supplies only
+    # read-only callbacks and displays escaped JSON in its existing output.
+    if (
+        len(view) >= 7
+        and callable(getattr(client, "action", None))
+        and hasattr(view[-1], "value")
+    ):
+        try:
+            import ipywidgets as widgets
+        except ImportError:
+            widgets = None
+        if widgets is not None:
+            current_labels = {
+                str(getattr(item, "description", "")).strip().lower()
+                for item in diagnostics
+            }
+            for label, method in (
+                ("Estado real", "status"),
+                ("Auditar actividad (30 s)", "audit"),
+                ("Verificar aprendizaje", "learning_status"),
+            ):
+                if label.lower() in current_labels:
+                    continue
+                control = widgets.Button(
+                    description=label,
+                    layout=widgets.Layout(width="300px", height="44px"),
+                )
+
+                def inspect_clicked(_button, action=method):
+                    try:
+                        result = client.action(action)
+                        rendered = json.dumps(
+                            result, ensure_ascii=False, indent=2, default=str
+                        )
+                    except Exception as exc:  # noqa: BLE001 - existing UI diagnostic boundary
+                        rendered = (
+                            "Inspección no acreditada: "
+                            + type(exc).__name__
+                            + " "
+                            + str(exc)[:1500]
+                        )
+                    from html import escape
+
+                    view[-1].value = (
+                        "<pre style='white-space:pre-wrap;overflow-wrap:anywhere'>"
+                        + escape(rendered)
+                        + "</pre>"
+                    )
+
+                control.on_click(inspect_clicked)
+                diagnostics += (control,)
     allowed = (
         ((chosen, opener) if opener is not None else (chosen,)) + diagnostics
     )
@@ -482,6 +558,7 @@ def _enforce_observation_panel(context):
 
         observer(maintain_controls, names="children")
         actions._triade_lifecycle_observer_installed = True
+        actions._triade_inspection_guard_version = 2
     return {
         "status": "lifecycle_and_open_controls",
         "visible_buttons": len(actions.children),
