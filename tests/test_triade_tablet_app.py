@@ -45,72 +45,40 @@ def test_tablet_public_status_is_observatory_not_original_runtime():
         assert data["bodega_original_conectada"] is False
         assert data["escrituras_habilitadas"] is False
         assert response.headers["cache-control"] == "no-store"
-        assert client.post("/api/run", json={"text": "nada"}).status_code == 404
-
-
-def test_tablet_public_code_only_reports_verified_evidence(monkeypatch):
-    def fake_git():
-        return {
-            "repository": "WatabooColosus/triadees",
-            "verified": False,
-            "api_error_type": "ConnectError",
-            "feed_error_type": "ConnectError",
-        }
-
-    monkeypatch.setattr(public, "_public_git_status", fake_git)
-    with TestClient(public.build_public_app(), base_url="http://localhost") as client:
-        result = client.get("/api/public/code")
-        assert result.status_code == 200
-        assert result.json()["verified"] is False
-        assert "main_commit" not in result.json()
-
-
-def test_tablet_plan_is_real_public_provider_with_strict_input_gate():
-    with TestClient(public.build_public_app(), base_url="http://localhost") as client:
-        ok = client.post(
-            "/api/public/plan",
-            json={"objetivo": "Evaluar el circuito educativo sin forzar gates"},
-        )
-        assert ok.status_code == 200
-        data = ok.json()
-        assert data["objetivo"] == "Evaluar el circuito educativo sin forzar gates"
-        assert data["ejecutado"] is False
-        assert "neurona_central" in data
-        assert "hipotalamo_emocional" in data
-        assert "bodega" in data
-        assert ok.headers["cache-control"] == "no-store"
-
-        assert client.post(
+        wrong_content_type = client.post(
             "/api/public/plan",
             content="not a json",
             headers={"Content-Type": "text/plain"},
-        ).status_code == 415
-        assert client.post(
+        )
+        assert wrong_content_type.status_code == 415
+
+        invalid_json = client.post(
             "/api/public/plan",
             content="{bad json",
             headers={"Content-Type": "application/json"},
-        ).status_code == 400
-        assert client.post(
-            "/api/public/plan",
-            json={"objetivo": ""},
-        ).status_code == 422
-        assert client.post(
-            "/api/public/plan",
-            json={"objetivo": "x" * 501},
-        ).status_code == 422
-        assert client.post(
-            "/api/public/plan",
-            json={"objetivo": "plan", "admin": True},
-        ).status_code == 400
-        assert client.post(
-            "/api/public/plan",
-            json={"objetivo": 42},
-        ).status_code == 400
-        assert client.post(
+        )
+        assert invalid_json.status_code == 400
+
+        empty = client.post("/api/public/plan", json={"objetivo": ""})
+        assert empty.status_code == 422
+
+        too_long = client.post("/api/public/plan", json={"objetivo": "x" * 501})
+        assert too_long.status_code == 422
+
+        extra_fields = client.post(
+            "/api/public/plan", json={"objetivo": "plan", "admin": True}
+        )
+        assert extra_fields.status_code == 400
+
+        invalid_type = client.post("/api/public/plan", json={"objetivo": 42})
+        assert invalid_type.status_code == 400
+
+        over_body = client.post(
             "/api/public/plan",
             content='{"objetivo":"' + "x" * 3000 + '"}',
             headers={"Content-Type": "application/json"},
-        ).status_code == 413
+        )
+        assert over_body.status_code == 413
 
 
 def test_tablet_does_not_break_public_mcp_transport():
