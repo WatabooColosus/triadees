@@ -134,4 +134,19 @@ jobs:
           assert "hipotalamo_emocional" in planned
           assert "bodega" in planned
           print("TABLET LIVE OK: HTML, 5 assets, guarded APIs and real plan")
+          # Private runtime endpoints must never be queryable anonymously.
+          for private_path in [
+              "/api/private/connection", "/api/private/status",
+              "/api/private/learning"
+          ]:
+              try:
+                  urllib.request.urlopen(url + private_path, timeout=30)
+              except urllib.error.HTTPError as exc:
+                  assert exc.code in (401, 503), (private_path, exc.code)
+                  body = exc.read().decode("utf-8")
+                  assert "secret" not in body.lower()
+                  assert "TRIADE_ACTIONS_UPSTREAM_KEY" not in body
+              else:
+                  raise AssertionError("Private route exposed: " + private_path)
+          print("PRIVATE LINK GUARDED: anonymous users cannot read runtime data")
           PY
