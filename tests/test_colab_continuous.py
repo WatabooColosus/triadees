@@ -334,7 +334,6 @@ def test_newer_ci_attempt_cannot_be_hidden_by_old_success(runtime):
         client.install()
 
 
-
 def test_same_sha_cancelled_feature_branch_does_not_override_main_ci(runtime):
     client, catalogue, _ = runtime
     catalogue.extra_runs = [
