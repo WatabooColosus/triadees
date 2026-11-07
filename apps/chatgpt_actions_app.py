@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import hmac
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Annotated, Any
 from urllib.parse import urlsplit
-from typing import Any
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -38,7 +38,7 @@ class RunInput(BaseModel):
 
 
 def _required_token(
-    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
 ) -> None:
     expected = os.environ.get("TRIADE_ACTIONS_TOKEN", "").strip()
     if not expected:
@@ -108,7 +108,7 @@ def _upstream(
 
 
 def _observed_at() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 @app.get("/health", include_in_schema=False)
@@ -118,7 +118,7 @@ def health() -> dict[str, Any]:
 
 
 @app.get("/actions/status", operation_id="consultar_estado_triade")
-def status(_: None = Depends(_required_token)) -> dict[str, Any]:
+def status(_: Annotated[None, Depends(_required_token)]) -> dict[str, Any]:
     """Summarize observed runtime heartbeat, without raw memory or credentials."""
     live = _upstream("GET", "/health/live")
     pulse = _upstream("GET", "/api/runtime/heartbeat")
@@ -142,8 +142,8 @@ def status(_: None = Depends(_required_token)) -> dict[str, Any]:
 
 @app.get("/actions/learning", operation_id="consultar_aprendizaje_triade")
 def learning(
-    limit: int = Query(default=20, ge=1, le=50),
-    _: None = Depends(_required_token),
+    _: Annotated[None, Depends(_required_token)],
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
 ) -> dict[str, Any]:
     """Provide a bounded journal summary; no raw lessons or candidate data."""
     journal = _upstream("GET", "/api/runtime/learning-journal", params={"limit": limit})
@@ -172,7 +172,7 @@ def learning(
 @app.post("/actions/run", operation_id="ejecutar_ciclo_triade")
 def run(
     body: RunInput,
-    _: None = Depends(_required_token),
+    _: Annotated[None, Depends(_required_token)],
 ) -> dict[str, Any]:
     """Run the real Tríade cycle, but only when the operator opts in."""
     if os.environ.get("TRIADE_ACTIONS_ALLOW_RUN", "0").lower() not in {"1", "true", "yes"}:
