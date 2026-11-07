@@ -43,7 +43,7 @@ def _get(path: str) -> dict[str, Any]:
             raise RuntimeError("local_runtime_unavailable")
         payload = json.load(response)
     if not isinstance(payload, dict):
-        raise ValueError("invalid_local_response")
+        raise TypeError("invalid_local_response")
     return payload
 
 
