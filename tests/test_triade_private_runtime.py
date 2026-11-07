@@ -28,7 +28,7 @@ def auth(value: str = LONG_SECRET):
 
 
 def test_private_read_api_fails_closed_without_long_operator_secret(monkeypatch):
-    monkeypatch.delenv("TRIADE_ACTIONS_TOKEN", raising=False)
+    monkeypatch.delenv("TRIADE_TABLET_OPERATOR_TOKEN", raising=False)
     with client() as web:
         for path in (
             "/api/private/connection",
@@ -39,13 +39,13 @@ def test_private_read_api_fails_closed_without_long_operator_secret(monkeypatch)
             assert response.status_code == 503
             assert "no-store" in response.headers["cache-control"]
             assert "runtime_upstream" not in response.text
-    monkeypatch.setenv("TRIADE_ACTIONS_TOKEN", "short")
+    monkeypatch.setenv("TRIADE_TABLET_OPERATOR_TOKEN", "short")
     with client() as web:
         assert web.get("/api/private/status", headers=auth()).status_code == 503
 
 
 def test_unauthorized_cannot_access_original_runtime(monkeypatch):
-    monkeypatch.setenv("TRIADE_ACTIONS_TOKEN", LONG_SECRET)
+    monkeypatch.setenv("TRIADE_TABLET_OPERATOR_TOKEN", LONG_SECRET)
     monkeypatch.setenv("TRIADE_ACTIONS_UPSTREAM_URL", "https://runtime.example.net")
 
     def forbidden(*_args, **_kwargs):
@@ -66,7 +66,7 @@ def test_unauthorized_cannot_access_original_runtime(monkeypatch):
 
 
 def test_authenticated_configuration_does_not_expose_upstream_details(monkeypatch):
-    monkeypatch.setenv("TRIADE_ACTIONS_TOKEN", LONG_SECRET)
+    monkeypatch.setenv("TRIADE_TABLET_OPERATOR_TOKEN", LONG_SECRET)
     monkeypatch.delenv("TRIADE_ACTIONS_UPSTREAM_URL", raising=False)
     monkeypatch.delenv("TRIADE_ACTIONS_UPSTREAM_KEY", raising=False)
     with client() as web:
@@ -81,7 +81,7 @@ def test_authenticated_configuration_does_not_expose_upstream_details(monkeypatc
 
 
 def test_private_status_and_learning_are_genuine_filtered_gets(monkeypatch):
-    monkeypatch.setenv("TRIADE_ACTIONS_TOKEN", LONG_SECRET)
+    monkeypatch.setenv("TRIADE_TABLET_OPERATOR_TOKEN", LONG_SECRET)
     monkeypatch.setenv("TRIADE_ACTIONS_UPSTREAM_URL", "https://runtime.example.net")
     monkeypatch.setenv("TRIADE_ACTIONS_UPSTREAM_KEY", "secret-to-not-return")
     called = []
@@ -161,7 +161,7 @@ def test_private_status_and_learning_are_genuine_filtered_gets(monkeypatch):
 
 
 def test_upstream_failure_keeps_truth_and_credentials_private(monkeypatch):
-    monkeypatch.setenv("TRIADE_ACTIONS_TOKEN", LONG_SECRET)
+    monkeypatch.setenv("TRIADE_TABLET_OPERATOR_TOKEN", LONG_SECRET)
     monkeypatch.setenv("TRIADE_ACTIONS_UPSTREAM_URL", "https://runtime.example.net")
 
     def unavailable(*_args, **_kwargs):
@@ -177,7 +177,7 @@ def test_upstream_failure_keeps_truth_and_credentials_private(monkeypatch):
 
 
 def test_public_status_and_mcp_do_not_expose_private_settings(monkeypatch):
-    monkeypatch.setenv("TRIADE_ACTIONS_TOKEN", LONG_SECRET)
+    monkeypatch.setenv("TRIADE_TABLET_OPERATOR_TOKEN", LONG_SECRET)
     monkeypatch.setenv("TRIADE_ACTIONS_UPSTREAM_URL", "https://runtime.example.net")
     monkeypatch.setenv("TRIADE_ACTIONS_UPSTREAM_KEY", "sensitive-upstream-secret")
     with client() as web:
