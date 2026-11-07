@@ -88,18 +88,17 @@ def test_concurrent_wal_connections_return_to_baseline(tmp_path: Path) -> None:
 
 def test_resource_metrics_report_live_descriptors(tmp_path: Path) -> None:
     database = tmp_path / "resources.db"
+    # Global connection totals also include unrelated background threads.
+    # Check descriptors for this exact temp database instead of racing them.
     before = sqlite3.resource_metrics(database)
+    assert before["db_file_descriptors"] == 0
     connection = sqlite3.connect(database)
     try:
         connection.execute("PRAGMA journal_mode=WAL")
         during = sqlite3.resource_metrics(database)
-        assert during["open_connections"] == before["open_connections"] + 1
         assert during["db_file_descriptors"] >= 1
         assert during["process_file_descriptors"] >= during["db_file_descriptors"]
         assert during["rss_mb"] > 0
     finally:
         connection.close()
-    assert (
-        sqlite3.resource_metrics(database)["open_connections"]
-        == before["open_connections"]
-    )
+    assert sqlite3.resource_metrics(database)["db_file_descriptors"] == 0

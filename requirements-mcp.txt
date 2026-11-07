@@ -1,0 +1,2 @@
+# MCP is deliberately optional; the core Tríade runtime does not need it.
+mcp>=2.0,<3
