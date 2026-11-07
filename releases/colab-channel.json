@@ -2,16 +2,16 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 42,
-  "version": "R7.17.18-autonomous-panel-cpu-observer",
+  "sequence": 43,
+  "version": "R7.17.19-backup-worker-health",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "a7d6c8573a1e79fa5a0cbd40fc53f8b4586c282b",
+  "commit": "b9f27a5625a53a279650cde2f54ffa44b7dc4ff1",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
-      "sha256": "ddfbde5cb3feef1165192fd72707f9f32c00320d4e5fa1841a57ce994017cb7c"
+      "sha256": "f51b8da6e75405e178da616e3c00c6800a66836f606f1b0ac569157a1027d0b5"
     },
     "controller": {
       "path": "tools/triade_colab_control_r7.py",
@@ -19,7 +19,7 @@
     },
     "client": {
       "path": "tools/triade_colab_continuous.py",
-      "sha256": "c51287c0789154c9223601bf911f988e0e0c1af0a5173f6207b739a0ef1e78f2"
+      "sha256": "7d8a64ecd97bff720f16befc0ff58ac990a288a0476cc4de46fe058b7402b706"
     },
     "rehydrator": {
       "path": "tools/triade_colab_continuity_r631.py",
@@ -56,6 +56,14 @@
     "learning_pipeline_schema": {
       "path": "tools/colab_patch_sources/learning_pipeline_schema.py",
       "sha256": "231df7d7a9b211dc95f34bba643e8af8b5d66f03bbd8328b63977e1d9283c5be"
+    },
+    "backup_key_resolution": {
+      "path": "tools/colab_patch_sources/backup_key_resolution.py",
+      "sha256": "30dad33f5ec26f8f509c5feacbd980346ab46cad8bc75d6a05081b5b72d7816e"
+    },
+    "service_health_progress": {
+      "path": "tools/colab_patch_sources/service_health_progress.py",
+      "sha256": "9af13f32076697584d50bc6929cec466fa1a5c20525569ef9c5520a1ed0c7fcc"
     }
   }
 }
