@@ -2,16 +2,16 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 43,
-  "version": "R7.17.19-backup-worker-health",
+  "sequence": 44,
+  "version": "R7.17.20-inspection-panel",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "b9f27a5625a53a279650cde2f54ffa44b7dc4ff1",
+  "commit": "c0773170d1f752b81c005b0d4619a1a146367c56",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
-      "sha256": "f51b8da6e75405e178da616e3c00c6800a66836f606f1b0ac569157a1027d0b5"
+      "sha256": "5e175315f59bf169d6d4ffbaca54e1f265d2dbb0ab532156b749153a2008b915"
     },
     "controller": {
       "path": "tools/triade_colab_control_r7.py",
@@ -19,7 +19,7 @@
     },
     "client": {
       "path": "tools/triade_colab_continuous.py",
-      "sha256": "7d8a64ecd97bff720f16befc0ff58ac990a288a0476cc4de46fe058b7402b706"
+      "sha256": "1b39fc35a63acd34be59a006b2e15182d0986637eaaf97b2ae9c23e47face99b"
     },
     "rehydrator": {
       "path": "tools/triade_colab_continuity_r631.py",
