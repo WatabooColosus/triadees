@@ -66,5 +66,27 @@ jobs:
               "triade_estado_publico", "triade_codigo_publico", "triade_plan_publico"
           }
           assert names == expected, sorted(names)
-          print("MCP LIVE OK: initialize, tools/list, safe names; no private tools")
+          def call(name, arguments):
+              return request("/mcp", {
+                  "jsonrpc": "2.0",
+                  "id": 3,
+                  "method": "tools/call",
+                  "params": {"name": name, "arguments": arguments},
+              })
+
+          status = call("triade_estado_publico", {})
+          status_text = str(status)
+          assert "runtime_original_conectado" in status_text
+          assert "False" in status_text or "false" in status_text
+          plan = call(
+              "triade_plan_publico",
+              {"objetivo": "auditar un ciclo educativo reproducible"},
+          )
+          assert "neurona_central" in str(plan)
+          assert "hipotalamo_emocional" in str(plan)
+          assert "bodega" in str(plan)
+          code = call("triade_codigo_publico", {})
+          assert "repository" in str(code)
+          assert "main_commit" in str(code), code
+          print("MCP LIVE OK: HTTPS, initialize, tools/list and 3 real tool calls")
           PY
