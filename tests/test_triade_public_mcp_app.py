@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import importlib
+
 import httpx
 import pytest
 from fastapi.testclient import TestClient
 
 mcp = pytest.importorskip("mcp")
 
-from apps import triade_public_mcp_app as public  # noqa: I001
+public = importlib.import_module("apps.triade_public_mcp_app")
 
 
 INIT = {
