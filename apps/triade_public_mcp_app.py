@@ -21,6 +21,8 @@ from mcp.server.transport_security import TransportSecuritySettings
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from apps.triade_tablet_app import attach_tablet_routes
+
 _REPO = "WatabooColosus/triadees"
 _API = "https://api.github.com/repos/WatabooColosus/triadees"
 
@@ -185,11 +187,17 @@ def build_public_app():
         ],
         allowed_origins=[],
     )
-    return server.streamable_http_app(
+    mcp_app = server.streamable_http_app(
         stateless_http=True,
         json_response=True,
         transport_security=settings,
         max_request_body_size=16384,
+    )
+    return attach_tablet_routes(
+        mcp_app,
+        status_provider=triade_estado_publico,
+        code_provider=triade_codigo_publico,
+        plan_provider=triade_plan_publico,
     )
 
 
