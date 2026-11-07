@@ -7,8 +7,9 @@ Tríade's private Bodega, runtime, secret env vars, or command execution.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse
@@ -100,13 +101,15 @@ def attach_tablet_routes(
                 status_code=415,
                 headers=SAFE_HEADERS,
             )
-        if request.headers.get("content-length", "").isdigit():
-            if int(request.headers["content-length"]) > 2048:
-                return JSONResponse(
-                    {"error": "Solicitud demasiado extensa"},
-                    status_code=413,
-                    headers=SAFE_HEADERS,
-                )
+        if (
+            request.headers.get("content-length", "").isdigit()
+            and int(request.headers["content-length"]) > 2048
+        ):
+            return JSONResponse(
+                {"error": "Solicitud demasiado extensa"},
+                status_code=413,
+                headers=SAFE_HEADERS,
+            )
         body = await request.body()
         if len(body) > 2048:
             return JSONResponse(
