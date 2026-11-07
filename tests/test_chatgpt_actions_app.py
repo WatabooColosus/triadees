@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import httpx
 from fastapi.testclient import TestClient
+
 from apps import chatgpt_actions_app as bridge
 
 
