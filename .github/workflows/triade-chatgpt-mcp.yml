@@ -50,7 +50,7 @@ jobs:
           pip install -e '.[dev]' -r requirements-mcp.txt ruff
       - name: Static checks
         run: |
-          ruff check apps/chatgpt_mcp_app.py apps/triade_public_mcp_app.py apps/triade_tablet_app.py apps/triade_private_runtime.py tests/test_chatgpt_mcp_app.py tests/test_triade_public_mcp_app.py tests/test_triade_tablet_app.py
+          ruff check apps/chatgpt_mcp_app.py apps/triade_public_mcp_app.py apps/triade_tablet_app.py apps/triade_private_runtime.py tests/test_chatgpt_mcp_app.py tests/test_triade_public_mcp_app.py tests/test_triade_tablet_app.py tests/test_triade_private_runtime.py
           ruff format --check apps/chatgpt_mcp_app.py apps/triade_public_mcp_app.py apps/triade_tablet_app.py apps/triade_private_runtime.py tests/test_chatgpt_mcp_app.py tests/test_triade_public_mcp_app.py tests/test_triade_tablet_app.py tests/test_triade_private_runtime.py
           python -m compileall -q apps/chatgpt_mcp_app.py apps/triade_tablet_app.py apps/triade_private_runtime.py
           node --check apps/tablet_assets/ui.js
