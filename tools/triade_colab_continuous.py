@@ -713,10 +713,6 @@ def render(r5, *, watch=True):
             lifecycle_actions,
             layout=widgets.Layout(display="flex", flex_flow="row wrap"),
         ),
-        widgets.Box(
-            inspection_actions,
-            layout=widgets.Layout(display="flex", flex_flow="row wrap"),
-        ),
         widgets.HTML(
             "<small>Tríade vigila su estado cada 10 minutos mientras Colab siga "
             "conectado. Los respaldos, las recuperaciones aisladas y el aprendizaje "
@@ -732,7 +728,14 @@ def render(r5, *, watch=True):
         if client.last_observation is not None:
             show_observation(client.last_observation)
         client.progress(getattr(previous, "stage_message", client.stage_message))
-    display(*client.view)
+    # Keep the seven-element view contract unchanged for older notebook cells.
+    # Render diagnostics as a distinct widget between lifecycle and information,
+    # so a legacy view[3].children observer cannot hide them.
+    client.inspection_view = widgets.Box(
+        inspection_actions,
+        layout=widgets.Layout(display="flex", flex_flow="row wrap"),
+    )
+    display(*client.view[:4], client.inspection_view, *client.view[4:])
     if watch:
         client.start_watch()
     return client
