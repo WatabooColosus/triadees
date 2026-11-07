@@ -1122,6 +1122,5 @@ def test_separate_inspection_source_is_not_part_of_legacy_action_box():
     assert "widgets.Box(\n            lifecycle_actions," in source
     assert "client.inspection_view = widgets.Box(" in source
     assert (
-        "display(*client.view[:4], client.inspection_view, *client.view[4:])"
-        in source
+        "display(*client.view[:4], client.inspection_view, *client.view[4:])" in source
     )
