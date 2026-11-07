@@ -85,7 +85,9 @@ def _upstream(
         headers["X-Triade-Api-Key"] = upstream_key
     try:
         # No redirects, environment proxies, dynamic paths, or caller-supplied URLs.
-        with httpx.Client(timeout=_TIMEOUT_SECONDS, follow_redirects=False, trust_env=False) as client:
+        with httpx.Client(
+            timeout=_TIMEOUT_SECONDS, follow_redirects=False, trust_env=False
+        ) as client:
             response = client.request(
                 method,
                 base + path,
@@ -94,7 +96,9 @@ def _upstream(
                 json=payload,
             )
         if response.status_code != 200:
-            raise HTTPException(status_code=502, detail="runtime_unavailable_or_rejected")
+            raise HTTPException(
+                status_code=502, detail="runtime_unavailable_or_rejected"
+            )
         if len(response.content) > 256_000:
             raise HTTPException(status_code=502, detail="runtime_response_too_large")
         result = response.json()
@@ -102,7 +106,9 @@ def _upstream(
             raise HTTPException(status_code=502, detail="runtime_invalid_response")
         return result
     except (httpx.TimeoutException, httpx.NetworkError, httpx.ProtocolError) as exc:
-        raise HTTPException(status_code=502, detail="runtime_connection_failed") from exc
+        raise HTTPException(
+            status_code=502, detail="runtime_connection_failed"
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=502, detail="runtime_invalid_json") from exc
 
@@ -123,9 +129,17 @@ def status(_: Annotated[None, Depends(_required_token)]) -> dict[str, Any]:
     live = _upstream("GET", "/health/live")
     pulse = _upstream("GET", "/api/runtime/heartbeat")
     keys = (
-        "status", "api_server_alive", "runtime_enabled", "background_thread_alive",
-        "workers_active", "mode", "last_cycle_at", "heartbeat_cycle", "heartbeat_age_ms",
-        "can_reason", "fallback_mode",
+        "status",
+        "api_server_alive",
+        "runtime_enabled",
+        "background_thread_alive",
+        "workers_active",
+        "mode",
+        "last_cycle_at",
+        "heartbeat_cycle",
+        "heartbeat_age_ms",
+        "can_reason",
+        "fallback_mode",
     )
     return {
         "observed_at": _observed_at(),
@@ -150,16 +164,26 @@ def learning(
     summary: dict[str, Any] = {}
     # Only explicit statistical fields: no surprise exposure of user data.
     for key in (
-        "status", "since_hours", "total_runs", "total_cycles", "total_sessions",
-        "total_applications", "lessons_prepared", "consolidations", "summary", "counts",
+        "status",
+        "since_hours",
+        "total_runs",
+        "total_cycles",
+        "total_sessions",
+        "total_applications",
+        "lessons_prepared",
+        "consolidations",
+        "summary",
+        "counts",
     ):
         value = journal.get(key)
         if isinstance(value, (str, int, float, bool, type(None))):
             summary[key] = value
         elif isinstance(value, dict):
             summary[key] = {
-                k: v for k, v in value.items()
-                if isinstance(k, str) and isinstance(v, (str, int, float, bool, type(None)))
+                k: v
+                for k, v in value.items()
+                if isinstance(k, str)
+                and isinstance(v, (str, int, float, bool, type(None)))
             }
     return {
         "observed_at": _observed_at(),
@@ -175,10 +199,15 @@ def run(
     _: Annotated[None, Depends(_required_token)],
 ) -> dict[str, Any]:
     """Run the real Tríade cycle, but only when the operator opts in."""
-    if os.environ.get("TRIADE_ACTIONS_ALLOW_RUN", "0").lower() not in {"1", "true", "yes"}:
+    if os.environ.get("TRIADE_ACTIONS_ALLOW_RUN", "0").lower() not in {
+        "1",
+        "true",
+        "yes",
+    }:
         raise HTTPException(status_code=403, detail="run_disabled_by_operator")
     result = _upstream(
-        "POST", "/api/run",
+        "POST",
+        "/api/run",
         payload={
             "text": body.text,
             "source": "chatgpt-actions",
