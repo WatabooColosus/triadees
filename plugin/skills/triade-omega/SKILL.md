@@ -37,7 +37,7 @@ La habilidad organiza operaciones del asistente y de las apps conectadas; NO ins
 
 ## Conexión al organismo real (cuando exista)
 
-El puente HTTP de ejemplo se encuentra en `apps/chatgpt_actions_app.py` y sus límites en `docs/CHATGPT_ACTIONS_GATEWAY.md`. Para integración permanente en plugins, implementar y probar un servidor remoto MCP con autenticación y Streamable HTTP; la habilidad sola usa los conectores existentes y no descubre ni instala automáticamente un MCP propio.
+El observatorio MCP de Render en `https://triade-omega-mcp.onrender.com/mcp` dispone de herramientas públicas de solo lectura cuando la conexión está activa: `triade_estado_publico`, `triade_codigo_publico` y `triade_plan_publico`. No proporciona Bodega, tokens privados, modelos ni acceso Colab. El archivo `mcp.json` declara la conexión sin credenciales porque estas herramientas no requieren autenticación. Para el organismo privado se requiere **otro flujo OAuth 2.1 con PKCE** y servidor protegido; nunca se trata una respuesta del observatorio como certificación del runtime. Si un host no habilita el MCP, actúa como habilidad y usa solo herramientas realmente disponibles.
 
 ## Salida preferida
 
