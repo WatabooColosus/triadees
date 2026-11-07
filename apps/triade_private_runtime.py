@@ -17,6 +17,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from apps import chatgpt_actions_app as runtime_gateway
+from apps.triade_colab_telemetry import attach_telemetry_routes
 
 _HEADERS = {
     "Cache-Control": "no-store",
@@ -182,4 +183,4 @@ def attach_private_runtime_routes(app: Any) -> Any:
             Route("/api/private/learning", learning, methods=["GET"]),
         ]
     )
-    return app
+    return attach_telemetry_routes(app, _authorized)
