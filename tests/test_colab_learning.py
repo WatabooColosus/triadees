@@ -427,11 +427,14 @@ def test_rerender_rebuilds_widgets_but_preserves_verified_context(
     assert new.module is old.module
     assert new.context["verified_counts"] == {"neurons": 16}
     assert new.context["progress"].__self__ is new
-    # Only the lifecycle and verified frontend actions remain.
+    # Lifecycle stays guarded, and read-only diagnostics survive re-render.
     assert new.auto_apply is False
     assert [button.description for button in new.view[3].children] == [
         "Instalar / encender / actualizar",
         "Abrir Tríade",
+        "Estado real",
+        "Auditar actividad (30 s)",
+        "Verificar aprendizaje",
     ]
     assert "learning_circuit" in new.view[-2].value
     assert "blocked" in new.view[-2].value
