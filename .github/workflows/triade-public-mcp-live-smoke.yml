@@ -87,6 +87,17 @@ jobs:
           assert "bodega" in str(plan)
           code = call("triade_codigo_publico", {})
           assert "repository" in str(code)
-          assert "main_commit" in str(code), code
+          info = code["result"].get("structuredContent", {})
+          if info.get("verified"):
+              assert len(info["main_commit"]) == 40
+              print("PUBLIC GITHUB VERIFIED:", info["source"])
+          else:
+              assert info.get("api_error_type"), code
+              assert info.get("feed_error_type"), code
+              print(
+                  "GITHUB PUBLIC DATA UNAVAILABLE (degraded, not certified):",
+                  info.get("api_http_status"),
+                  info.get("feed_http_status"),
+              )
           print("MCP LIVE OK: HTTPS, initialize, tools/list and 3 real tool calls")
           PY
