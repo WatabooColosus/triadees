@@ -533,3 +533,55 @@ def test_el_simulacro_resuelve_recibos_sqlite_como_evidencia(tmp_path) -> None:
 
     assert result["artifact_refs_checked"] == 1
     assert result["artifact_ref_failures"] == ["sqlite:neuron_education_events:999"]
+
+
+def test_stale_explicit_key_path_uses_existing_local_anchor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A missing Windows path must not mask an existing protected Colab key."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("TRIADE_BACKUP_KEY", raising=False)
+    key = tmp_path / "colab.key"
+    key.write_text(FERNET_A, encoding="utf-8")
+    set_file_mode(key, 0o600)
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "backup_key_location.json").write_text(
+        json.dumps({"key_file": str(key)}), encoding="utf-8"
+    )
+    monkeypatch.setenv("TRIADE_BACKUP_KEY_FILE", str(tmp_path / "old.key"))
+
+    assert EncryptedBackup._configured_key_file() == str(key)
+    assert EncryptedBackup.key_status()["configured"] is True
+
+
+def test_existing_explicit_key_keeps_precedence_over_local_anchor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Never silently switch away from an existing configured key."""
+    monkeypatch.chdir(tmp_path)
+    explicit = tmp_path / "explicit.key"
+    explicit.write_text(FERNET_A, encoding="utf-8")
+    set_file_mode(explicit, 0o600)
+    anchor = tmp_path / "anchor.key"
+    anchor.write_text(FERNET_B, encoding="utf-8")
+    set_file_mode(anchor, 0o600)
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "backup_key_location.json").write_text(
+        json.dumps({"key_file": str(anchor)}), encoding="utf-8"
+    )
+    monkeypatch.setenv("TRIADE_BACKUP_KEY_FILE", str(explicit))
+
+    assert EncryptedBackup._configured_key_file() == str(explicit)
+
+
+def test_missing_backup_key_remains_missing_without_fabrication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Missing key stays a diagnosable error, never a fabricated new key."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("TRIADE_BACKUP_KEY", raising=False)
+    stale = tmp_path / "not-found.key"
+    monkeypatch.setenv("TRIADE_BACKUP_KEY_FILE", str(stale))
+
+    assert EncryptedBackup._configured_key_file() == str(stale)
+    assert EncryptedBackup.key_status()["configured"] is False

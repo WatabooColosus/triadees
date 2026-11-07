@@ -258,6 +258,8 @@ def _apply_runtime_path_patches(context):
         "neuron_activity_schema": "triade/core/neuron_activity_store.py",
         "neuron_registry_schema": "triade/core/neuron_registry.py",
         "learning_pipeline_schema": "triade/learning/pipeline.py",
+        "backup_key_resolution": "triade/memory/encrypted_backup.py",
+        "service_health_progress": "triade/runtime/service_health.py",
     }
     if "r5" not in context:
         return {"status": "not_applicable", "restarted": False}
@@ -610,6 +612,7 @@ def install(context):
             "Actualizando el auditor del panel; Tríade sigue encendida…"
         )
         runtime_patches = _apply_runtime_path_patches(context)
+        context["require_runtime_patch_verification"] = True
         router_patch = _apply_router_patch(context)
         protection = _attach_panel_components(context)
         return {
@@ -629,6 +632,7 @@ def install(context):
     ):
         raise RuntimeError("El arranque no terminó verificado")
     runtime_patches = _apply_runtime_path_patches(context)
+    context["require_runtime_patch_verification"] = True
     router_patch = _apply_router_patch(context)
     protection = _attach_panel_components(context)
     return {
@@ -639,6 +643,36 @@ def install(context):
         "router_patch": router_patch,
         "backup_protection": protection,
     }
+
+
+def _runtime_patches_match(context):
+    """Verify only the explicitly supplied runtime patches after installation."""
+    if not context.get("require_runtime_patch_verification"):
+        return True
+    r5 = context["r5"]
+    mapping = {
+        "worker_state_store": "triade/workers/state_store.py",
+        "neuron_activity_schema": "triade/core/neuron_activity_store.py",
+        "neuron_registry_schema": "triade/core/neuron_registry.py",
+        "learning_pipeline_schema": "triade/learning/pipeline.py",
+        "backup_key_resolution": "triade/memory/encrypted_backup.py",
+        "service_health_progress": "triade/runtime/service_health.py",
+    }
+    for name, relative in mapping.items():
+        staged = context.get("files", {}).get(name)
+        if staged is None:
+            continue
+        installed = Path(r5.ROOT) / relative
+        source = Path(staged)
+        if (
+            not installed.is_file()
+            or installed.is_symlink()
+            or not source.is_file()
+            or source.is_symlink()
+            or installed.read_bytes() != source.read_bytes()
+        ):
+            return False
+    return True
 
 
 def verify(context):
@@ -654,6 +688,7 @@ def verify(context):
     observed = _center(context).status()
     ready = bool(
         router_ok
+        and _runtime_patches_match(context)
         and observed.get("api_http_200") is True
         and observed.get("ollama_http_200") is True
         and observed.get("bodega", "").startswith("SQLite ok")
