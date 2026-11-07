@@ -184,9 +184,12 @@ Los últimos tres controles solo consultan los inspectores existentes `status`,
 mejora causal, no restauran ni promocionan neuronas.
 
 La versión R7.17.21 muestra las acciones de ciclo de vida y navegación en el
-grupo primario del panel, y **los tres diagnósticos en un grupo independiente**.
-Esto evita que los callbacks del notebook heredado (que limitan `view[3]` a dos
-controles) oculten también los diagnósticos. La política de compatibilidad
+grupo primario del panel, y **los tres diagnósticos en un grupo independiente**,
+visible junto al grupo principal. Se conserva intacta la estructura posicional
+de siete elementos de `client.view` para los notebooks anteriores, y se
+muestra `client.inspection_view` como widget adicional. Esto evita que los
+callbacks del notebook heredado (que limitan `view[3]` a dos controles)
+oculten también los diagnósticos. La política de compatibilidad
 preserva los botones seguros ya conectados y, en paneles antiguos de siete
 elementos, sigue permitiendo recuperar los tres diagnósticos mediante las
 acciones verificadas del cliente activo. El observador antiguo que descartaba
