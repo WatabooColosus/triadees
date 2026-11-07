@@ -334,6 +334,68 @@ def test_newer_ci_attempt_cannot_be_hidden_by_old_success(runtime):
         client.install()
 
 
+def test_cancelled_newer_ci_run_does_not_erase_exact_sha_success(runtime):
+    client, catalogue, _ = runtime
+    catalogue.extra_runs = [
+        {
+            "id": 999,
+            "name": "Runtime Truth CI",
+            "run_number": 2,
+            "run_attempt": 1,
+            "head_sha": catalogue.manifest["commit"],
+            "event": "push",
+            "status": "completed",
+            "conclusion": "cancelled",
+        }
+    ]
+    result = client.install()
+    assert result["status"] == "ready"
+    assert client.r5.events == [("install", "release-one")]
+    assert client.drive_receipt.is_file()
+    # Approval is from the previously successful run, never from cancelled 999.
+    assert client.last_check["ci"]["Runtime Truth CI"] != 999
+
+
+def test_newer_real_ci_failure_still_blocks_exact_sha(runtime):
+    client, catalogue, _ = runtime
+    catalogue.extra_runs = [
+        {
+            "id": 999,
+            "name": "Runtime Truth CI",
+            "run_number": 2,
+            "run_attempt": 1,
+            "head_sha": catalogue.manifest["commit"],
+            "event": "push",
+            "status": "completed",
+            "conclusion": "failure",
+        }
+    ]
+    with pytest.raises(RuntimeError, match="Runtime Truth CI"):
+        client.install()
+    assert client.r5.events == []
+    assert not client.drive_receipt.exists()
+
+
+def test_cancelled_rerun_of_only_required_gate_stays_blocked(runtime):
+    client, catalogue, _ = runtime
+    catalogue.extra_runs = [
+        {
+            "id": 999,
+            "name": "Runtime Truth CI",
+            "run_number": 2,
+            "run_attempt": 1,
+            "head_sha": catalogue.manifest["commit"],
+            "event": "push",
+            "status": "completed",
+            "conclusion": "cancelled",
+        }
+    ]
+    catalogue.ci = "cancelled"
+    with pytest.raises(RuntimeError, match="CI"):
+        client.install()
+    assert client.r5.events == []
+
+
 def test_every_hash_is_checked_before_any_module_executes(runtime, tmp_path):
     client, catalogue, _ = runtime
     sentinel = tmp_path / "should-not-be-created"
