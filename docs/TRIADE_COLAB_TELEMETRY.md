@@ -52,8 +52,9 @@ from tools.triade_colab_outbound_telemetry import run_while_colab_active
 os.environ["TRIADE_TELEMETRY_INGEST_TOKEN"] = userdata.get(
     "TRIADE_TELEMETRY_INGEST_TOKEN"
 )
-if not any(t.name == "triade-observability" and t.is_alive()
-           for t in threading.enumerate()):
+if not any(
+    t.name == "triade-observability" and t.is_alive() for t in threading.enumerate()
+):
     threading.Thread(
         name="triade-observability",
         target=run_while_colab_active,
