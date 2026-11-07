@@ -434,7 +434,8 @@ def test_rerender_rebuilds_widgets_but_preserves_verified_context(
         "Instalar / encender / actualizar",
         "Abrir Tríade",
     ]
-    assert [button.description for button in new.view[4].children] == [
+    assert len(new.view) == 7
+    assert [button.description for button in new.inspection_view.children] == [
         "Estado real",
         "Auditar actividad (30 s)",
         "Verificar aprendizaje",
