@@ -137,7 +137,7 @@ jobs:
           # Private runtime endpoints must never be queryable anonymously.
           for private_path in [
               "/api/private/connection", "/api/private/status",
-              "/api/private/learning"
+              "/api/private/learning", "/api/private/telemetry"
           ]:
               try:
                   urllib.request.urlopen(url + private_path, timeout=30)
@@ -149,4 +149,28 @@ jobs:
               else:
                   raise AssertionError("Private route exposed: " + private_path)
           print("PRIVATE LINK VERIFIED: operator key configured, anonymous requests receive 401")
+          # Colab emitter endpoint cannot accept a public or malformed report.
+          report = {
+              "schema_version": 1,
+              "observations": {"api_server_alive": True},
+              "stats": {"cycles_last_24h": 1},
+          }
+          unauthorized_request = urllib.request.Request(
+              url + "/api/telemetry/ingest",
+              data=json.dumps(report).encode("utf-8"),
+              headers={
+                  "Accept": "application/json",
+                  "Content-Type": "application/json",
+                  "Authorization": "Bearer invalid-test-token",
+              },
+              method="POST",
+          )
+          try:
+              urllib.request.urlopen(unauthorized_request, timeout=30)
+          except urllib.error.HTTPError as exc:
+              assert exc.code in (401, 503), exc.code
+              assert b"accepted" not in exc.read()
+          else:
+              raise AssertionError("Telemetry ingestion accepted an invalid key")
+          print("TELEMETRY GUARDED: no public ingest, private snapshots denied")
           PY
