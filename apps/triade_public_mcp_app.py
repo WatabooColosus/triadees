@@ -36,9 +36,7 @@ def _public_git_status() -> dict[str, Any]:
         "Accept": "application/vnd.github+json",
         "User-Agent": "TriadeOmegaPublicObservatory/0.2",
     }
-    with httpx.Client(
-        timeout=7.0, follow_redirects=False, trust_env=False
-    ) as client:
+    with httpx.Client(timeout=7.0, follow_redirects=False, trust_env=False) as client:
         try:
             response = client.get(_API + "/commits/main", headers=headers)
             response.raise_for_status()
