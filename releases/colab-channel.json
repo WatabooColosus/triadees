@@ -2,16 +2,16 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 44,
-  "version": "R7.17.20-inspection-panel",
+  "sequence": 45,
+  "version": "R7.17.21-diagnostic-surface",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "c0773170d1f752b81c005b0d4619a1a146367c56",
+  "commit": "119c9b022d44013664bb35deeab528387fd023b6",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
-      "sha256": "5e175315f59bf169d6d4ffbaca54e1f265d2dbb0ab532156b749153a2008b915"
+      "sha256": "b0d005ecc58b26ae73018c8a3593c2cda8c6e9302b877837946914a660b63ebf"
     },
     "controller": {
       "path": "tools/triade_colab_control_r7.py",
@@ -19,7 +19,7 @@
     },
     "client": {
       "path": "tools/triade_colab_continuous.py",
-      "sha256": "1b39fc35a63acd34be59a006b2e15182d0986637eaaf97b2ae9c23e47face99b"
+      "sha256": "65a1eba80f15f92978a18a5932046b9b90cb279157feb92aa9761e3cf3d89079"
     },
     "rehydrator": {
       "path": "tools/triade_colab_continuity_r631.py",
