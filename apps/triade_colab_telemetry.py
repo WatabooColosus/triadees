@@ -91,7 +91,9 @@ def _validate_payload(data: Any) -> dict[str, Any]:
     cleaned_obs: dict[str, Any] = {}
     for name, value in obs.items():
         valid_bool = name in _BOOL_FIELDS and type(value) is bool
-        valid_int = name in _INT_FIELDS and type(value) is int and 0 <= value <= _MAX_COUNT
+        valid_int = (
+            name in _INT_FIELDS and type(value) is int and 0 <= value <= _MAX_COUNT
+        )
         valid_mode = (
             name == "mode"
             and isinstance(value, str)
@@ -147,14 +149,17 @@ def _snapshot() -> dict[str, Any]:
         return {"status": "fresh", "fresh": True, "age_seconds": age, **_last}
 
 
-def attach_telemetry_routes(
-    app: Any, operator_check: Callable[[Request], bool]
-) -> Any:
+def attach_telemetry_routes(app: Any, operator_check: Callable[[Request], bool]) -> Any:
     async def ingest(request: Request) -> JSONResponse:
         denied = _ingest_access(request)
         if denied is not None:
-            return _reject(denied, "ingest_unauthorized" if denied == 401 else "ingest_disabled")
-        if request.headers.get("content-type", "").split(";", 1)[0].lower() != "application/json":
+            return _reject(
+                denied, "ingest_unauthorized" if denied == 401 else "ingest_disabled"
+            )
+        if (
+            request.headers.get("content-type", "").split(";", 1)[0].lower()
+            != "application/json"
+        ):
             return _reject(415, "content_type_invalid")
         length = request.headers.get("content-length", "")
         if length.isdigit() and int(length) > MAX_BYTES:
@@ -175,7 +180,12 @@ def attach_telemetry_routes(
         try:
             operator_check(request)
         except HTTPException as exc:
-            return _reject(exc.status_code, "operator_unavailable" if exc.status_code == 503 else "operator_unauthorized")
+            return _reject(
+                exc.status_code,
+                "operator_unavailable"
+                if exc.status_code == 503
+                else "operator_unauthorized",
+            )
         return JSONResponse(_snapshot(), headers=_HEADERS)
 
     app.routes.extend(
