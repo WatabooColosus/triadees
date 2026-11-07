@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import importlib
+
 import pytest
 from fastapi.testclient import TestClient
 
 pytest.importorskip("mcp")  # MCP stays an optional runtime dependency.
 
-from apps import chatgpt_mcp_app as bridge  # noqa: E402
+bridge = importlib.import_module("apps.chatgpt_mcp_app")
 
 
 INIT = {
