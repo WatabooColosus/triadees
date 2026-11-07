@@ -83,26 +83,24 @@ def _validate_payload(data: Any) -> dict[str, Any]:
         raise ValueError("invalid_version")
     obs, stats = data["observations"], data["stats"]
     if not isinstance(obs, dict) or not isinstance(stats, dict):
-        raise ValueError("invalid_fields")
+        raise TypeError("invalid_fields")
     if not obs or not set(obs) <= (_BOOL_FIELDS | _INT_FIELDS | {"mode"}):
         raise ValueError("invalid_observations")
     if not set(stats) <= _STATS_FIELDS:
         raise ValueError("invalid_stats")
     cleaned_obs: dict[str, Any] = {}
     for name, value in obs.items():
-        if name in _BOOL_FIELDS and type(value) is bool:
-            cleaned_obs[name] = value
-        elif name in _INT_FIELDS and type(value) is int and 0 <= value <= _MAX_COUNT:
-            cleaned_obs[name] = value
-        elif (
+        valid_bool = name in _BOOL_FIELDS and type(value) is bool
+        valid_int = name in _INT_FIELDS and type(value) is int and 0 <= value <= _MAX_COUNT
+        valid_mode = (
             name == "mode"
             and isinstance(value, str)
             and 1 <= len(value) <= 48
             and all(ch.isascii() and (ch.isalnum() or ch in "-_") for ch in value)
-        ):
-            cleaned_obs[name] = value
-        else:
+        )
+        if not (valid_bool or valid_int or valid_mode):
             raise ValueError("invalid_observation_type")
+        cleaned_obs[name] = value
     cleaned_stats: dict[str, int] = {}
     for name, value in stats.items():
         if type(value) is not int or not 0 <= value <= _MAX_COUNT:
