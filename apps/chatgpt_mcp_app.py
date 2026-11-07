@@ -33,7 +33,9 @@ class BearerGuard:
             return
         secret = os.environ.get("TRIADE_ACTIONS_TOKEN", "").strip()
         if not secret:
-            response = JSONResponse({"error": "gateway_not_configured"}, status_code=503)
+            response = JSONResponse(
+                {"error": "gateway_not_configured"}, status_code=503
+            )
         else:
             raw = Headers(scope=scope).get("authorization", "")
             scheme, separator, supplied = raw.partition(" ")
@@ -88,11 +90,15 @@ def build_app() -> ASGIApp:
         ),
     )
 
-    @mcp.tool(description="Consulta el estado real del runtime (solo lectura, resumen filtrado).")
+    @mcp.tool(
+        description="Consulta el estado real del runtime (solo lectura, resumen filtrado)."
+    )
     def triade_estado() -> dict[str, Any]:
         return gateway.status(None)
 
-    @mcp.tool(description="Consulta estadísticas de aprendizaje de Tríade (solo lectura, sin datos privados).")
+    @mcp.tool(
+        description="Consulta estadísticas de aprendizaje de Tríade (solo lectura, sin datos privados)."
+    )
     def triade_aprendizaje(limit: int = 20) -> dict[str, Any]:
         if not 1 <= limit <= 50:
             raise ValueError("limit must be between 1 and 50")
