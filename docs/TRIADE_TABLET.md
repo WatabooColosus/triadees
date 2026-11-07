@@ -32,6 +32,17 @@ de períodos de inactividad.
 - Página, estilos, Javascript, manifiesto SVG y service worker servidos
   directamente por el mismo proceso de Render, sin un segundo servicio.
 
+## Enlace privado al organismo original
+
+La sección **Organismo** incorpora un formulario privado para consultar
+solo salud, workers y contadores educativos del runtime original. Requiere
+una clave de operador larga configurada en Render y la URL HTTPS real del
+runtime. El token no se guarda en la tablet. Este enlace puede estar
+no configurado aunque el observatorio público esté en línea.
+
+Consulta `docs/TRIADE_PRIVATE_RUNTIME_LINK.md` para el procedimiento,
+los permisos y los límites de verificación.
+
 ## Seguridad y límites
 
 - No publiques claves, credenciales ni información privada en el laboratorio:
