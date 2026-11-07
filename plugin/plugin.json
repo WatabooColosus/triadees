@@ -1,0 +1,17 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "triade-omega",
+  "version": "0.1.0",
+  "description": "Tríade Ω de Agencia Digital Wataboo: coordinación verificable, investigación, memoria y auditoría a través de herramientas conectadas.",
+  "author": {
+    "name": "Agencia Digital Wataboo"
+  },
+  "repository": "https://github.com/WatabooColosus/triadees",
+  "keywords": [
+    "agentes",
+    "auditoria",
+    "memoria",
+    "investigacion",
+    "gobernanza"
+  ]
+}
