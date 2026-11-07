@@ -45,7 +45,7 @@ def _reject(status_code: int, error: str) -> JSONResponse:
 
 
 def _authorized(request: Request) -> bool:
-    expected = os.getenv("TRIADE_ACTIONS_TOKEN", "").strip()
+    expected = os.getenv("TRIADE_TABLET_OPERATOR_TOKEN", "").strip()
     # Do not expose a remotely guessable, short operator secret.
     if len(expected) < 32:
         raise HTTPException(status_code=503, detail="private_access_not_configured")
