@@ -146,11 +146,13 @@ def status(_: Annotated[None, Depends(_required_token)]) -> dict[str, Any]:
         "source": "triade_runtime_http",
         "http_health": live.get("status", "unknown"),
         "pulse": {key: pulse[key] for key in keys if key in pulse},
-        "full_runtime_verified": bool(
+        "runtime_and_workers_reported_active": bool(
             live.get("status") == "ok"
             and pulse.get("runtime_enabled")
             and pulse.get("workers_active")
         ),
+        # Liveness does not certify learning, continuity, safety or identity.
+        "full_runtime_verified": False,
     }
 
 
