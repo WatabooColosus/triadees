@@ -19,6 +19,7 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from apps import chatgpt_actions_app as gateway
+from apps.triade_public_mcp_app import build_public_app
 
 
 class BearerGuard:
@@ -133,5 +134,7 @@ def build_app() -> ASGIApp:
     return BearerGuard(server)
 
 
-# Uvicorn entrypoint for separate, low-resource deployment.
-app = build_app()
+# Uvicorn entrypoint: intentionally public and limited to non-sensitive tools.
+# The bearer-protected build_app() remains isolated from the public route until
+# proper OAuth 2.1 PKCE authentication is implemented for private runtime access.
+app = build_public_app()
