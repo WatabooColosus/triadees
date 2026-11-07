@@ -121,6 +121,12 @@ def verify_ci(manifest, downloader=fetch):
     for run in payload.get("workflow_runs", []):
         if run.get("head_sha") != manifest["commit"] or run.get("event") != "push":
             continue
+        # A cancelled run never inspected the entire immutable commit; it
+        # cannot invalidate a successful run of that *same exact SHA*.
+        # A later failure or an in-progress run still blocks publication.
+        # If all runs for a required gate are cancelled, the gate fails closed.
+        if run.get("status") == "completed" and run.get("conclusion") == "cancelled":
+            continue
         name = run.get("name")
         rank = (run.get("run_number", 0), run.get("run_attempt", 0), run.get("id", 0))
         if name not in latest or rank > latest[name][0]:
