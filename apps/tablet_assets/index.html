@@ -31,6 +31,7 @@
       <a href="#nucleos" class="nav-link">Núcleos</a>
       <a href="#laboratorio" class="nav-link">Laboratorio</a>
       <a href="#evidencia" class="nav-link">Evidencia</a>
+      <a href="#organismo" class="nav-link">Organismo</a>
     </nav>
 
     <main id="principal">
@@ -131,6 +132,46 @@
           <div class="history-head"><div><div class="eyebrow">SOLO EN ESTA TABLET</div><h2>Historial local</h2></div><button id="clear-history" class="text-btn" type="button">Borrar</button></div>
           <p>Los últimos planes se guardan únicamente en el almacenamiento de este navegador. No son memoria de la Bodega original.</p>
           <div id="history-list" class="history-list"><p class="history-empty">Todavía no hay planes guardados.</p></div>
+        </div>
+      </section>
+
+      <section class="section" id="organismo" aria-labelledby="organismo-title">
+        <div class="section-top">
+          <div><div class="eyebrow">PUENTE DE DIAGNÓSTICO PROTEGIDO</div><h2 id="organismo-title">Enlace con el organismo original</h2></div>
+          <span class="lab-chip">PRIVADO · SOLO CONSULTA</span>
+        </div>
+        <div class="private-grid">
+          <div class="panel private-auth">
+            <span class="compose-led" aria-hidden="true"></span><strong>Acceso del operador</strong>
+            <p>Para consultar modelos, workers y aprendizaje reales necesitas la clave privada configurada en Render y un runtime de Tríade accesible por HTTPS. No uses el formulario público de misiones para secretos.</p>
+            <form id="private-form" autocomplete="off">
+              <label for="private-key">Clave privada de operador</label>
+              <input id="private-key" name="private-key" type="password" placeholder="Clave de Render (mínimo 32 caracteres)" minlength="32" maxlength="512" required autocomplete="off" autocapitalize="none" spellcheck="false"/>
+              <div class="private-buttons">
+                <button type="submit" id="private-connect" class="btn btn-primary">Verificar acceso</button>
+                <button type="button" id="private-disconnect" class="btn btn-quiet">Desconectar</button>
+              </div>
+            </form>
+            <p class="privacy-hint">La clave permanece únicamente en la memoria temporal de esta página y se borra al desconectar o cerrar. Nunca se guarda en el historial local, ni se añade a la URL.</p>
+          </div>
+          <div class="panel private-info" aria-live="polite">
+            <div class="result-head"><span class="kicker">VÍNCULO COGNITIVO</span><span id="private-mode" class="result-mode">BLOQUEADO</span></div>
+            <div class="private-overview">
+              <div><span>Autenticación</span><strong id="private-auth-state">No iniciada</strong></div>
+              <div><span>Endpoint HTTPS original</span><strong id="private-upstream-state">No comprobado</strong></div>
+              <div><span>Identidad del organismo</span><strong id="private-runtime-state">No certificada</strong></div>
+              <div><span>Escritura y ejecución</span><strong>Desactivadas</strong></div>
+            </div>
+            <button id="private-refresh" type="button" class="btn btn-quiet full" disabled>Consultar estado y aprendizaje</button>
+            <div id="private-message" role="status"></div>
+            <div id="private-results" hidden>
+              <h3>Observaciones reales</h3>
+              <div id="private-runtime-metrics" class="private-metrics"></div>
+              <h3>Bitácora educativa (contadores)</h3>
+              <div id="private-learning-metrics" class="private-metrics"></div>
+              <p class="privacy-hint">Estos contadores provienen de la API original si está accesible. No se exponen eventos, títulos de candidatos ni memorias. Ningún contador certifica aprendizaje por sí solo.</p>
+            </div>
+          </div>
         </div>
       </section>
 
