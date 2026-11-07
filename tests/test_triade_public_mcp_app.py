@@ -108,5 +108,45 @@ def test_public_github_reports_evidence_and_fails_closed(monkeypatch):
     monkeypatch.setattr(public.httpx, "Client", FailedClient)
     unavailable = public._public_git_status()
     assert unavailable["verified"] is False
-    assert unavailable["error_type"] == "ConnectError"
+    assert unavailable["api_error_type"] == "ConnectError"
+    assert unavailable["feed_error_type"] == "ConnectError"
     assert "main_commit" not in unavailable
+
+    class RateLimitedResponse:
+        status_code = 403
+
+        def raise_for_status(self):
+            request = httpx.Request(
+                "GET",
+                "https://api.github.com/repos/WatabooColosus/triadees/commits/main",
+            )
+            raise httpx.HTTPStatusError(
+                "rate limit", request=request, response=httpx.Response(403, request=request)
+            )
+
+    class FeedResponse:
+        def raise_for_status(self):
+            return None
+
+        text = (
+            '<feed xmlns="http://www.w3.org/2005/Atom"><entry>'
+            '<link href="https://github.com/WatabooColosus/triadees/commit/'
+            + "a" * 40
+            + '"/></entry></feed>'
+        )
+
+    class FallbackClient(FakeClient):
+        def get(self, url, headers):
+            if url.startswith("https://api.github.com/"):
+                return RateLimitedResponse()
+            assert url == (
+                "https://github.com/WatabooColosus/triadees/commits/main.atom"
+            )
+            return FeedResponse()
+
+    monkeypatch.setattr(public.httpx, "Client", FallbackClient)
+    recovered = public._public_git_status()
+    assert recovered["verified"] is True
+    assert recovered["source"] == "public_github_atom"
+    assert recovered["api_http_status"] == 403
+    assert recovered["main_commit"] == "a" * 40
