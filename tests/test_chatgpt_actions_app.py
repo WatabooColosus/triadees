@@ -1,4 +1,5 @@
 """Isolated tests for the ChatGPT Actions bridge. No original memory is opened."""
+
 from __future__ import annotations
 
 import httpx
@@ -27,15 +28,48 @@ def stub_upstream(monkeypatch, events):
             return False
 
         def request(self, method, url, headers, params=None, json=None):
-            events.append({"method": method, "url": url, "headers": headers, "params": params, "payload": json})
+            events.append(
+                {
+                    "method": method,
+                    "url": url,
+                    "headers": headers,
+                    "params": params,
+                    "payload": json,
+                }
+            )
             if url.endswith("/health/live"):
                 return httpx.Response(200, json={"status": "ok"})
             if url.endswith("/api/runtime/heartbeat"):
-                return httpx.Response(200, json={"status": "ok", "runtime_enabled": True, "workers_active": True, "heartbeat_cycle": 11, "secret": "DO-NOT-LEAK"})
+                return httpx.Response(
+                    200,
+                    json={
+                        "status": "ok",
+                        "runtime_enabled": True,
+                        "workers_active": True,
+                        "heartbeat_cycle": 11,
+                        "secret": "DO-NOT-LEAK",
+                    },
+                )
             if url.endswith("/api/runtime/learning-journal"):
-                return httpx.Response(200, json={"status": "ok", "total_sessions": 3, "summary": {"ready": 1}, "private_learning": ["hidden"]})
+                return httpx.Response(
+                    200,
+                    json={
+                        "status": "ok",
+                        "total_sessions": 3,
+                        "summary": {"ready": 1},
+                        "private_learning": ["hidden"],
+                    },
+                )
             if url.endswith("/api/run"):
-                return httpx.Response(200, json={"status": "ok", "response": "Ciclo real", "run_id": "run-1", "memory_diff": {"secret": "DO-NOT-LEAK"}})
+                return httpx.Response(
+                    200,
+                    json={
+                        "status": "ok",
+                        "response": "Ciclo real",
+                        "run_id": "run-1",
+                        "memory_diff": {"secret": "DO-NOT-LEAK"},
+                    },
+                )
             return httpx.Response(404)
 
     monkeypatch.setattr(bridge.httpx, "Client", FakeHTTPClient)
@@ -44,16 +78,28 @@ def stub_upstream(monkeypatch, events):
 def test_authentication_fails_closed(monkeypatch):
     client = setup_gateway(monkeypatch)
     assert client.get("/actions/status").status_code == 401
-    assert client.get("/actions/status", headers={"Authorization": "Bearer wrong"}).status_code == 401
+    assert (
+        client.get(
+            "/actions/status", headers={"Authorization": "Bearer wrong"}
+        ).status_code
+        == 401
+    )
     monkeypatch.delenv("TRIADE_ACTIONS_TOKEN")
-    assert client.get("/actions/status", headers={"Authorization": "Bearer gateway-secret"}).status_code == 503
+    assert (
+        client.get(
+            "/actions/status", headers={"Authorization": "Bearer gateway-secret"}
+        ).status_code
+        == 503
+    )
 
 
 def test_status_is_live_and_minimized(monkeypatch):
     client = setup_gateway(monkeypatch)
     events = []
     stub_upstream(monkeypatch, events)
-    result = client.get("/actions/status", headers={"Authorization": "Bearer gateway-secret"})
+    result = client.get(
+        "/actions/status", headers={"Authorization": "Bearer gateway-secret"}
+    )
     assert result.status_code == 200
     assert result.json()["full_runtime_verified"] is True
     assert result.json()["pulse"]["heartbeat_cycle"] == 11
@@ -66,13 +112,21 @@ def test_learning_is_summary_only(monkeypatch):
     client = setup_gateway(monkeypatch)
     events = []
     stub_upstream(monkeypatch, events)
-    result = client.get("/actions/learning?limit=5", headers={"Authorization": "Bearer gateway-secret"})
+    result = client.get(
+        "/actions/learning?limit=5", headers={"Authorization": "Bearer gateway-secret"}
+    )
     assert result.status_code == 200
     assert result.json()["journal"]["total_sessions"] == 3
     assert "private_learning" not in result.text
     assert result.json()["full_learning_certified"] is False
     assert events[0]["params"] == {"limit": 5}
-    assert client.get("/actions/learning?limit=200", headers={"Authorization": "Bearer gateway-secret"}).status_code == 422
+    assert (
+        client.get(
+            "/actions/learning?limit=200",
+            headers={"Authorization": "Bearer gateway-secret"},
+        ).status_code
+        == 422
+    )
 
 
 def test_run_off_by_default_and_opt_in(monkeypatch):
@@ -80,7 +134,10 @@ def test_run_off_by_default_and_opt_in(monkeypatch):
     events = []
     stub_upstream(monkeypatch, events)
     auth = {"Authorization": "Bearer gateway-secret"}
-    assert client.post("/actions/run", headers=auth, json={"text": "hola"}).status_code == 403
+    assert (
+        client.post("/actions/run", headers=auth, json={"text": "hola"}).status_code
+        == 403
+    )
     assert not events
     monkeypatch.setenv("TRIADE_ACTIONS_ALLOW_RUN", "1")
     result = client.post("/actions/run", headers=auth, json={"text": "hola"})
@@ -94,7 +151,9 @@ def test_run_off_by_default_and_opt_in(monkeypatch):
 def test_upstream_must_use_https_outside_localhost(monkeypatch):
     client = setup_gateway(monkeypatch)
     monkeypatch.setenv("TRIADE_ACTIONS_UPSTREAM_URL", "http://example.org:8010")
-    result = client.get("/actions/status", headers={"Authorization": "Bearer gateway-secret"})
+    result = client.get(
+        "/actions/status", headers={"Authorization": "Bearer gateway-secret"}
+    )
     assert result.status_code == 503
     assert result.json()["detail"] == "upstream_not_safely_configured"
 
