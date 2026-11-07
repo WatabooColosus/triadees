@@ -275,7 +275,7 @@
       return "Falta una clave privada larga (32 o más caracteres) en las variables de Render.";
     }
     if (code === "invalid_operator_token") {
-      return "Clave no válida. Verifica la variable TRIADE_ACTIONS_TOKEN en Render.";
+      return "Clave no válida. Verifica la variable TRIADE_TABLET_OPERATOR_TOKEN en Render.";
     }
     if (code === "runtime_endpoint_not_configured") {
       return "El acceso está autorizado, pero falta la dirección HTTPS del runtime original.";
