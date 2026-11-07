@@ -101,7 +101,8 @@ def test_status_is_live_and_minimized(monkeypatch):
         "/actions/status", headers={"Authorization": "Bearer gateway-secret"}
     )
     assert result.status_code == 200
-    assert result.json()["full_runtime_verified"] is True
+    assert result.json()["full_runtime_verified"] is False
+    assert result.json()["runtime_and_workers_reported_active"] is True
     assert result.json()["pulse"]["heartbeat_cycle"] == 11
     assert "DO-NOT-LEAK" not in result.text
     assert len(events) == 2
