@@ -427,11 +427,14 @@ def test_rerender_rebuilds_widgets_but_preserves_verified_context(
     assert new.module is old.module
     assert new.context["verified_counts"] == {"neurons": 16}
     assert new.context["progress"].__self__ is new
-    # Lifecycle stays guarded, and read-only diagnostics survive re-render.
+    # Lifecycle stays guarded while the independent diagnostics survive
+    # notebook compatibility rules that prune the primary button group.
     assert new.auto_apply is False
     assert [button.description for button in new.view[3].children] == [
         "Instalar / encender / actualizar",
         "Abrir Tríade",
+    ]
+    assert [button.description for button in new.view[4].children] == [
         "Estado real",
         "Auditar actividad (30 s)",
         "Verificar aprendizaje",

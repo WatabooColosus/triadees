@@ -1079,3 +1079,45 @@ def test_updating_live_colab_panel_restores_inspection_buttons_without_rerun(
     second = adapter._enforce_observation_panel({"progress": owner.progress})
     assert second["visible_buttons"] == 5
     assert len(box._trait_notifiers["children"]["change"]) == 1
+
+
+def test_separate_inspection_surface_survives_legacy_two_button_pruning():
+    """The notebook can strip view[3] without hiding read-only diagnostics."""
+    lifecycle = [
+        SimpleNamespace(description="ENCENDER / ACTUALIZAR TRÍADE"),
+        SimpleNamespace(description="Abrir Tríade"),
+        SimpleNamespace(description="Guardar memoria"),
+    ]
+    inspections = [
+        SimpleNamespace(description="Estado real"),
+        SimpleNamespace(description="Auditar actividad (30 s)"),
+        SimpleNamespace(description="Verificar aprendizaje"),
+    ]
+    primary = SimpleNamespace(children=tuple(lifecycle))
+    secondary = SimpleNamespace(children=tuple(inspections))
+    client = SimpleNamespace(
+        view=(None, None, None, primary, secondary, None, None, None),
+    )
+    owner = SimpleNamespace(view=client.view)
+    context = {"progress": SimpleNamespace(__self__=owner)}
+
+    first = adapter._enforce_observation_panel(context)
+    assert first["visible_buttons"] == 5
+    assert primary.children == tuple(lifecycle[:2])
+    assert secondary.children == tuple(inspections)
+
+    # Model a permanent notebook callback that rewrites only view[3].
+    primary.children = tuple(lifecycle[:2])
+    again = adapter._enforce_observation_panel(context)
+    assert again["visible_buttons"] == 5
+    assert secondary.children == tuple(inspections)
+
+
+def test_separate_inspection_source_is_not_part_of_legacy_action_box():
+    import inspect
+
+    source = inspect.getsource(updates.render)
+    assert "lifecycle_actions = [" in source
+    assert "inspection_actions = [" in source
+    assert "widgets.Box(\n            lifecycle_actions," in source
+    assert "widgets.Box(\n            inspection_actions," in source

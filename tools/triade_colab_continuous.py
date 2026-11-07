@@ -650,11 +650,14 @@ def render(r5, *, watch=True):
         item.on_click(click)
         return item
 
-    actions = [
+    lifecycle_actions = [
         button("Instalar / encender / actualizar", client.install, "success"),
         button("Abrir Tríade", lambda: client.action("open_frontend"), "info"),
-        # Inspections are deliberately read-only. No manual learning_start(),
-        # promotion, database restore or backup writer is exposed here.
+    ]
+    # Separate this surface from view[3]. Legacy notebook compatibility code
+    # may replace view[3].children with only the lifecycle/navigation buttons.
+    # These read-only inspections must remain visible even when it does so.
+    inspection_actions = [
         button("Estado real", lambda: client.action("status")),
         button("Auditar actividad (30 s)", lambda: client.action("audit")),
         button("Verificar aprendizaje", lambda: client.action("learning_status")),
@@ -707,7 +710,12 @@ def render(r5, *, watch=True):
         status,
         progress,
         widgets.Box(
-            actions, layout=widgets.Layout(display="flex", flex_flow="row wrap")
+            lifecycle_actions,
+            layout=widgets.Layout(display="flex", flex_flow="row wrap"),
+        ),
+        widgets.Box(
+            inspection_actions,
+            layout=widgets.Layout(display="flex", flex_flow="row wrap"),
         ),
         widgets.HTML(
             "<small>Tríade vigila su estado cada 10 minutos mientras Colab siga "

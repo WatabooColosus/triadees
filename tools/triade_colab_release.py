@@ -465,12 +465,31 @@ def _enforce_observation_panel(context):
         for item in children
         if str(getattr(item, "description", "")).strip().lower() in safe_inspections
     )
+    # The new client renders diagnostics in a separate box, outside the
+    # legacy lifecycle widget that may be pruned by the permanent notebook.
+    # Keep this independent surface rather than reinjecting duplicate buttons
+    # into the guarded lifecycle box.
+    separate_controls = (
+        tuple(getattr(view[4], "children", ())) if len(view) >= 8 else ()
+    )
+    separate_labels = {
+        str(getattr(item, "description", "")).strip().lower()
+        for item in separate_controls
+    }
+    separate_inspections = (
+        len(separate_controls) == 3
+        and separate_labels
+        == {"estado real", "auditar actividad (30 s)", "verificar aprendizaje"}
+    )
+    if separate_inspections:
+        diagnostics = ()
 
     # Updating an already-open Colab session must restore the buttons without
     # asking the owner to run a new cell. The verified Client supplies only
     # read-only callbacks and displays escaped JSON in its existing output.
     if (
-        len(view) >= 7
+        not separate_inspections
+        and len(view) >= 7
         and callable(getattr(client, "action", None))
         and hasattr(view[-1], "value")
     ):
@@ -559,7 +578,8 @@ def _enforce_observation_panel(context):
         actions._triade_inspection_guard_version = 2
     return {
         "status": "lifecycle_and_open_controls",
-        "visible_buttons": len(actions.children),
+        "visible_buttons": len(actions.children)
+        + (len(separate_controls) if separate_inspections else 0),
     }
 
 
