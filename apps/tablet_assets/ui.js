@@ -309,6 +309,7 @@
     byId("private-upstream-state").textContent = "No comprobado";
     byId("private-runtime-state").textContent = "No certificada";
     byId("private-refresh").disabled = true;
+    byId("telemetry-refresh").disabled = true;
     byId("private-results").hidden = true;
     byId("private-runtime-metrics").replaceChildren();
     byId("private-learning-metrics").replaceChildren();
@@ -388,6 +389,61 @@
     }
   }
 
+  async function refreshTelemetry() {
+    if (!state.operatorToken) return;
+    const button = byId("telemetry-refresh");
+    button.disabled = true;
+    setPrivateMessage("Consultando el último reporte agregado de Colab…");
+    try {
+      const report = await privateGet("/api/private/telemetry", state.operatorToken);
+      if (report.fresh !== true) {
+        byId("private-mode").textContent = "SIN REPORTE ACTUAL";
+        byId("private-runtime-state").textContent = "Actividad no confirmada";
+        byId("private-results").hidden = true;
+        setPrivateMessage(
+          report.status === "stale"
+            ? "El último reporte caducó. No se muestran métricas antiguas como actuales."
+            : "Todavía no se reciben informes desde Colab. Hay que iniciar el emisor en su sesión.",
+          false
+        );
+        return;
+      }
+      byId("private-mode").textContent = "REPORTE RECIBIDO";
+      byId("private-runtime-state").textContent = "Emisor autenticado; no certificado";
+      byId("private-upstream-state").textContent = "Telemetría saliente";
+      const observations = report.observations || {};
+      renderMetrics("private-runtime-metrics", [
+        ["Recibido en UTC", report.received_at_utc || "Sin dato"],
+        ["Antigüedad (s)", report.age_seconds],
+        ["API local reportada", observations.api_server_alive],
+        ["Workers reportados", observations.workers_active],
+        ["Runtime reportado", observations.runtime_enabled],
+        ["Razonamiento reportado", observations.can_reason],
+        ["Ciclo reportado", observations.heartbeat_cycle],
+        ["Modo reportado", observations.mode]
+      ]);
+      const stats = report.stats || {};
+      renderMetrics("private-learning-metrics", [
+        ["Ciclos (24h)", stats.cycles_last_24h],
+        ["Misiones reportadas", stats.missions_executed],
+        ["Candidatos evaluados", stats.candidates_evaluated],
+        ["Verificados con evidencia", stats.candidates_verified_with_evidence],
+        ["Candidatos consolidados", stats.candidates_consolidated],
+        ["Neuronas nutridas", stats.neurons_nourished],
+        ["Documentos semánticos", stats.semantic_documents_count]
+      ]);
+      byId("private-results").hidden = false;
+      setPrivateMessage(
+        "Datos agregados enviados desde Colab. La identidad del organismo y el aprendizaje NO están certificados."
+      );
+    } catch (error) {
+      byId("private-results").hidden = true;
+      setPrivateMessage(describePrivateError(error), true);
+    } finally {
+      button.disabled = !state.operatorToken;
+    }
+  }
+
   async function authenticatePrivate(event) {
     event.preventDefault();
     const input = byId("private-key");
@@ -410,6 +466,7 @@
       byId("private-upstream-state").textContent =
         config.runtime_upstream_configured ? "Configurado" : "Sin configurar";
       byId("private-refresh").disabled = !config.runtime_upstream_configured;
+      byId("telemetry-refresh").disabled = false;
       byId("private-mode").textContent = config.runtime_upstream_configured
         ? "ENLACE PREPARADO" : "FALTA RUNTIME";
       setPrivateMessage(config.runtime_upstream_configured
@@ -438,6 +495,7 @@
     byId("private-form").addEventListener("submit", authenticatePrivate);
     byId("private-disconnect").addEventListener("click", resetPrivate);
     byId("private-refresh").addEventListener("click", refreshPrivate);
+    byId("telemetry-refresh").addEventListener("click", refreshTelemetry);
     byId("clear-history").addEventListener("click", () => {
       safeStorage(() => localStorage.removeItem(state.storageKey));
       renderHistory();
