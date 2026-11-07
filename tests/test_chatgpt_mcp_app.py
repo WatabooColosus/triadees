@@ -43,8 +43,7 @@ def test_mcp_rejects_missing_or_invalid_token(monkeypatch):
     with TestClient(bridge.app, base_url="http://localhost") as client:
         assert client.post("/mcp", json=INIT, headers=_headers()).status_code == 401
         assert (
-            client.post("/mcp", json=INIT, headers=_headers("wrong")).status_code
-            == 401
+            client.post("/mcp", json=INIT, headers=_headers("wrong")).status_code == 401
         )
 
 
