@@ -1,0 +1,16 @@
+name: ChatGPT Bridge Format Preview
+on:
+  push:
+    paths:
+      - ".github/workflows/triade-chatgpt-format-preview.yml"
+      - "apps/chatgpt_actions_app.py"
+      - "tests/test_chatgpt_actions_app.py"
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - run: python -m pip install ruff
+      - run: ruff format --diff apps/chatgpt_actions_app.py tests/test_chatgpt_actions_app.py
