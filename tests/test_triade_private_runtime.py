@@ -7,8 +7,11 @@ from __future__ import annotations
 
 import importlib
 
+import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+
+pytest.importorskip("mcp")
 
 protected = importlib.import_module("apps.triade_private_runtime")
 public = importlib.import_module("apps.triade_public_mcp_app")
