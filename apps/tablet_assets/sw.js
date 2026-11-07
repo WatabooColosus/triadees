@@ -1,5 +1,5 @@
 /* Small offline shell only. APIs and MCP are always network-only. */
-const CACHE = "triade-omega-tablet-v1";
+const CACHE = "triade-omega-tablet-v2";
 const SHELL = ["/", "/ui.css", "/ui.js", "/icon.svg", "/manifest.webmanifest"];
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
