@@ -26,7 +26,7 @@ def test_tablet_home_assets_and_security_headers():
         for path, expect in (
             ("/ui.css", "@media"),
             ("/ui.js", "api/public/plan"),
-            ("/sw.js", "api"),
+            ("/sw.js", "network-only"),
             ("/manifest.webmanifest", "standalone"),
             ("/icon.svg", "<svg"),
         ):
