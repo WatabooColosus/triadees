@@ -11,7 +11,9 @@ MCP gateway with an OAuth 2.1 authorization-code + PKCE integration.
 
 from __future__ import annotations
 
+import re
 from typing import Any
+from xml.etree import ElementTree
 
 import httpx
 from mcp.server.mcpserver import MCPServer
@@ -24,41 +26,79 @@ _API = "https://api.github.com/repos/WatabooColosus/triadees"
 
 
 def _public_git_status() -> dict[str, Any]:
-    """Read a fixed, public GitHub resource; never forward tokens or arbitrary URLs."""
+    """Use only fixed, publicly accessible GitHub API and Atom feed URLs."""
     result: dict[str, Any] = {
         "repository": _REPO,
-        "source": "public_github_api",
+        "source": "public_github",
         "verified": False,
     }
-    try:
-        with httpx.Client(
-            timeout=7.0, follow_redirects=False, trust_env=False
-        ) as client:
-            response = client.get(
-                _API + "/commits/main",
-                headers={"Accept": "application/vnd.github+json"},
-            )
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "TriadeOmegaPublicObservatory/0.2",
+    }
+    with httpx.Client(
+        timeout=7.0, follow_redirects=False, trust_env=False
+    ) as client:
+        try:
+            response = client.get(_API + "/commits/main", headers=headers)
             response.raise_for_status()
             obj = response.json()
-        if not isinstance(obj, dict):
-            raise TypeError("unexpected GitHub JSON")
-        sha = obj.get("sha", "")
-        commit = obj.get("commit")
-        info = commit if isinstance(commit, dict) else {}
-        committer = info.get("committer")
-        author = committer if isinstance(committer, dict) else {}
-        if not isinstance(sha, str) or len(sha) != 40:
-            raise TypeError("invalid commit SHA")
-        result.update(
-            {
-                "verified": True,
-                "main_commit": sha,
-                "commit_date_utc": author.get("date"),
-                "evidence_url": "https://github.com/" + _REPO + "/commit/" + sha,
-            }
-        )
-    except (httpx.HTTPError, ValueError, TypeError) as exc:
-        result["error_type"] = type(exc).__name__
+            if not isinstance(obj, dict):
+                raise TypeError("unexpected GitHub JSON")
+            sha = obj.get("sha")
+            if not isinstance(sha, str) or not re.fullmatch(r"[0-9a-fA-F]{40}", sha):
+                raise TypeError("invalid Git commit SHA")
+            commit = obj.get("commit")
+            info = commit if isinstance(commit, dict) else {}
+            committer = info.get("committer")
+            author = committer if isinstance(committer, dict) else {}
+            result.update(
+                {
+                    "source": "public_github_api",
+                    "verified": True,
+                    "main_commit": sha,
+                    "commit_date_utc": author.get("date"),
+                    "evidence_url": "https://github.com/" + _REPO + "/commit/" + sha,
+                }
+            )
+            return result
+        except (httpx.HTTPError, ValueError, TypeError) as exc:
+            result["api_error_type"] = type(exc).__name__
+            if isinstance(exc, httpx.HTTPStatusError):
+                result["api_http_status"] = exc.response.status_code
+
+        # GitHub's unauthenticated REST API is often rate-limited on shared
+        # cloud IPs. Use its *public* Atom commit feed as a bounded fallback.
+        try:
+            response = client.get(
+                "https://github.com/" + _REPO + "/commits/main.atom",
+                headers={
+                    "Accept": "application/atom+xml",
+                    "User-Agent": "TriadeOmegaPublicObservatory/0.2",
+                },
+            )
+            response.raise_for_status()
+            xml = ElementTree.fromstring(response.text)
+            entry = xml.find("{http://www.w3.org/2005/Atom}entry")
+            if entry is None:
+                raise ValueError("public commit feed has no entry")
+            link = entry.find("{http://www.w3.org/2005/Atom}link")
+            sha = "" if link is None else link.get("href", "").rsplit("/", 1)[-1]
+            if not re.fullmatch(r"[0-9a-fA-F]{40}", sha):
+                raise ValueError("invalid public feed commit SHA")
+            result.update(
+                {
+                    "source": "public_github_atom",
+                    "verified": True,
+                    "main_commit": sha,
+                    "evidence_url": "https://github.com/" + _REPO + "/commit/" + sha,
+                }
+            )
+            return result
+        except (httpx.HTTPError, ValueError, ElementTree.ParseError) as exc:
+            result["feed_error_type"] = type(exc).__name__
+            if isinstance(exc, httpx.HTTPStatusError):
+                result["feed_http_status"] = exc.response.status_code
     return result
 
 
