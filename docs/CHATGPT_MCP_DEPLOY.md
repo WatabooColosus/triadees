@@ -1,53 +1,64 @@
-# Tríade Ω — conectar el runtime real a ChatGPT mediante MCP
+# Tríade Ω — Plugin ChatGPT y observatorio seguro (v0.2)
 
-## Arquitectura
+Creado por **Agencia Digital Wataboo**.
 
-ChatGPT (plugin MCP, Bearer privado) -> URL HTTPS `/mcp` -> `apps/chatgpt_mcp_app.py` -> `apps/chatgpt_actions_app.py` -> API original `/health/live`, `/api/runtime/heartbeat`, `/api/runtime/learning-journal` y, solo si se habilita, `/api/run`.
+## Lo que está desplegado y probado
 
-El MCP no instala ni copia la Bodega ni el modelo. Tríade sigue funcionando en su propio servicio. El endpoint de este MCP **no está desplegado** solo por existir en el repositorio.
+- Render gratuito: `https://triade-omega-mcp.onrender.com/mcp`.
+- Proceso: `apps.chatgpt_mcp_app:app` sirve exclusivamente
+  `apps.triade_public_mcp_app.build_public_app()`.
+- Servicio MCP sin login solo para datos **públicos**. No conecta el runtime
+  original ni incluye herramientas para escribir/leer SQLite, Drive, Colab,
+  tokens privados o ejecutar ciclos de Tríade.
+- Herramientas: `triade_estado_publico`, `triade_codigo_publico`,
+  `triade_plan_publico`.
+- La consulta de GitHub puede quedar degradada por limitaciones de acceso
+  HTTP desde la nube. `verified: false` significa que el SHA no se confirmó.
+- Pruebas automatizadas: `tests/test_triade_public_mcp_app.py` y
+  `.github/workflows/triade-public-mcp-live-smoke.yml`.
+- Plugin privado de ChatGPT `triade-omega`, versión 0.2.0, con una
+  habilidad bajo `plugin/skills/` y conexión `plugin/mcp.json`.
+  Importar y actualizar un plugin no lo instala necesariamente en cada sesión.
 
-## Recursos
+## Cómo usar la instancia existente
 
-El SDK MCP v2 se instala separadamente con `requirements-mcp.txt`. No se agrega a los requisitos del runtime principal. El blueprint `render.mcp.yaml` es un servicio HTTP separado que puede consumir el plan gratuito mientras haya cupo; no garantiza 24/7, no sirve modelos grandes y puede suspenderse por inactividad.
+1. Entra al [plugin Tríade Ω](https://chatgpt.com/plugins/plugins_6aee9dc8916c8191a1fc03de14f63558).
+2. Selecciona **Instalar** si todavía aparece como no instalado.
+3. Inicia una nueva conversación en una superficie de ChatGPT compatible
+   con plugins (por ejemplo, Work). Selecciona `@triade-omega`.
+4. Solicita: «Consulta el estado del observatorio Tríade y el último
+   commit público. Indica cualquier fuente no disponible».
+5. Verifica que la herramienta ejecutada sea MCP y el resultado indique
+   `runtime_original_conectado: false`, no un organismo completo ficticio.
 
-## Configurar en Render
+**No hace falta agregar otro MCP manualmente**: el paquete ya contiene
+`mcp.json` con el endpoint público.
 
-1. Crear el servicio a partir del repositorio y la rama revisada, usando el blueprint `render.mcp.yaml` o sus comandos declarados. Mantener separado el servicio principal y el relay público existente.
-2. Dejar `TRIADE_ACTIONS_ALLOW_RUN=0`.
-3. `TRIADE_ACTIONS_UPSTREAM_URL`: URL HTTPS del runtime original, accesible para Render; **no** usar `127.0.0.1` salvo que ambos servicios corran en el mismo contenedor.
-4. `TRIADE_ACTIONS_UPSTREAM_KEY`: valor privado de `TRIADE_API_KEY` cuando se usa esa autenticación en el runtime original. Si el runtime exige otro mecanismo, adaptar con seguridad antes de abrir acceso.
-5. `TRIADE_ACTIONS_TOKEN`: token Bearer aleatorio de alta entropía. Render puede generarlo en el blueprint; configurar el mismo valor **dentro de la conexión del plugin** (no publicarlo en Git ni compartirlo por mensajes).
-6. Configurar `TRIADE_MCP_PUBLIC_HOST` con el hostname público bare DNS (por ejemplo `triade-mcp.onrender.com`) si Render no proporciona la variable `RENDER_EXTERNAL_HOSTNAME`. El SDK bloquea hosts no incluidos con HTTP 421.
-7. Verificar `https://HOST/health` como prueba de liveness del puente. Eso **no** prueba que el runtime original esté activo.
+## Por qué no se debe conectar el runtime con un token manual
 
-## Conectar en ChatGPT
+ChatGPT espera **OAuth 2.1 authorization code + PKCE S256** para las
+herramientas privadas, con metadata de recurso protegido y servidor de
+autorización. Un Bearer fijo escrito en Render por sí solo no completa
+la conexión privada. La pasarela histórica `build_app()` está conservada,
+pero no se publica como ruta accesible en el servicio actual.
 
-En **ChatGPT web**: Plugins -> `+` -> Add custom MCP server. Usar nombre `Tríade Ω`, URL `https://HOST/mcp` y configurar Bearer token/autenticación apropiada. Confirmar la advertencia de seguridad, crear e instalar el plugin. Elegir el plugin desde ChatGPT Work o una superficie compatible.
+Referencias oficiales:
+- https://developers.openai.com/plugins/build/auth
+- https://developers.openai.com/plugins/deploy/connect-chatgpt
 
-El servidor expone:
+## Qué se necesita para Tríade real
 
-- `triade_estado`: consulta salud y actividad real, con resumen acotado.
-- `triade_aprendizaje`: consulta un resumen estadístico del aprendizaje y sus límites.
-- `triade_ejecutar`: puede escribir en la Bodega del runtime; por defecto retorna bloqueo. Habilitarla **solo después** de respaldar y verificar Bodega, terminar CI, validar acceso e instalar aprobación humana.
+- Endpoint estable HTTPS de la instancia original, con permisos de lectura
+  claramente delimitados y autenticación OAuth bien implementada.
+- Backups y controles de continuidad de Bodega SQLite/Drive; Render free no
+  sustituye el almacenamiento persistente original.
+- Verificación de workers, ciclo educativo real, evaluador independiente,
+  pruebas de aprendizaje y gates CI antes de declarar una sesión efectiva.
+- La acción de ejecución/escritura permanecerá desactivada hasta autorización
+  específica, autenticación y comprobación de seguridad.
 
-La creación e instalación del plugin en la cuenta requieren la acción explícita del titular. Esta rama no instala el plugin por sí sola ni añade un servidor MCP a ChatGPT.
+## Seguridad
 
-## Pruebas
-
-```bash
-pip install -e '.[dev]' -r requirements-mcp.txt
-pytest -q tests/test_chatgpt_mcp_app.py tests/test_chatgpt_actions_app.py
-```
-
-La suite MCP incluye autenticación, inicialización del protocolo, descubrimiento de herramientas y bloqueo por token ausente. Debe pasar en CI **sobre el SHA final** antes de recomendar un despliegue público.
-
-## Principios de seguridad
-
-- Sin SSH ni comandos shell expuestos.
-- Sin endpoint genérico para consultar ni alterar archivos o SQLite.
-- Sin escritura ni modificación de credenciales en Git o Google Drive.
-- Sin acceso libre a memoria: solo métricas explícitas y respuestas filtradas.
-- El MCP no repara por sí mismo bloqueos de workers, CI o aprendizaje autónomo.
-- La salud HTTP del puente, la salud del runtime y la validez de un ciclo de aprendizaje son hechos separados.
-
-Documentación oficial de conexión: https://developers.openai.com/plugins/deploy/connect-chatgpt
+No publiques secretos en Git ni chat. No fuerces un gate de aprendizaje
+para mejorar estadísticas. El observatorio puede operar sin autenticación
+porque nunca recibe datos privados ni ejecuta acciones con efectos laterales.
