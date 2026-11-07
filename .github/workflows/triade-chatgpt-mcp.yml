@@ -4,16 +4,20 @@ on:
   push:
     paths:
       - apps/chatgpt_mcp_app.py
+      - apps/triade_public_mcp_app.py
       - apps/chatgpt_actions_app.py
       - tests/test_chatgpt_mcp_app.py
+      - tests/test_triade_public_mcp_app.py
       - tests/test_chatgpt_actions_app.py
       - requirements-mcp.txt
       - .github/workflows/triade-chatgpt-mcp.yml
   pull_request:
     paths:
       - apps/chatgpt_mcp_app.py
+      - apps/triade_public_mcp_app.py
       - apps/chatgpt_actions_app.py
       - tests/test_chatgpt_mcp_app.py
+      - tests/test_triade_public_mcp_app.py
       - tests/test_chatgpt_actions_app.py
       - requirements-mcp.txt
       - .github/workflows/triade-chatgpt-mcp.yml
@@ -36,8 +40,8 @@ jobs:
           pip install -e '.[dev]' -r requirements-mcp.txt ruff
       - name: Static checks
         run: |
-          ruff check apps/chatgpt_mcp_app.py tests/test_chatgpt_mcp_app.py
-          ruff format --check apps/chatgpt_mcp_app.py tests/test_chatgpt_mcp_app.py
+          ruff check apps/chatgpt_mcp_app.py apps/triade_public_mcp_app.py tests/test_chatgpt_mcp_app.py tests/test_triade_public_mcp_app.py
+          ruff format --check apps/chatgpt_mcp_app.py apps/triade_public_mcp_app.py tests/test_chatgpt_mcp_app.py tests/test_triade_public_mcp_app.py
           python -m compileall -q apps/chatgpt_mcp_app.py
       - name: MCP transport and gateway tests
-        run: pytest -q tests/test_chatgpt_mcp_app.py tests/test_chatgpt_actions_app.py
+        run: pytest -q tests/test_chatgpt_mcp_app.py tests/test_triade_public_mcp_app.py tests/test_chatgpt_actions_app.py
