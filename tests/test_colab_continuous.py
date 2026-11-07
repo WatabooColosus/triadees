@@ -972,3 +972,108 @@ def test_panel_inspection_actions_are_read_only_and_do_not_start_learning(runtim
     assert client.action("audit")["status"] == "audited_read_only"
     assert client.action("learning_status")["certified"] is False
     assert calls == ["status", "audit", "learning_status"]
+
+
+def test_updating_live_colab_panel_restores_inspection_buttons_without_rerun(
+    monkeypatch,
+):
+    """The old R7.17.19 observer must not remove newly restored diagnostics."""
+    import sys
+
+    class StubButton:
+        def __init__(self, description, button_style="", layout=None):
+            self.description = description
+            self.callback = None
+
+        def on_click(self, callback):
+            self.callback = callback
+
+        def click(self):
+            assert self.callback is not None
+            self.callback(None)
+
+    class StubActions:
+        def __init__(self, children):
+            self.children = tuple(children)
+            self._trait_notifiers = {"children": {"change": []}}
+
+        def observe(self, callback, names):
+            assert names == "children"
+            self._trait_notifiers["children"]["change"].append(callback)
+
+        def unobserve(self, callback, names):
+            assert names == "children"
+            self._trait_notifiers["children"]["change"].remove(callback)
+
+        def repaint(self, children):
+            self.children = tuple(children)
+            for callback in list(self._trait_notifiers["children"]["change"]):
+                callback({"name": "children"})
+
+    monkeypatch.setitem(
+        sys.modules,
+        "ipywidgets",
+        SimpleNamespace(
+            Button=StubButton,
+            Layout=lambda **kwargs: SimpleNamespace(**kwargs),
+        ),
+    )
+    lifecycle = StubButton("ENCENDER / ACTUALIZAR TRÍADE")
+    opener = StubButton("Abrir Tríade")
+    box = StubActions((lifecycle, opener))
+    output = SimpleNamespace(value="")
+    calls = []
+
+    class Owner:
+        view = (None, None, None, box, None, None, output)
+
+        def progress(self, message):
+            raise AssertionError("Only a UI inspection should run")
+
+        def action(self, name):
+            calls.append(name)
+            return {"action": name, "detail": "<verified>"}
+
+    owner = Owner()
+
+    # Mimic the previous two-button guard left in the same Colab kernel.
+    def _enforce_observation_panel():
+        def maintain_controls(change):
+            if change.get("name") == "children":
+                box.children = (lifecycle, opener)
+
+        return maintain_controls
+
+    old_guard = _enforce_observation_panel()
+    box.observe(old_guard, names="children")
+    box._triade_lifecycle_observer_installed = True
+    result = adapter._enforce_observation_panel({"progress": owner.progress})
+
+    assert result["visible_buttons"] == 5
+    assert [b.description for b in box.children] == [
+        "ENCENDER / ACTUALIZAR TRÍADE",
+        "Abrir Tríade",
+        "Estado real",
+        "Auditar actividad (30 s)",
+        "Verificar aprendizaje",
+    ]
+    assert calls == []
+    assert old_guard not in box._trait_notifiers["children"]["change"]
+    assert len(box._trait_notifiers["children"]["change"]) == 1
+
+    box.children[2].click()
+    box.children[3].click()
+    box.children[4].click()
+    assert calls == ["status", "audit", "learning_status"]
+    assert "&lt;verified&gt;" in output.value
+    assert "<verified>" not in output.value
+
+    # Widget refresh may replace the lifecycle callback, not the inspections.
+    refreshed = StubButton("ENCENDER / ACTUALIZAR TRÍADE")
+    box.repaint((refreshed, *box.children[1:]))
+    assert box.children[0] is refreshed
+    assert len(box.children) == 5
+    # Reinjection is idempotent across repeated installation attempts.
+    second = adapter._enforce_observation_panel({"progress": owner.progress})
+    assert second["visible_buttons"] == 5
+    assert len(box._trait_notifiers["children"]["change"]) == 1
