@@ -142,11 +142,11 @@ jobs:
               try:
                   urllib.request.urlopen(url + private_path, timeout=30)
               except urllib.error.HTTPError as exc:
-                  assert exc.code in (401, 503), (private_path, exc.code)
+                  assert exc.code == 401, (private_path, exc.code)  # operator key active, deny anonymous
                   body = exc.read().decode("utf-8")
                   assert "secret" not in body.lower()
                   assert "TRIADE_ACTIONS_UPSTREAM_KEY" not in body
               else:
                   raise AssertionError("Private route exposed: " + private_path)
-          print("PRIVATE LINK GUARDED: anonymous users cannot read runtime data")
+          print("PRIVATE LINK VERIFIED: operator key configured, anonymous requests receive 401")
           PY
