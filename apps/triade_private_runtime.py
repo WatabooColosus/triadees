@@ -92,9 +92,7 @@ def _runtime_status() -> dict[str, Any]:
     pulse = runtime_gateway._upstream("GET", "/api/runtime/heartbeat")
     allowed_bool = ("runtime_enabled", "workers_active", "can_reason", "fallback_mode")
     observations = {
-        name: pulse[name]
-        for name in allowed_bool
-        if type(pulse.get(name)) is bool
+        name: pulse[name] for name in allowed_bool if type(pulse.get(name)) is bool
     }
     for name in ("heartbeat_cycle", "heartbeat_age_ms"):
         value = pulse.get(name)
