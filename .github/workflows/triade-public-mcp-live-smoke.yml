@@ -168,9 +168,9 @@ jobs:
           try:
               urllib.request.urlopen(unauthorized_request, timeout=30)
           except urllib.error.HTTPError as exc:
-              assert exc.code in (401, 503), exc.code
+              assert exc.code == 401, exc.code  # receiver secret is active
               assert b"accepted" not in exc.read()
           else:
               raise AssertionError("Telemetry ingestion accepted an invalid key")
-          print("TELEMETRY GUARDED: no public ingest, private snapshots denied")
+          print("TELEMETRY READY: receiver secret active; invalid keys and private reads denied")
           PY
