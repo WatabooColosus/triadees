@@ -749,7 +749,7 @@ def test_educational_fork_failure_keeps_installation_blocked(monkeypatch):
     assert record["isolated_recovery"]["drive_modified"] is False
 
 
-def test_installer_minimizes_preexisting_widget_panel_without_running_actions():
+def test_installer_preserves_read_only_inspection_without_running_actions():
     calls = []
     controls = [
         SimpleNamespace(description="Estado real"),
@@ -771,8 +771,13 @@ def test_installer_minimizes_preexisting_widget_panel_without_running_actions():
 
     owner = Owner()
     result = adapter._enforce_observation_panel({"progress": owner.progress})
-    assert result == {"status": "lifecycle_and_open_controls", "visible_buttons": 2}
-    assert widget_box.children == (controls[1], controls[2])
+    assert result == {"status": "lifecycle_and_open_controls", "visible_buttons": 4}
+    assert widget_box.children == (
+        controls[1],
+        controls[2],
+        controls[0],
+        controls[4],
+    )
     assert calls == []
 
 
@@ -807,7 +812,7 @@ def test_legacy_controller_render_has_lifecycle_and_open_buttons():
     assert 'button("Auditar actividad real' not in source
 
 
-def test_legacy_panel_remains_two_controls_after_widget_refresh():
+def test_legacy_panel_preserves_safe_inspection_after_widget_refresh():
     callbacks = []
 
     class LegacyActions:
@@ -832,7 +837,7 @@ def test_legacy_panel_remains_two_controls_after_widget_refresh():
     owner = SimpleNamespace(view=(None, None, None, actions))
     context = {"progress": SimpleNamespace(__self__=owner)}
     first = adapter._enforce_observation_panel(context)
-    assert first["visible_buttons"] == 2
+    assert first["visible_buttons"] == 3
     assert len(callbacks) == 1
     original_controls = actions.children
     actions.repaint(
@@ -849,7 +854,11 @@ def test_legacy_panel_remains_two_controls_after_widget_refresh():
     actions.repaint(
         (refreshed, original_controls[1], SimpleNamespace(description="Auditar"))
     )
-    assert actions.children == (refreshed, original_controls[1])
+    assert actions.children == (
+        refreshed,
+        original_controls[1],
+        original_controls[2],
+    )
     # Reapplying release components must not duplicate the same hook.
     adapter._enforce_observation_panel(context)
     assert len(callbacks) == 1
@@ -917,3 +926,49 @@ def test_colab_cpu_guard_respects_explicit_override(monkeypatch):
     policy = adapter._configure_cpu_bootstrap({})
     assert policy["worker_concurrency"] == "1"
     assert policy["worker_serialized"] is False
+
+
+def test_colab_panel_has_audit_and_education_verification_buttons():
+    """Restore bounded inspection actions without exposing learning_start."""
+    import inspect
+
+    source = inspect.getsource(updates.render)
+    assert 'button("Estado real", lambda: client.action("status"))' in source
+    assert 'button("Auditar actividad (30 s)", lambda: client.action("audit"))' in source
+    assert (
+        'button("Verificar aprendizaje", lambda: client.action("learning_status"))'
+        in source
+    )
+    assert 'button("Iniciar aprendizaje"' not in source
+    assert 'button("Promover' not in source
+
+
+def test_panel_inspection_actions_are_read_only_and_do_not_start_learning(runtime):
+    """The three callbacks inspect an existing runtime, never advance a lesson."""
+    client, _, _ = runtime
+    client.install()
+    calls = []
+    client.diagnostic_module = None
+
+    def inspect_status(context):
+        calls.append("status")
+        return {"status": "ready", "bodega": "SQLite ok"}
+
+    def inspect_audit(context):
+        calls.append("audit")
+        return {"status": "audited_read_only", "seconds": 30}
+
+    def inspect_learning(context):
+        calls.append("learning_status")
+        return {"status": "learning_observation_only", "certified": False}
+
+    client.module = SimpleNamespace(
+        status=inspect_status,
+        audit=inspect_audit,
+        learning_status=inspect_learning,
+        learning_start=lambda context: pytest.fail("no automatic learning on click"),
+    )
+    assert client.action("status")["bodega"] == "SQLite ok"
+    assert client.action("audit")["status"] == "audited_read_only"
+    assert client.action("learning_status")["certified"] is False
+    assert calls == ["status", "audit", "learning_status"]

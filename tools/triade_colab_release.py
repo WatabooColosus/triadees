@@ -392,11 +392,12 @@ def _record_learning_launch(context, launch):
 
 
 def _enforce_observation_panel(context):
-    """Collapse legacy widget action sets to one explicit lifecycle control.
+    """Keep lifecycle/open and already-wired read-only inspection controls.
 
     The installer can be loaded by an older Colab bootstrap that still owns
-    its previous widgets. This changes only the displayed controls, never
-    runs a hidden action or bypasses a runtime/memory safety gate.
+    its previous widgets. Only known inspection labels are kept; legacy
+    save, recovery and manual learning-action buttons remain hidden. This
+    changes only the displayed controls and never invokes their callbacks.
     """
     client = getattr(context.get("progress"), "__self__", None)
     view = getattr(client, "view", None)
@@ -426,9 +427,23 @@ def _enforce_observation_panel(context):
         ),
         None,
     )
-    # Keep the existing notebook's navigation control, but do not synthesize
-    # one with an untrusted callback. The current panel creates its own gate.
-    allowed = (chosen, opener) if opener is not None else (chosen,)
+    # Preserve only the already-wired read-only diagnostics. Do not fabricate
+    # widget callbacks: the permanent panel supplies the guarded actions.
+    safe_inspections = {
+        "estado real",
+        "auditar actividad (30 s)",
+        "verificar aprendizaje",
+        "ver circuito de aprendizaje",
+    }
+    diagnostics = tuple(
+        item
+        for item in children
+        if str(getattr(item, "description", "")).strip().lower()
+        in safe_inspections
+    )
+    allowed = (
+        ((chosen, opener) if opener is not None else (chosen,)) + diagnostics
+    )
     actions.children = allowed
     # Legacy notebooks may repopulate the SAME widget after installation.
     # A single observer keeps lifecycle controls stable without invoking them.
@@ -459,7 +474,8 @@ def _enforce_observation_panel(context):
             )
             if replacement is not None and current and current[0] is replacement:
                 allowed = (
-                    (replacement, opener) if opener is not None else (replacement,)
+                    ((replacement, opener) if opener is not None else (replacement,))
+                    + diagnostics
                 )
             if current != allowed:
                 actions.children = allowed

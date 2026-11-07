@@ -564,7 +564,8 @@ def render(r5, *, watch=True):
     banner = widgets.HTML(
         "<h2>TRÍADE Ω · Centro continuo de Colab</h2>"
         "<p>Encender / actualizar prepara Tríade; Abrir Tríade abre solo "
-        "una instancia verificada. Drive conserva tu memoria.</p>"
+        "una instancia verificada. Estado real, auditoría y verificación "
+        "educativa son consultas de solo lectura. Drive conserva tu memoria.</p>"
     )
     status = widgets.HTML(
         "Panel listo; el ciclo comprobará la versión después de conectar Drive"
@@ -652,13 +653,19 @@ def render(r5, *, watch=True):
     actions = [
         button("Instalar / encender / actualizar", client.install, "success"),
         button("Abrir Tríade", lambda: client.action("open_frontend"), "info"),
+        # Inspections are deliberately read-only. No manual learning_start(),
+        # promotion, database restore or backup writer is exposed here.
+        button("Estado real", lambda: client.action("status")),
+        button("Auditar actividad (30 s)", lambda: client.action("audit")),
+        button("Verificar aprendizaje", lambda: client.action("learning_status")),
     ]
     client.set_busy = lambda value: [
         setattr(control, "disabled", value) for control in buttons
     ]
     observation = widgets.HTML(
         "<small>Observación automática de CI, memoria, workers y aprendizaje. "
-        "Solo lectura. No hay restauraciones ni promociones manuales.</small>",
+        "Los botones de diagnóstico consultan evidencias sin iniciar aprendizaje, "
+        "restaurar memoria ni promover neuronas.</small>",
         layout=widgets.Layout(max_height="360px", overflow="auto"),
     )
 
