@@ -185,12 +185,29 @@ class ServiceHealth:
                         ):
                             reasons.append("worker_cycle_stalled")
                 if "worker_events" in tables:
-                    repeated = conn.execute(
-                        "SELECT COUNT(*) FROM worker_events "
+                    # A backup-key configuration problem is not a failed
+                    # worker execution. Keep it visible without letting
+                    # repeated planner checks masquerade as worker failures.
+                    recent = conn.execute(
+                        "SELECT "
+                        "SUM(CASE WHEN task_type IN "
+                        "('mission_planner.backup_key_missing', "
+                        "'mission_planner.backup_key_degraded') "
+                        "THEN 1 ELSE 0 END), "
+                        "SUM(CASE WHEN task_type IS NULL OR task_type NOT IN "
+                        "('mission_planner.backup_key_missing', "
+                        "'mission_planner.backup_key_degraded') "
+                        "THEN 1 ELSE 0 END) "
+                        "FROM worker_events "
                         "WHERE status IN ('error','failed') "
                         "AND julianday(created_at)>=julianday('now','-15 minutes')"
-                    ).fetchone()[0]
-                    metrics["recent_repeated_errors"] = int(repeated)
+                    ).fetchone()
+                    backup_alerts = int(recent[0] or 0)
+                    repeated = int(recent[1] or 0)
+                    metrics["recent_backup_key_alerts"] = backup_alerts
+                    metrics["recent_repeated_errors"] = repeated
+                    if backup_alerts:
+                        reasons.append("backup_key_configuration_degraded")
                     # Un worker puede registrar errores recuperables mientras
                     # sigue drenando la cola. Marcarlos automáticamente como
                     # scheduler degradado hacía oscilar el panel entre

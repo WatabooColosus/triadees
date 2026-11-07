@@ -55,7 +55,8 @@ def _db(tmp_path: Path) -> Path:
         );
         CREATE TABLE live_runtime_heartbeat (updated_at TEXT);
         CREATE TABLE worker_events (
-            id INTEGER PRIMARY KEY, event_type TEXT, status TEXT, created_at TEXT
+            id INTEGER PRIMARY KEY, event_type TEXT, task_type TEXT,
+            status TEXT, created_at TEXT
         );
         """
     )
@@ -234,3 +235,53 @@ def test_repeated_worker_errors_degrade_only_without_progress(tmp_path: Path) ->
     assert health.metrics["errors_without_progress"] is True
     assert "repeated_worker_errors" in health.reasons
     assert health.state == "stalled"
+
+
+def test_backup_config_alerts_do_not_masquerade_as_worker_errors(
+    tmp_path: Path,
+) -> None:
+    """Configuration warnings stay visible, but don't indicate worker failure."""
+    db = _db(tmp_path)
+    _heartbeat(db)
+    with sqlite3.connect(db) as con:
+        for index in range(7):
+            con.execute(
+                "INSERT INTO worker_events "
+                "(id,event_type,task_type,status,created_at) "
+                "VALUES (?, 'internal_error', 'mission_planner.backup_key_degraded', "
+                "'error', datetime('now'))",
+                (index + 1,),
+            )
+
+    health = ServiceHealth(db).inspect(process_running=True, ollama_probe=_OLLAMA_OK)
+    assert health.metrics["recent_backup_key_alerts"] == 7
+    assert health.metrics["recent_repeated_errors"] == 0
+    assert health.metrics["errors_without_progress"] is False
+    assert "backup_key_configuration_degraded" in health.reasons
+    assert "repeated_worker_errors" not in health.reasons
+    assert health.state == "degraded"
+
+
+def test_real_worker_failures_remain_counted_with_backup_alerts(
+    tmp_path: Path,
+) -> None:
+    """Do not suppress genuine repeated failures next to backup alerts."""
+    db = _db(tmp_path)
+    _heartbeat(db)
+    with sqlite3.connect(db) as con:
+        for index in range(7):
+            kind = "mission_planner.backup_key_missing" if index < 2 else "worker_loop"
+            con.execute(
+                "INSERT INTO worker_events "
+                "(id,event_type,task_type,status,created_at) "
+                "VALUES (?, 'internal_error', ?, 'error', datetime('now'))",
+                (index + 1, kind),
+            )
+
+    health = ServiceHealth(db).inspect(process_running=True, ollama_probe=_OLLAMA_OK)
+    assert health.metrics["recent_backup_key_alerts"] == 2
+    assert health.metrics["recent_repeated_errors"] == 5
+    assert health.metrics["errors_without_progress"] is True
+    assert "backup_key_configuration_degraded" in health.reasons
+    assert "repeated_worker_errors" in health.reasons
+    assert health.state == "degraded"
