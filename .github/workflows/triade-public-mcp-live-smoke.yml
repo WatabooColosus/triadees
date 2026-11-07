@@ -100,4 +100,38 @@ jobs:
                   info.get("feed_http_status"),
               )
           print("MCP LIVE OK: HTTPS, initialize, tools/list and 3 real tool calls")
+
+          # Independent browser-facing verification on the public Render URL.
+          with urllib.request.urlopen(url + "/", timeout=30) as response:
+              assert response.status == 200
+              html = response.read().decode("utf-8")
+              csp = response.headers.get("Content-Security-Policy", "")
+              assert 'id="plan-form"' in html, html[:200]
+              assert 'id="history-list"' in html
+              assert "Tríade Ω · Centro de Control" in html
+              assert "frame-ancestors 'none'" in csp
+          for asset, keyword in [
+              ("/ui.css", "@media"),
+              ("/ui.js", "api/public/plan"),
+              ("/sw.js", "network-only"),
+              ("/manifest.webmanifest", "standalone"),
+              ("/icon.svg", "<svg"),
+          ]:
+              with urllib.request.urlopen(url + asset, timeout=30) as response:
+                  assert response.status == 200
+                  assert keyword in response.read().decode("utf-8")
+          web_status = request("/api/public/status")
+          assert web_status["operativo"] is True
+          assert web_status["runtime_original_conectado"] is False
+          assert web_status["bodega_original_conectada"] is False
+          assert web_status["escrituras_habilitadas"] is False
+          planned = request("/api/public/plan", {
+              "objetivo": "Verificar una misión pública desde Android"
+          })
+          assert planned["objetivo"] == "Verificar una misión pública desde Android"
+          assert planned["ejecutado"] is False
+          assert "neurona_central" in planned
+          assert "hipotalamo_emocional" in planned
+          assert "bodega" in planned
+          print("TABLET LIVE OK: HTML, 5 assets, guarded APIs and real plan")
           PY
