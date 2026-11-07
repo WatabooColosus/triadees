@@ -1,0 +1,43 @@
+name: Tríade ChatGPT MCP Integration
+
+on:
+  push:
+    paths:
+      - apps/chatgpt_mcp_app.py
+      - apps/chatgpt_actions_app.py
+      - tests/test_chatgpt_mcp_app.py
+      - tests/test_chatgpt_actions_app.py
+      - requirements-mcp.txt
+      - .github/workflows/triade-chatgpt-mcp.yml
+  pull_request:
+    paths:
+      - apps/chatgpt_mcp_app.py
+      - apps/chatgpt_actions_app.py
+      - tests/test_chatgpt_mcp_app.py
+      - tests/test_chatgpt_actions_app.py
+      - requirements-mcp.txt
+      - .github/workflows/triade-chatgpt-mcp.yml
+
+permissions:
+  contents: read
+
+jobs:
+  mcp-gateway:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install gateway & MCP SDK
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]' -r requirements-mcp.txt ruff
+      - name: Static checks
+        run: |
+          ruff check apps/chatgpt_mcp_app.py tests/test_chatgpt_mcp_app.py
+          ruff format --check apps/chatgpt_mcp_app.py tests/test_chatgpt_mcp_app.py
+          python -m compileall -q apps/chatgpt_mcp_app.py
+      - name: MCP transport and gateway tests
+        run: pytest -q tests/test_chatgpt_mcp_app.py tests/test_chatgpt_actions_app.py
