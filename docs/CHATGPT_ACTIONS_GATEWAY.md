@@ -1,5 +1,11 @@
 # Tríade Ω + ChatGPT Actions: puente mínimo y seguro
 
+> **Compatibilidad 2026:** los GPT personalizados están previstos para retiro en diciembre de 2026; sus Actions no migran automáticamente. Este gateway sirve como puente transitorio o como lógica de negocio reutilizable. La opción duradera es el paquete portable `plugin/` (skill para apps existentes) y, cuando se despliegue, un servidor MCP Streamable HTTP conectado como plugin. El servidor MCP **aún no está implementado** en este PR.
+
+## Uso dentro de ChatGPT sin modelo local adicional
+
+El paquete `plugin/plugin.json` + `plugin/skills/triade-omega/SKILL.md` contiene un workflow para coordinar GitHub y Google Drive con Neurona Central, Hipotálamo y Bodega en ChatGPT. El propietario debe importar/instalar el plugin en ChatGPT Work con las funciones de Plugins que tenga disponibles. Esta habilidad no abre un canal directo al runtime Python; para eso hace falta la API externa y una conexión verificada.
+
 **Estado**: implementación preparada, no equivale a un despliegue activo ni a que ChatGPT pueda ejecutar modelos por sí solo. La API de Tríade debe estar funcionando en un servicio externo (por ejemplo Colab mientras esté activo o una VPS).
 
 ## Arquitectura
