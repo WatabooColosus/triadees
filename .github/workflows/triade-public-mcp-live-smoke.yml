@@ -1,0 +1,70 @@
+name: Tríade MCP Live Public Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/triade-public-mcp-live-smoke.yml
+
+permissions:
+  contents: read
+
+jobs:
+  public-mcp-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Verify live public MCP server over HTTPS
+        env:
+          PUBLIC_MCP: https://triade-omega-mcp.onrender.com
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.request
+
+          url = os.environ["PUBLIC_MCP"]
+
+          def request(path, payload=None):
+              data = json.dumps(payload).encode() if payload is not None else None
+              headers = {"Accept": "application/json, text/event-stream"}
+              if data is not None:
+                  headers["Content-Type"] = "application/json"
+              req = urllib.request.Request(url + path, data=data, headers=headers)
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  assert response.status == 200, response.status
+                  return json.load(response)
+
+          health = None
+          for attempt in range(4):
+              try:
+                  health = request("/health")
+                  break
+              except (urllib.error.URLError, ValueError):
+                  if attempt == 3:
+                      raise
+                  time.sleep(8)
+          assert health["service"] == "triade-omega-public-mcp", health
+          init = request("/mcp", {
+              "jsonrpc": "2.0",
+              "id": 1,
+              "method": "initialize",
+              "params": {
+                  "protocolVersion": "2025-06-18",
+                  "capabilities": {},
+                  "clientInfo": {"name": "triade-public-ci", "version": "0.1"}
+              }
+          })
+          assert init.get("result"), init
+          listed = request("/mcp", {
+              "jsonrpc": "2.0", "id": 2, "method": "tools/list"
+          })
+          names = {item["name"] for item in listed["result"]["tools"]}
+          expected = {
+              "triade_estado_publico", "triade_codigo_publico", "triade_plan_publico"
+          }
+          assert names == expected, sorted(names)
+          print("MCP LIVE OK: initialize, tools/list, safe names; no private tools")
+          PY
