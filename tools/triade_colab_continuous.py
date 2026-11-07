@@ -117,11 +117,27 @@ def verify_ci(manifest, downloader=fetch):
         f"?head_sha={manifest['commit']}&event=push&per_page=100"
     )
     payload = json.loads(downloader(url, 2_000_000))
+    runs = [
+        run
+        for run in payload.get("workflow_runs", [])
+        if run.get("head_sha") == manifest["commit"]
+        and run.get("event") == "push"
+        and run.get("name") in REQUIRED_CI
+    ]
+    # A SHA can be pushed to main and subsequently re-pushed to a branch.
+    # Both events validate identical code, but the latter CI run might be
+    # cancelled by workflow concurrency. Prefer the default branch as the
+    # authoritative release evidence when that evidence exists.
+    # IMPORTANT: the latest run *within* main still wins, even if failed,
+    # cancelled or in progress. No previous main success may override it.
+    main_proven = {
+        run["name"] for run in runs if run.get("head_branch") == "main"
+    }
     latest = {}
-    for run in payload.get("workflow_runs", []):
-        if run.get("head_sha") != manifest["commit"] or run.get("event") != "push":
+    for run in runs:
+        name = run["name"]
+        if name in main_proven and run.get("head_branch") != "main":
             continue
-        name = run.get("name")
         rank = (run.get("run_number", 0), run.get("run_attempt", 0), run.get("id", 0))
         if name not in latest or rank > latest[name][0]:
             latest[name] = (rank, run)
