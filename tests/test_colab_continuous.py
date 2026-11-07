@@ -934,7 +934,9 @@ def test_colab_panel_has_audit_and_education_verification_buttons():
 
     source = inspect.getsource(updates.render)
     assert 'button("Estado real", lambda: client.action("status"))' in source
-    assert 'button("Auditar actividad (30 s)", lambda: client.action("audit"))' in source
+    assert (
+        'button("Auditar actividad (30 s)", lambda: client.action("audit"))' in source
+    )
     assert (
         'button("Verificar aprendizaje", lambda: client.action("learning_status"))'
         in source
