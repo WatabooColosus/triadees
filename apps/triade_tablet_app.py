@@ -15,6 +15,8 @@ from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse
 from starlette.routing import Route
 
+from apps.triade_private_runtime import attach_private_runtime_routes
+
 ASSETS = Path(__file__).resolve().parent / "tablet_assets"
 
 SAFE_HEADERS = {
@@ -156,4 +158,4 @@ def attach_tablet_routes(
             Route("/api/public/plan", plan, methods=["POST"]),
         ]
     )
-    return app
+    return attach_private_runtime_routes(app)
