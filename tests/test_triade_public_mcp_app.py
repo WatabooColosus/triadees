@@ -121,7 +121,9 @@ def test_public_github_reports_evidence_and_fails_closed(monkeypatch):
                 "https://api.github.com/repos/WatabooColosus/triadees/commits/main",
             )
             raise httpx.HTTPStatusError(
-                "rate limit", request=request, response=httpx.Response(403, request=request)
+                "rate limit",
+                request=request,
+                response=httpx.Response(403, request=request),
             )
 
     class FeedResponse:
