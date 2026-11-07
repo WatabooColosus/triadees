@@ -285,3 +285,29 @@ def test_real_worker_failures_remain_counted_with_backup_alerts(
     assert "backup_key_configuration_degraded" in health.reasons
     assert "repeated_worker_errors" in health.reasons
     assert health.state == "degraded"
+
+
+def test_legacy_worker_event_schema_still_reports_real_failures(
+    tmp_path: Path,
+) -> None:
+    """Historical schemas without task_type must not appear as corrupt SQLite."""
+    db = _db(tmp_path)
+    _heartbeat(db)
+    with sqlite3.connect(db) as con:
+        con.execute("DROP TABLE worker_events")
+        con.execute(
+            "CREATE TABLE worker_events "
+            "(id INTEGER PRIMARY KEY, status TEXT, created_at TEXT)"
+        )
+        for index in range(5):
+            con.execute(
+                "INSERT INTO worker_events (id,status,created_at) "
+                "VALUES (?, 'error', datetime('now'))",
+                (index + 1,),
+            )
+
+    health = ServiceHealth(db).inspect(process_running=True, ollama_probe=_OLLAMA_OK)
+    assert health.metrics["recent_backup_key_alerts"] == 0
+    assert health.metrics["recent_repeated_errors"] == 5
+    assert health.metrics["errors_without_progress"] is True
+    assert "sqlite_unavailable_or_locked" not in health.reasons

@@ -188,22 +188,38 @@ class ServiceHealth:
                     # A backup-key configuration problem is not a failed
                     # worker execution. Keep it visible without letting
                     # repeated planner checks masquerade as worker failures.
-                    recent = conn.execute(
-                        "SELECT "
-                        "SUM(CASE WHEN task_type IN "
-                        "('mission_planner.backup_key_missing', "
-                        "'mission_planner.backup_key_degraded') "
-                        "THEN 1 ELSE 0 END), "
-                        "SUM(CASE WHEN task_type IS NULL OR task_type NOT IN "
-                        "('mission_planner.backup_key_missing', "
-                        "'mission_planner.backup_key_degraded') "
-                        "THEN 1 ELSE 0 END) "
-                        "FROM worker_events "
-                        "WHERE status IN ('error','failed') "
-                        "AND julianday(created_at)>=julianday('now','-15 minutes')"
-                    ).fetchone()
-                    backup_alerts = int(recent[0] or 0)
-                    repeated = int(recent[1] or 0)
+                    event_columns = {
+                        str(col[1])
+                        for col in conn.execute("PRAGMA table_info(worker_events)")
+                    }
+                    if "task_type" in event_columns:
+                        recent = conn.execute(
+                            "SELECT "
+                            "SUM(CASE WHEN task_type IN "
+                            "('mission_planner.backup_key_missing', "
+                            "'mission_planner.backup_key_degraded') "
+                            "THEN 1 ELSE 0 END), "
+                            "SUM(CASE WHEN task_type IS NULL OR task_type NOT IN "
+                            "('mission_planner.backup_key_missing', "
+                            "'mission_planner.backup_key_degraded') "
+                            "THEN 1 ELSE 0 END) "
+                            "FROM worker_events "
+                            "WHERE status IN ('error','failed') "
+                            "AND julianday(created_at)>=julianday('now','-15 minutes')"
+                        ).fetchone()
+                        backup_alerts = int(recent[0] or 0)
+                        repeated = int(recent[1] or 0)
+                    else:
+                        # Historical worker_events tables predate task_type.
+                        # They still need a truthful, non-critical health probe.
+                        backup_alerts = 0
+                        repeated = int(
+                            conn.execute(
+                                "SELECT COUNT(*) FROM worker_events "
+                                "WHERE status IN ('error','failed') "
+                                "AND julianday(created_at)>=julianday('now','-15 minutes')"
+                            ).fetchone()[0]
+                        )
                     metrics["recent_backup_key_alerts"] = backup_alerts
                     metrics["recent_repeated_errors"] = repeated
                     if backup_alerts:
