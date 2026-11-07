@@ -38,7 +38,7 @@ conversaciones, ni a capturas de pantalla ni al laboratorio público.
    Colab no puede consultarse directamente desde Render.
 3. En el servicio Render `triade-omega-mcp` → **Environment**, configurar
    en campos secretos (no en Git):
-   - `TRIADE_ACTIONS_TOKEN`: clave aleatoria de **32 caracteres o más**.
+   - `TRIADE_TABLET_OPERATOR_TOKEN`: clave aleatoria de **32 caracteres o más**.
    - `TRIADE_ACTIONS_UPSTREAM_URL`: URL HTTPS de la API original, sin
      subruta, secretos ni query parameters (ej. `https://runtime.example.org`).
    - `TRIADE_ACTIONS_UPSTREAM_KEY`: solo si el runtime usa
