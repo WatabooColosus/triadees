@@ -130,9 +130,7 @@ def verify_ci(manifest, downloader=fetch):
     # authoritative release evidence when that evidence exists.
     # IMPORTANT: the latest run *within* main still wins, even if failed,
     # cancelled or in progress. No previous main success may override it.
-    main_proven = {
-        run["name"] for run in runs if run.get("head_branch") == "main"
-    }
+    main_proven = {run["name"] for run in runs if run.get("head_branch") == "main"}
     latest = {}
     for run in runs:
         name = run["name"]
