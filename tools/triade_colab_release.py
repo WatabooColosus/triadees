@@ -421,14 +421,16 @@ def _enforce_observation_panel(context):
         for handler in tuple(handlers):
             if (
                 getattr(handler, "__name__", "") == "maintain_controls"
-                and "_enforce_observation_panel"
-                in getattr(handler, "__qualname__", "")
+                and "_enforce_observation_panel" in getattr(handler, "__qualname__", "")
                 and callable(getattr(actions, "unobserve", None))
             ):
                 actions.unobserve(handler, names="children")
                 removed += 1
         if not removed:
-            return {"status": "panel_refresh_required", "visible_buttons": len(children)}
+            return {
+                "status": "panel_refresh_required",
+                "visible_buttons": len(children),
+            }
         actions._triade_lifecycle_observer_installed = False
     chosen = None
     for item in children:
@@ -461,8 +463,7 @@ def _enforce_observation_panel(context):
     diagnostics = tuple(
         item
         for item in children
-        if str(getattr(item, "description", "")).strip().lower()
-        in safe_inspections
+        if str(getattr(item, "description", "")).strip().lower() in safe_inspections
     )
 
     # Updating an already-open Colab session must restore the buttons without
@@ -517,9 +518,7 @@ def _enforce_observation_panel(context):
 
                 control.on_click(inspect_clicked)
                 diagnostics += (control,)
-    allowed = (
-        ((chosen, opener) if opener is not None else (chosen,)) + diagnostics
-    )
+    allowed = ((chosen, opener) if opener is not None else (chosen,)) + diagnostics
     actions.children = allowed
     # Legacy notebooks may repopulate the SAME widget after installation.
     # A single observer keeps lifecycle controls stable without invoking them.
@@ -550,9 +549,8 @@ def _enforce_observation_panel(context):
             )
             if replacement is not None and current and current[0] is replacement:
                 allowed = (
-                    ((replacement, opener) if opener is not None else (replacement,))
-                    + diagnostics
-                )
+                    (replacement, opener) if opener is not None else (replacement,)
+                ) + diagnostics
             if current != allowed:
                 actions.children = allowed
 
