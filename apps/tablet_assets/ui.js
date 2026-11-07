@@ -5,7 +5,8 @@
   const state = {
     currentPlan: null,
     installer: null,
-    storageKey: "triade-omega-public-plan-history-v1"
+    storageKey: "triade-omega-public-plan-history-v1",
+    operatorToken: null
   };
 
   function message(text, isError) {
@@ -261,6 +262,170 @@
     });
   }
 
+  /* Private read-only bridge. Token lives only in this JS closure. */
+  function setPrivateMessage(text, error = false) {
+    const node = byId("private-message");
+    node.textContent = text;
+    node.classList.toggle("private-error", Boolean(error));
+  }
+
+  function describePrivateError(error) {
+    const code = String(error.message || "");
+    if (code === "private_access_not_configured") {
+      return "Falta una clave privada larga (32 o más caracteres) en las variables de Render.";
+    }
+    if (code === "invalid_operator_token") {
+      return "Clave no válida. Verifica la variable TRIADE_ACTIONS_TOKEN en Render.";
+    }
+    if (code === "runtime_endpoint_not_configured") {
+      return "El acceso está autorizado, pero falta la dirección HTTPS del runtime original.";
+    }
+    if (code.includes("runtime_connection") || code.includes("runtime_unavailable")) {
+      return "El runtime original no respondió. Puede estar apagado, inaccesible o rechazando la solicitud.";
+    }
+    return "No se pudo verificar la conexión privada. Comprueba Render y vuelve a intentar.";
+  }
+
+  async function privateGet(path, secret) {
+    const response = await fetch(path, {
+      method: "GET",
+      headers: { "Authorization": "Bearer " + secret, "Accept": "application/json" },
+      cache: "no-store",
+      credentials: "omit",
+      referrerPolicy: "no-referrer"
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(typeof result.error === "string" ? result.error : "http_error");
+    }
+    return result;
+  }
+
+  function resetPrivate() {
+    state.operatorToken = null;
+    byId("private-key").value = "";
+    byId("private-mode").textContent = "BLOQUEADO";
+    byId("private-auth-state").textContent = "No iniciada";
+    byId("private-upstream-state").textContent = "No comprobado";
+    byId("private-runtime-state").textContent = "No certificada";
+    byId("private-refresh").disabled = true;
+    byId("private-results").hidden = true;
+    byId("private-runtime-metrics").replaceChildren();
+    byId("private-learning-metrics").replaceChildren();
+    setPrivateMessage("Clave descartada de esta página. No se guardó en el historial.");
+  }
+
+  function renderMetrics(containerId, rows) {
+    const root = byId(containerId);
+    root.replaceChildren();
+    rows.forEach(([label, value]) => {
+      const box = document.createElement("div");
+      box.className = "private-metric";
+      const key = document.createElement("small");
+      key.textContent = label;
+      const displayed = document.createElement("strong");
+      displayed.textContent = String(value == null ? "Sin dato" :
+        typeof value === "boolean" ? (value ? "Sí" : "No") : value);
+      box.append(key, displayed);
+      root.append(box);
+    });
+  }
+
+  async function refreshPrivate() {
+    if (!state.operatorToken) return;
+    const button = byId("private-refresh");
+    button.disabled = true;
+    setPrivateMessage("Consultando directamente la API del organismo original…");
+    try {
+      const [status, learning] = await Promise.all([
+        privateGet("/api/private/status", state.operatorToken),
+        privateGet("/api/private/learning", state.operatorToken)
+      ]);
+      const connected = status.runtime_original_conectado === true;
+      byId("private-runtime-state").textContent =
+        connected ? "Responde; no certificado" : "No responde correctamente";
+      byId("private-mode").textContent = connected ? "ACTIVIDAD OBSERVADA" : "NO CERTIFICADO";
+      const observations = status.observations || {};
+      renderMetrics("private-runtime-metrics", [
+        ["API original conectada", connected],
+        ["Workers activos", observations.workers_active],
+        ["Runtime habilitado", observations.runtime_enabled],
+        ["Razonamiento disponible", observations.can_reason],
+        ["Modo de ejecución", observations.mode],
+        ["Número de pulso", observations.heartbeat_cycle]
+      ]);
+      const stats = learning.stats || {};
+      const metricNames = [
+        ["Ciclos (24 h)", "cycles_last_24h"],
+        ["Misiones ejecutadas", "missions_executed"],
+        ["Evidencias de neuronas", "neuron_evidence_created"],
+        ["Candidatos nuevos", "candidates_created"],
+        ["Candidatos evaluados", "candidates_evaluated"],
+        ["Revisiones internas", "candidates_internally_checked"],
+        ["Verificados con evidencia", "candidates_verified_with_evidence"],
+        ["Consolidados", "candidates_consolidated"],
+        ["Rechazados", "candidates_rejected"],
+        ["Neuronas nutridas", "neurons_nourished"],
+        ["Documentos semánticos", "semantic_documents_count"]
+      ];
+      renderMetrics("private-learning-metrics", metricNames.map(([label, key]) =>
+        [label, stats[key]]
+      ));
+      byId("private-results").hidden = false;
+      setPrivateMessage(
+        connected
+          ? "Lectura real recibida. Son observaciones del sistema, NO certificación de aprendizaje."
+          : "Hubo respuesta HTTP, pero el organismo original no alcanzó una condición saludable.",
+        !connected
+      );
+    } catch (error) {
+      byId("private-results").hidden = true;
+      byId("private-runtime-state").textContent = "No disponible";
+      byId("private-mode").textContent = "SIN EVIDENCIA";
+      setPrivateMessage(describePrivateError(error), true);
+    } finally {
+      button.disabled = !state.operatorToken;
+    }
+  }
+
+  async function authenticatePrivate(event) {
+    event.preventDefault();
+    const input = byId("private-key");
+    const secret = input.value;
+    if (secret.length < 32 || secret.length > 512) {
+      setPrivateMessage("Introduce una clave privada de 32 a 512 caracteres.", true);
+      return;
+    }
+    const button = byId("private-connect");
+    button.disabled = true;
+    setPrivateMessage("Verificando credenciales con Render…");
+    try {
+      const config = await privateGet("/api/private/connection", secret);
+      if (config.authenticated !== true || config.private_read_only !== true) {
+        throw new Error("unexpected_private_response");
+      }
+      state.operatorToken = secret;
+      input.value = "";
+      byId("private-auth-state").textContent = "Autorizada";
+      byId("private-upstream-state").textContent =
+        config.runtime_upstream_configured ? "Configurado" : "Sin configurar";
+      byId("private-refresh").disabled = !config.runtime_upstream_configured;
+      byId("private-mode").textContent = config.runtime_upstream_configured
+        ? "ENLACE PREPARADO" : "FALTA RUNTIME";
+      setPrivateMessage(config.runtime_upstream_configured
+        ? "Acceso privado autorizado. Verificando datos reales…"
+        : "El token es válido. Configura TRIADE_ACTIONS_UPSTREAM_URL en Render con una dirección HTTPS segura.");
+      if (config.runtime_upstream_configured) {
+        await refreshPrivate();
+      }
+    } catch (error) {
+      resetPrivate();
+      setPrivateMessage(describePrivateError(error), true);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   function boot() {
     byId("objective").addEventListener("input", updateCounter);
     byId("plan-form").addEventListener("submit", generatePlan);
@@ -270,6 +435,9 @@
     });
     byId("refresh-code").addEventListener("click", loadCode);
     byId("copy-plan").addEventListener("click", copyPlan);
+    byId("private-form").addEventListener("submit", authenticatePrivate);
+    byId("private-disconnect").addEventListener("click", resetPrivate);
+    byId("private-refresh").addEventListener("click", refreshPrivate);
     byId("clear-history").addEventListener("click", () => {
       safeStorage(() => localStorage.removeItem(state.storageKey));
       renderHistory();
