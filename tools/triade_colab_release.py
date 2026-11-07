@@ -469,8 +469,8 @@ def _enforce_observation_panel(context):
     # legacy lifecycle widget that may be pruned by the permanent notebook.
     # Keep this independent surface rather than reinjecting duplicate buttons
     # into the guarded lifecycle box.
-    separate_controls = (
-        tuple(getattr(view[4], "children", ())) if len(view) >= 8 else ()
+    separate_controls = tuple(
+        getattr(getattr(client, "inspection_view", None), "children", ())
     )
     separate_labels = {
         str(getattr(item, "description", "")).strip().lower()
