@@ -31,7 +31,11 @@ _STATS = (
 
 
 def _get(path: str) -> dict[str, Any]:
-    if path not in ("/health/live", "/api/runtime/heartbeat", "/api/runtime/learning-journal"):
+    if path not in (
+        "/health/live",
+        "/api/runtime/heartbeat",
+        "/api/runtime/learning-journal",
+    ):
         raise ValueError("non_allowlisted_local_path")
     headers = {"Accept": "application/json"}
     key = os.getenv("TRIADE_API_KEY", "").strip()
