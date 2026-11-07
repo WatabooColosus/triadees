@@ -66,9 +66,7 @@ def test_ingest_and_operator_endpoints_fail_closed(monkeypatch):
             "/api/telemetry/ingest", headers=_headers("wrong"), json=_report()
         )
         assert invalid.status_code == 401
-        empty = web.get(
-            "/api/private/telemetry", headers=_headers(OPERATOR_TOKEN)
-        )
+        empty = web.get("/api/private/telemetry", headers=_headers(OPERATOR_TOKEN))
         assert empty.status_code == 200
         assert empty.json()["status"] == "no_reports"
         assert empty.json()["fresh"] is False
@@ -84,9 +82,7 @@ def test_ingest_filters_and_readout_never_claims_certification(monkeypatch):
         assert accepted.status_code == 200
         assert accepted.json() == {"accepted": True, "certified": False}
         assert "no-store" in accepted.headers["cache-control"]
-        status = web.get(
-            "/api/private/telemetry", headers=_headers(OPERATOR_TOKEN)
-        )
+        status = web.get("/api/private/telemetry", headers=_headers(OPERATOR_TOKEN))
         assert status.status_code == 200
         body = status.json()
         assert body["status"] == "fresh"
@@ -108,8 +104,16 @@ def test_ingest_drops_invalid_and_private_payloads(monkeypatch):
         invalid_cases = [
             {"schema_version": 1, "observations": {"private_data": 3}, "stats": {}},
             {"schema_version": 1, "observations": {"api_server_alive": 1}, "stats": {}},
-            {"schema_version": 1, "observations": {"mode": "candidate secret"}, "stats": {}},
-            {"schema_version": 1, "observations": {"api_server_alive": True}, "stats": {"cycles_last_24h": True}},
+            {
+                "schema_version": 1,
+                "observations": {"mode": "candidate secret"},
+                "stats": {},
+            },
+            {
+                "schema_version": 1,
+                "observations": {"api_server_alive": True},
+                "stats": {"cycles_last_24h": True},
+            },
             {**_report(), "bodega": {"content": "secret"}},
             {"schema_version": 1, "observations": [], "stats": {}},
         ]
@@ -143,9 +147,7 @@ def test_stale_telemetry_is_not_exposed_as_current(monkeypatch):
         assert accepted.status_code == 200
         with relay._lock:
             relay._last_clock = time.monotonic() - relay.FRESH_SECONDS - 1
-        stale = web.get(
-            "/api/private/telemetry", headers=_headers(OPERATOR_TOKEN)
-        )
+        stale = web.get("/api/private/telemetry", headers=_headers(OPERATOR_TOKEN))
         assert stale.status_code == 200
         assert stale.json()["status"] == "stale"
         assert stale.json()["fresh"] is False
