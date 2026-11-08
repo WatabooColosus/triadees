@@ -53,6 +53,70 @@ def _loader(name: str, commit: str, path: str):
     return module
 
 
+def _verify_existing_identity_read_only(db):
+    """Verify the already-established identity without schema DDL on a live DB.
+
+    The R5 identity verifier constructs IdentityContinuity, whose constructor
+    runs schemas.sql and migration SQL. R6.3 calls it again after R6.2 has
+    restarted the API, competing with a live SQLite writer for the DDL lock.
+    The first R5 startup already applied the schema; repeated upgrade probes
+    must be strictly read-only, and missing anchors must fail closed.
+    """
+    import sqlite3
+    from contextlib import closing
+
+    from triade.core.identity_continuity import IdentityContinuity
+
+    class _ExistingReadOnlyIdentity(IdentityContinuity):
+        def __init__(self, existing_db):
+            self.db_path = Path(existing_db).resolve()
+
+        def _connect(self):
+            conn = sqlite3.connect(
+                self.db_path.as_uri() + "?mode=ro", uri=True, timeout=20
+            )
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA query_only = ON")
+            return conn
+
+    verifier = _ExistingReadOnlyIdentity(db)
+    with closing(verifier._connect()) as conn:
+        if conn.execute("PRAGMA quick_check").fetchone()[0] != "ok":
+            raise RuntimeError("Bodega sin integridad en preflight de identidad")
+        anchor = conn.execute(
+            "SELECT manifest_hash FROM identity_manifest_anchor WHERE singleton=1"
+        ).fetchone()
+        if anchor is None:
+            raise RuntimeError(
+                "Ancla de identidad ausente; no crear ni reanclar durante R6.3"
+            )
+    status = verifier.verify(run_id="colab-r63-readonly-preflight", record=False)
+    if (
+        status.get("integrity") != "verified"
+        or status.get("tamper_detected")
+        or status.get("degraded_mode")
+        or status.get("mismatches")
+    ):
+        raise RuntimeError("Ancla de identidad divergente; instalación detenida")
+    return status
+
+
+def _install_r63_with_read_only_identity(r5, r63, db):
+    """Scope the replacement to pinned R6.3; always restore the R5 callable."""
+    previous = r5.check_working_identity
+    try:
+        r5.check_working_identity = lambda: _verify_existing_identity_read_only(db)
+        prepared = r63.prepare(r5)
+        if prepared.get("tests") != "pass":
+            raise RuntimeError("R6.3 no superó pruebas")
+        result = r63.apply_and_restart(r5, "ACTUALIZAR R6.3")
+        if result.get("status") not in ("active_candidate", "already_installed"):
+            raise RuntimeError("R6.3 no acreditada")
+        return result
+    finally:
+        r5.check_working_identity = previous
+
+
 def verify_memory_floor(r5, db, minimum_counts=None):
     """Compare the restored user's baseline; do not require historical trial rows."""
     import sqlite3
@@ -152,12 +216,7 @@ def rehydrate(r5, minimum_counts=None):
     print("✓ R6.2:", result62["status"])
 
     print("2/3 · Reconstituir R6.3…")
-    r63_prepared = r63.prepare(r5)
-    if r63_prepared.get("tests") != "pass":
-        raise RuntimeError("R6.3 no superó pruebas")
-    result63 = r63.apply_and_restart(r5, "ACTUALIZAR R6.3")
-    if result63.get("status") not in ("active_candidate", "already_installed"):
-        raise RuntimeError("R6.3 no acreditada")
+    result63 = _install_r63_with_read_only_identity(r5, r63, db)
     print("✓ R6.3:", result63["status"])
 
     print("3/3 · Aplicar filtro seguro R6.3.1…")
