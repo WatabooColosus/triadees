@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from contextlib import closing
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -75,6 +76,31 @@ class MissionPlanner:
         conn.row_factory = sqlite3.Row
         return conn
 
+    def _backup_cooldown_active(self) -> bool:
+        """Match the writer's five-minute cooldown without opening SQLite.
+
+        The worker DB can be moved for isolated recovery. Resolve the backing
+        artifact directory from its checkout rather than trusting the cwd.
+        """
+        root = self.db_path.resolve().parent
+        if root.name == "memory" and root.parent.name == "triade":
+            root = root.parent.parent
+        folder = root / "artifacts" / "backups"
+        try:
+            latest = max(
+                (
+                    entry.stat().st_mtime
+                    for entry in folder.glob("triade-*.db.gz.fernet")
+                    if entry.is_file()
+                ),
+                default=None,
+            )
+        except OSError:
+            # The writer owns final validation; do not silently mask I/O errors
+            # by claiming a backup was already created.
+            return False
+        return latest is not None and time.time() - latest < 300
+
     def plan_cycle(self, run_ref: str | None = None) -> list[PlannedTask]:
         """Produce una lista priorizada de tareas para el próximo ciclo."""
         tasks: list[PlannedTask] = []
@@ -140,7 +166,7 @@ class MissionPlanner:
         except (OSError, ValueError, TypeError, AttributeError):
             pass
         backup_key_status = EncryptedBackup.key_status()
-        if backup_key_status["usable"]:
+        if backup_key_status["usable"] and not self._backup_cooldown_active():
             tasks.append(
                 PlannedTask(
                     task_type="encrypted_backup",
