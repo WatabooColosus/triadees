@@ -28,8 +28,10 @@ from triade.observability.introspection import (
     _backup_protection_gaps,
 )
 
-FERNET_A = "0" * 42 + "="
-FERNET_B = "1" * 42 + "="
+# Genuine deterministic Fernet fixtures; fake non-base64 keys must never pass
+# the same readiness check used by the encrypted backup writer.
+FERNET_A = "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE="
+FERNET_B = "YmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmI="
 
 
 def _backup(
@@ -288,6 +290,53 @@ def test_la_clave_en_fichero_tambien_planifica_backup(
     monkeypatch.setenv("TRIADE_BACKUP_KEY_FILE", str(key_file))
 
     assert "encrypted_backup" in _planned_types(_fresh_db(tmp_path))
+
+
+def test_el_planner_no_encola_una_clave_no_utilizable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A visible configuration must not create backup tasks that cannot run."""
+    from triade.core.error_bus import query_internal_errors
+
+    monkeypatch.setenv("TRIADE_BACKUP_KEY", "invalid-not-a-fernet-key")
+    monkeypatch.delenv("TRIADE_BACKUP_KEY_FILE", raising=False)
+    db = _fresh_db(tmp_path)
+    state = EncryptedBackup.key_status()
+    assert state["configured"] is True
+    assert state["usable"] is False
+    assert state["failure_code"] == "key_unusable"
+    assert "encrypted_backup" not in _planned_types(db)
+    failures = query_internal_errors(db_path=db, limit=20) or []
+    assert any(
+        "backup_key_degraded" in str(item.get("task_type", ""))
+        for item in failures
+    )
+
+
+def test_el_planner_no_encola_clave_con_permisos_inseguros(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Do not chmod, rotate or consume a non-private key while planning."""
+    from triade.core.error_bus import query_internal_errors
+
+    key_file = tmp_path / "backup.key"
+    key_file.write_text(FERNET_A, encoding="utf-8")
+    set_file_mode(key_file, 0o644)
+    before = key_file.read_bytes()
+    monkeypatch.delenv("TRIADE_BACKUP_KEY", raising=False)
+    monkeypatch.setenv("TRIADE_BACKUP_KEY_FILE", str(key_file))
+    db = _fresh_db(tmp_path)
+    state = EncryptedBackup.key_status()
+    assert state["configured"] is True
+    assert state["usable"] is False
+    assert state["failure_code"] == "key_file_not_private"
+    assert "encrypted_backup" not in _planned_types(db)
+    assert key_file.read_bytes() == before
+    failures = query_internal_errors(db_path=db, limit=20) or []
+    assert any(
+        "backup_key_degraded" in str(item.get("task_type", ""))
+        for item in failures
+    )
 
 
 def test_el_backup_no_compite_con_el_aprendizaje_continuo(
