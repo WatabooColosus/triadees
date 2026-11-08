@@ -942,8 +942,7 @@ def recent_activity(
         if not timestamps:
             continue
         recent_predicate = " OR ".join(
-            f"julianday({col}) >= julianday('now', '-1 day')"
-            for col in timestamps
+            f"julianday({col}) >= julianday('now', '-1 day')" for col in timestamps
         )
         try:
             row = connection.execute(
@@ -953,6 +952,7 @@ def recent_activity(
             continue
         fresh[table] = row is not None
     return fresh
+
 
 def iter_all_paths(root: Path) -> Iterator[Path]:
     """Todo el árbol, incluido lo oculto, salvo caché y secretos."""

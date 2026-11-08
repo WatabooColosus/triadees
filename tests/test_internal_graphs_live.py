@@ -1074,8 +1074,7 @@ def test_no_real_recent_run_is_explicit_idle_not_broken(tmp_path: Path) -> None:
     result = _vital_chain_gaps(db)
     assert {"Bodega", "efecto futuro"} <= set(result["idle_without_demand"])
     assert not any(
-        item.startswith(("Bodega:", "efecto futuro:"))
-        for item in result["items"]
+        item.startswith(("Bodega:", "efecto futuro:")) for item in result["items"]
     )
     assert result["causal_run_coverage"]["Bodega"]["recent_requests"] == 0
 
@@ -1122,8 +1121,7 @@ def test_run_effects_require_matching_run_id(tmp_path: Path) -> None:
         )
     recovered = _vital_chain_gaps(db)
     assert not any(
-        x.startswith(("Bodega:", "efecto futuro:"))
-        for x in recovered["items"]
+        x.startswith(("Bodega:", "efecto futuro:")) for x in recovered["items"]
     )
     assert (
         recovered["causal_run_coverage"]["efecto futuro"]["status"]
@@ -1150,18 +1148,12 @@ def test_activity_counts_a_real_update_not_only_insertion(tmp_path: Path) -> Non
 
     db = tmp_path / "updated.db"
     with sqlite3.connect(db) as con:
+        con.execute("CREATE TABLE memory_probe (created_at TEXT, updated_at TEXT)")
         con.execute(
-            "CREATE TABLE memory_probe "
-            "(created_at TEXT, updated_at TEXT)"
-        )
-        con.execute(
-            "INSERT INTO memory_probe VALUES ('2026-08-01T10:00:00Z',"
-            "datetime('now'))"
+            "INSERT INTO memory_probe VALUES ('2026-08-01T10:00:00Z',datetime('now'))"
         )
         assert recent_activity(con, ["memory_probe"])["memory_probe"] is True
-        con.execute(
-            "UPDATE memory_probe SET updated_at='2026-08-01T10:00:00Z'"
-        )
+        con.execute("UPDATE memory_probe SET updated_at='2026-08-01T10:00:00Z'")
         assert recent_activity(con, ["memory_probe"])["memory_probe"] is False
 
 

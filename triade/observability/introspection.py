@@ -1149,9 +1149,7 @@ def _real_run_effect_coverage(
     if "runs" not in table_counts:
         return {}
     try:
-        columns = {
-            str(col[1]) for col in conn.execute("PRAGMA table_info(runs)")
-        }
+        columns = {str(col[1]) for col in conn.execute("PRAGMA table_info(runs)")}
         if not {
             "run_id",
             "user_input",
@@ -1168,9 +1166,7 @@ def _real_run_effect_coverage(
             " ('worker', 'scheduler', 'internal_runtime', 'pulse',"
             " 'synthetic', 'test')"
         )
-        recent_count = int(
-            conn.execute("SELECT COUNT(*)" + real_runs).fetchone()[0]
-        )
+        recent_count = int(conn.execute("SELECT COUNT(*)" + real_runs).fetchone()[0])
         completed_count = int(
             conn.execute(
                 "SELECT COUNT(*)" + real_runs + " AND r.closed_at IS NOT NULL"
@@ -1285,6 +1281,7 @@ def _vital_chain_gaps(db_path: Path | None) -> dict[str, Any]:
             "runs; idle demand is reported separately, not certified"
         ),
     }
+
 
 def summarise_for_humans(report: dict[str, Any]) -> str:
     """Una línea por categoría con deuda. Es lo que acaba en Qualia y en eventos."""
