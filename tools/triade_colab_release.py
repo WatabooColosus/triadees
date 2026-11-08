@@ -259,6 +259,7 @@ def _apply_runtime_path_patches(context):
         "neuron_registry_schema": "triade/core/neuron_registry.py",
         "learning_pipeline_schema": "triade/learning/pipeline.py",
         "backup_key_resolution": "triade/memory/encrypted_backup.py",
+        "mission_planner_backup_readiness": "triade/workers/mission_planner.py",
         "service_health_progress": "triade/runtime/service_health.py",
     }
     if "r5" not in context:
@@ -767,6 +768,7 @@ def _runtime_patches_match(context):
         "neuron_registry_schema": "triade/core/neuron_registry.py",
         "learning_pipeline_schema": "triade/learning/pipeline.py",
         "backup_key_resolution": "triade/memory/encrypted_backup.py",
+        "mission_planner_backup_readiness": "triade/workers/mission_planner.py",
         "service_health_progress": "triade/runtime/service_health.py",
     }
     for name, relative in mapping.items():
