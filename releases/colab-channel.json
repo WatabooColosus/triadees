@@ -2,12 +2,12 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 46,
-  "version": "R7.17.22-backup-worker-readiness",
+  "sequence": 47,
+  "version": "R7.17.23-r63-identity-readonly",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "91181fb9fd45dc81cbd5f0446e2a83c622db20c2",
+  "commit": "5568ce46921b3e54cb291f0690ed3cc0d219338b",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
@@ -23,7 +23,7 @@
     },
     "rehydrator": {
       "path": "tools/triade_colab_continuity_r631.py",
-      "sha256": "1892cb3ad2fc00a61bc1c90584968a807d10d53be47eeeb960e28ccb5de093ef"
+      "sha256": "a56aa1eff7c119c34b44fc5d6368914bb4c012da7c7328b0308c5a7bfb651f7c"
     },
     "auditor": {
       "path": "tools/triade_colab_audit.py",
