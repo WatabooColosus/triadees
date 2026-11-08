@@ -336,9 +336,7 @@ def test_historical_backup_alerts_follow_current_configuration_without_erasure(
         "_current_backup_key_usable",
         staticmethod(lambda: current_usable),
     )
-    actual = ServiceHealth(db).inspect(
-        process_running=True, ollama_probe=_OLLAMA_OK
-    )
+    actual = ServiceHealth(db).inspect(process_running=True, ollama_probe=_OLLAMA_OK)
     assert actual.state == expected_state
     assert actual.metrics["recent_backup_key_alerts"] == 3
     assert actual.metrics["backup_key_current_usable"] is current_usable
