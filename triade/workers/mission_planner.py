@@ -140,7 +140,7 @@ class MissionPlanner:
         except (OSError, ValueError, TypeError, AttributeError):
             pass
         backup_key_status = EncryptedBackup.key_status()
-        if backup_key_status["configured"]:
+        if backup_key_status["usable"]:
             tasks.append(
                 PlannedTask(
                     task_type="encrypted_backup",
@@ -156,13 +156,16 @@ class MissionPlanner:
                 if backup_key_status.get("source") == "none"
                 else "mission_planner.backup_key_degraded",
                 RuntimeError(
-                    "backup degradado: falta TRIADE_BACKUP_KEY o "
-                    "TRIADE_BACKUP_KEY_FILE; no se planifica copia cifrada"
+                    "backup degradado: clave ausente o no utilizable; "
+                    "no se planifica copia cifrada"
                 ),
                 payload={
                     "module": __name__,
                     "function": "plan_cycle",
-                    "backup_key_status": backup_key_status,
+                    "backup_key_status": {
+                        name: backup_key_status.get(name)
+                        for name in ("configured", "usable", "source", "failure_code")
+                    },
                 },
                 db_path=self.db_path,
             )
