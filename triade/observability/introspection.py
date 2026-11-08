@@ -1136,45 +1136,155 @@ def _running_commands() -> list[str] | None:
     return commands
 
 
-def _vital_chain_gaps(db_path: Path | None) -> dict[str, Any]:
-    """Eslabones de la cadena vital sin filas o sin actividad reciente.
+def _real_run_effect_coverage(
+    conn: sqlite3.Connection, table_counts: dict[str, int]
+) -> dict[str, dict[str, Any]]:
+    """Verify demand before claiming Bodega or future-use effects are broken.
 
-    Se lee siempre de SQLite, nunca del artefacto: es justo lo que cambia entre
-    dos ciclos del worker, y un informe de deuda con un latido de hace seis
-    horas describiría un sistema que ya no existe.
+    A real, completed user run invokes Bodega.store_episode and
+    ProductionKnowledgeInjector.persist. Scheduler pulses do not. Observe
+    matching run IDs in read-only SQLite; no synthetic episodes or decisions.
+    Unknown schema stays unknown and cannot erase an existing debt finding.
+    """
+    if "runs" not in table_counts:
+        return {}
+    try:
+        columns = {
+            str(col[1]) for col in conn.execute("PRAGMA table_info(runs)")
+        }
+        if not {
+            "run_id",
+            "user_input",
+            "source",
+            "created_at",
+            "closed_at",
+        }.issubset(columns):
+            return {}
+        real_runs = (
+            " FROM runs AS r "
+            " WHERE julianday(r.created_at) >= julianday('now', '-1 day')"
+            " AND TRIM(COALESCE(r.user_input, '')) <> ''"
+            " AND LOWER(COALESCE(r.source, '')) NOT IN "
+            " ('worker', 'scheduler', 'internal_runtime', 'pulse',"
+            " 'synthetic', 'test')"
+        )
+        recent_count = int(
+            conn.execute("SELECT COUNT(*)" + real_runs).fetchone()[0]
+        )
+        completed_count = int(
+            conn.execute(
+                "SELECT COUNT(*)" + real_runs + " AND r.closed_at IS NOT NULL"
+            ).fetchone()[0]
+        )
+        checks: dict[str, dict[str, Any]] = {}
+        for stage, table in (
+            ("Bodega", "episodic_memory"),
+            ("efecto futuro", "learning_retrieval_decisions"),
+        ):
+            if table not in table_counts:
+                continue
+            if recent_count == 0:
+                checks[stage] = {
+                    "status": "idle_without_real_request",
+                    "recent_requests": 0,
+                    "completed_requests": 0,
+                    "missing_effects": 0,
+                }
+            elif completed_count == 0:
+                # An unfinished real request is NOT proof of a good pipeline.
+                checks[stage] = {
+                    "status": "unverified_unfinished_request",
+                    "recent_requests": recent_count,
+                    "completed_requests": 0,
+                    "missing_effects": None,
+                }
+            else:
+                missing_count = int(
+                    conn.execute(
+                        "SELECT COUNT(*)"
+                        + real_runs
+                        + " AND r.closed_at IS NOT NULL"
+                        + f" AND NOT EXISTS (SELECT 1 FROM {table} AS effect"
+                        " WHERE effect.run_id = r.run_id)"
+                    ).fetchone()[0]
+                )
+                checks[stage] = {
+                    "status": (
+                        "missing_real_run_effect"
+                        if missing_count
+                        else "verified_run_effects"
+                    ),
+                    "recent_requests": recent_count,
+                    "completed_requests": completed_count,
+                    "missing_effects": missing_count,
+                }
+        return checks
+    except (sqlite3.Error, TypeError, ValueError):
+        # Do not label a broken or unrecognized schema as idle.
+        return {}
+
+
+def _vital_chain_gaps(db_path: Path | None) -> dict[str, Any]:
+    """Identify gaps from real SQLite rows and causal effects of actual runs.
+
+    No demand is NOT proof that a capability is healthy: report it as idle and
+    unexercised, separately from broken stages. Completed real user requests
+    without their linked effects remain real debt regardless of heartbeats.
     """
     connection = open_readonly(db_path)
     if connection is None:
-        return {"count": 0, "sample": [], "evidence": "sin base viva: NEEDS_EVIDENCE"}
+        return {
+            "count": 0,
+            "sample": [],
+            "items": [],
+            "evidence": "sin base viva: NEEDS_EVIDENCE",
+        }
     try:
         rows_by_table = live_table_counts(connection)
         fresh = recent_activity(
             connection, [t for _, _, tables in VITAL_CHAIN for t in tables]
         )
+        coverage = _real_run_effect_coverage(connection, rows_by_table)
     finally:
         connection.close()
 
     gaps: list[str] = []
+    idle_without_demand: list[str] = []
     for stage, _anchors, tables in VITAL_CHAIN:
         present = [t for t in tables if t in rows_by_table]
         total = sum(rows_by_table.get(t, 0) for t in present)
         if total == 0:
             gaps.append(f"{stage}: sin filas en {', '.join(tables)}")
-        elif not any(fresh.get(t) for t in present):
-            # Un eslabón bajo demanda ocioso no es un corte: `plan` sólo escribe
-            # cuando alguien pide una capacidad, y una conversación normal
-            # resuelve `conversation` y no debe crear goal. Sin filas **nunca**
-            # sí se sigue contando arriba, porque entonces no hay prueba de que
-            # el eslabón haya funcionado jamás.
+            continue
+        proof = coverage.get(stage, {})
+        status = proof.get("status")
+        if status == "idle_without_real_request":
+            idle_without_demand.append(stage)
+            continue
+        if status == "missing_real_run_effect":
+            gaps.append(
+                f"{stage}: {proof['missing_effects']} de "
+                f"{proof['completed_requests']} runs reales sin efecto asociado"
+            )
+            continue
+        if status == "verified_run_effects":
+            # Completed user runs and their matching persisted effects verified.
+            continue
+        if not any(fresh.get(t) for t in present):
             if stage in ON_DEMAND_STAGES:
                 continue
             gaps.append(f"{stage}: {total} filas, ninguna en 24 h")
     return {
         "count": len(gaps),
         "sample": gaps[:SAMPLE],
-        "evidence": "SQLite en mode=ro sobre las tablas de cada eslabón",
+        "items": gaps,
+        "idle_without_demand": idle_without_demand,
+        "causal_run_coverage": coverage,
+        "evidence": (
+            "SQLite mode=ro: timestamps and run_id links of completed real "
+            "runs; idle demand is reported separately, not certified"
+        ),
     }
-
 
 def summarise_for_humans(report: dict[str, Any]) -> str:
     """Una línea por categoría con deuda. Es lo que acaba en Qualia y en eventos."""
