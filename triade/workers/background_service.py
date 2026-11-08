@@ -65,9 +65,12 @@ class WorkerBackgroundService:
             # serializarlo evita que una tarea de prueba mueva su staging a
             # cuarentena mientras otra escribe el mismo cierre. El servicio
             # real mantiene el pool gobernado.
-            concurrency_enabled=not dry_run,
+            # El modo concurrente viene de WorkerRunConfig y respeta el
+            # interruptor TRIADE_WORKER_CONCURRENCY=0 también en Colab.
             max_concurrent_tasks=_slow_full_task_limit(),
         )
+        if dry_run:
+            config.concurrency_enabled = False
         return loop.run(config)
 
     def start(
@@ -95,9 +98,11 @@ class WorkerBackgroundService:
             runs_dir=str(self.runs_dir),
             lock_file=str(self.lock_file),
             stop_file=str(self.stop_file),
-            concurrency_enabled=True,
+            # No forzar concurrencia: respetar la política del entorno.
             max_concurrent_tasks=_slow_full_task_limit(),
         )
+        if dry_run:
+            config.concurrency_enabled = False
         return loop.run(config)
 
     def stop(self) -> dict[str, Any]:
