@@ -261,6 +261,7 @@ def _apply_runtime_path_patches(context):
         "backup_key_resolution": "triade/memory/encrypted_backup.py",
         "mission_planner_backup_readiness": "triade/workers/mission_planner.py",
         "service_health_progress": "triade/runtime/service_health.py",
+        "worker_serial_fallback": "triade/workers/background_service.py",
     }
     if "r5" not in context:
         return {"status": "not_applicable", "restarted": False}
@@ -770,6 +771,7 @@ def _runtime_patches_match(context):
         "backup_key_resolution": "triade/memory/encrypted_backup.py",
         "mission_planner_backup_readiness": "triade/workers/mission_planner.py",
         "service_health_progress": "triade/runtime/service_health.py",
+        "worker_serial_fallback": "triade/workers/background_service.py",
     }
     for name, relative in mapping.items():
         staged = context.get("files", {}).get(name)
