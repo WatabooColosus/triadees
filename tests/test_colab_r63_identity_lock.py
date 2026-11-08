@@ -34,9 +34,7 @@ def test_r63_identity_verification_is_read_only_during_wal_writer(tmp_path):
         conn.rollback()
     with sqlite3.connect(db) as conn:
         assert (
-            conn.execute(
-                "SELECT COUNT(*) FROM identity_continuity_log"
-            ).fetchone()[0]
+            conn.execute("SELECT COUNT(*) FROM identity_continuity_log").fetchone()[0]
             == initial_logs
         )
 
@@ -48,17 +46,16 @@ def test_r63_read_only_preflight_fails_when_anchor_missing(tmp_path):
     with pytest.raises(RuntimeError, match="Ancla de identidad ausente"):
         continuity._verify_existing_identity_read_only(db)
     with sqlite3.connect(db) as conn:
-        assert conn.execute(
-            "SELECT COUNT(*) FROM identity_manifest_anchor"
-        ).fetchone()[0] == 0
+        assert (
+            conn.execute("SELECT COUNT(*) FROM identity_manifest_anchor").fetchone()[0]
+            == 0
+        )
 
 
 def test_r63_read_only_preflight_fails_on_identity_tampering(tmp_path):
     db = _anchored_db(tmp_path)
     with sqlite3.connect(db) as conn:
-        conn.execute(
-            "UPDATE identity_core SET value='altered' WHERE key='entity_name'"
-        )
+        conn.execute("UPDATE identity_core SET value='altered' WHERE key='entity_name'")
     with pytest.raises(RuntimeError, match="identidad divergente"):
         continuity._verify_existing_identity_read_only(db)
 
@@ -81,9 +78,10 @@ def test_r63_identity_hook_is_restored_after_success_and_error(tmp_path):
             assert runtime.check_working_identity()["integrity"] == "verified"
             return {"status": "active_candidate"}
 
-    assert continuity._install_r63_with_read_only_identity(r5, FakeR63(), db)[
-        "status"
-    ] == "active_candidate"
+    assert (
+        continuity._install_r63_with_read_only_identity(r5, FakeR63(), db)["status"]
+        == "active_candidate"
+    )
     assert r5.check_working_identity is original
 
     class FailingR63(FakeR63):
