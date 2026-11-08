@@ -104,8 +104,9 @@ class EncryptedBackup:
                 file_readable = bool(Path(key_file).read_text(encoding="utf-8").strip())
             except OSError:
                 file_readable = False
-        # Check the same usable-key preconditions as the writer, without
-        # generating keys, changing permissions or exposing secret contents.
+        # A nonempty key is not necessarily usable. The actual backup writer
+        # also checks private permissions and the Fernet key format. Check the
+        # same preconditions read-only BEFORE enqueueing another doomed task.
         usable = False
         failure_code: str | None = "key_missing"
         if key_text or file_readable:
