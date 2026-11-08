@@ -337,6 +337,24 @@ def test_el_planner_no_encola_clave_con_permisos_inseguros(
     )
 
 
+def test_no_se_encola_backup_antes_de_terminar_el_cooldown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Routine task scheduling mirrors the writer's five-minute cooldown."""
+    monkeypatch.setenv("TRIADE_BACKUP_KEY", FERNET_A)
+    monkeypatch.delenv("TRIADE_BACKUP_KEY_FILE", raising=False)
+    db = _fresh_db(tmp_path)
+    folder = tmp_path / "artifacts" / "backups"
+    folder.mkdir(parents=True)
+    recent = folder / "triade-fixture.db.gz.fernet"
+    recent.write_bytes(b"cooldown fixture, not real ciphertext")
+
+    assert "encrypted_backup" not in _planned_types(db)
+    older = time.time() - 301
+    os.utime(recent, (older, older))
+    assert "encrypted_backup" in _planned_types(db)
+
+
 def test_el_backup_no_compite_con_el_aprendizaje_continuo(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
