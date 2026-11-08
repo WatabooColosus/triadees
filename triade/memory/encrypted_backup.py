@@ -108,7 +108,7 @@ class EncryptedBackup:
         # also checks private permissions and the Fernet key format. Check the
         # same preconditions read-only BEFORE enqueueing another doomed task.
         usable = False
-        failure_code = "key_missing"
+        failure_code: str | None = "key_missing"
         if key_text or file_readable:
             try:
                 cls._fernet()
