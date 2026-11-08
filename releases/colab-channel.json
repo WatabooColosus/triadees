@@ -2,16 +2,16 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 49,
-  "version": "R7.17.25-backup-key-health-recovery",
+  "sequence": 50,
+  "version": "R7.17.26-causal-vital-chain",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "7193b30bcaa67de1839ad45aef1e971a0645edb7",
+  "commit": "0a2e5c6a8112821bbcfc2d78e89d2050144b2988",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
-      "sha256": "cca4a58a862c1fd558db04c71d835d3144d95d482fee77055c4cfeba5cde4785"
+      "sha256": "e85286a06135fbc3781cf0c1fe283d35f5528eece0fe2304d0857d125e32c533"
     },
     "controller": {
       "path": "tools/triade_colab_control_r7.py",
@@ -72,6 +72,14 @@
     "worker_serial_fallback": {
       "path": "tools/colab_patch_sources/worker_serial_fallback.py",
       "sha256": "197e76bfbd263355b72f7a8b3e87b2c092a6b1b3ff37b562f76077daf7218747"
+    },
+    "vital_chain_causal_introspection": {
+      "path": "tools/colab_patch_sources/vital_chain_causal_introspection.py",
+      "sha256": "56a1e791e433a92591d879164718583baa660253d832d7a9f86297e8058ff2d3"
+    },
+    "vital_chain_recent_activity": {
+      "path": "tools/colab_patch_sources/vital_chain_recent_activity.py",
+      "sha256": "f603a9f42988d0ab7fc95fcfeef92349ca217f9c8dabcec68fa99a43d8611620"
     }
   }
 }
