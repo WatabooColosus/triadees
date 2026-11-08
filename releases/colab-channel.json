@@ -2,16 +2,16 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 47,
-  "version": "R7.17.23-r63-identity-readonly",
+  "sequence": 48,
+  "version": "R7.17.24-worker-serial-fallback",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "5568ce46921b3e54cb291f0690ed3cc0d219338b",
+  "commit": "83b44298b8af25dae91abc9e1ebb315fc48fae98",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
-      "sha256": "22b8e8e99e7514836756d655ea31af19a7c42d6b3d066c5af569ceafc227eb9a"
+      "sha256": "cca4a58a862c1fd558db04c71d835d3144d95d482fee77055c4cfeba5cde4785"
     },
     "controller": {
       "path": "tools/triade_colab_control_r7.py",
@@ -68,6 +68,10 @@
     "service_health_progress": {
       "path": "tools/colab_patch_sources/service_health_progress.py",
       "sha256": "9af13f32076697584d50bc6929cec466fa1a5c20525569ef9c5520a1ed0c7fcc"
+    },
+    "worker_serial_fallback": {
+      "path": "tools/colab_patch_sources/worker_serial_fallback.py",
+      "sha256": "197e76bfbd263355b72f7a8b3e87b2c092a6b1b3ff37b562f76077daf7218747"
     }
   }
 }
