@@ -107,7 +107,7 @@ class EncryptedBackup:
         # Check the same usable-key preconditions as the writer, without
         # generating keys, changing permissions or exposing secret contents.
         usable = False
-        failure_code = "key_missing"
+        failure_code: str | None = "key_missing"
         if key_text or file_readable:
             try:
                 cls._fernet()
