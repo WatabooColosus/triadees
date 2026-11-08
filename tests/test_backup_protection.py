@@ -308,8 +308,7 @@ def test_el_planner_no_encola_una_clave_no_utilizable(
     assert "encrypted_backup" not in _planned_types(db)
     failures = query_internal_errors(db_path=db, limit=20) or []
     assert any(
-        "backup_key_degraded" in str(item.get("task_type", ""))
-        for item in failures
+        "backup_key_degraded" in str(item.get("task_type", "")) for item in failures
     )
 
 
@@ -334,8 +333,7 @@ def test_el_planner_no_encola_clave_con_permisos_inseguros(
     assert key_file.read_bytes() == before
     failures = query_internal_errors(db_path=db, limit=20) or []
     assert any(
-        "backup_key_degraded" in str(item.get("task_type", ""))
-        for item in failures
+        "backup_key_degraded" in str(item.get("task_type", "")) for item in failures
     )
 
 
