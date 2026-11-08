@@ -607,7 +607,11 @@ def inspect(r5):
     report["readiness_summary"] = {
         "lineage_status": lineage_status,
         "new_epoch_lineage_verified": lineage_status
-        in ("aligned", "quarantined_fresh_epoch_ready", "quarantined_fresh_epoch_aligned"),
+        in (
+            "aligned",
+            "quarantined_fresh_epoch_ready",
+            "quarantined_fresh_epoch_aligned",
+        ),
         "study_monitor_alive": report["study_monitor_alive"],
         "study_launch_status": report["study_launch"].get("status"),
         "study_wait_reason_code": safe_reason,
