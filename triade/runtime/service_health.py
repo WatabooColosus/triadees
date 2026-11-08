@@ -223,7 +223,18 @@ class ServiceHealth:
                     metrics["recent_backup_key_alerts"] = backup_alerts
                     metrics["recent_repeated_errors"] = repeated
                     if backup_alerts:
-                        reasons.append("backup_key_configuration_degraded")
+                        # A warning from ten minutes ago does not prove the key
+                        # is still unusable. Check the *current* key format and
+                        # private-file permissions without writing or exposing
+                        # its contents. Preserve the historical error count.
+                        current_key_usable = self._current_backup_key_usable()
+                        metrics["backup_key_current_usable"] = current_key_usable
+                        metrics["backup_key_alerts_historical_recovered"] = (
+                            current_key_usable is True
+                        )
+                        if current_key_usable is not True:
+                            # Missing, invalid or unobservable: fail closed.
+                            reasons.append("backup_key_configuration_degraded")
                     # Un worker puede registrar errores recuperables mientras
                     # sigue drenando la cola. Marcarlos automáticamente como
                     # scheduler degradado hacía oscilar el panel entre
@@ -295,6 +306,34 @@ class ServiceHealth:
         if parsed.tzinfo is None:
             parsed = parsed.replace(tzinfo=UTC)
         return max(0.0, (now - parsed).total_seconds())
+
+    @staticmethod
+    def _current_backup_key_usable() -> bool | None:
+        """Read-only check of the effective backend key; never return its path.
+
+        Historical planner alerts remain auditable. A now-valid Fernet key
+        removes only the *current configuration* warning, not unrelated
+        worker failures, backup restore gates or old error records.
+        Unknown is NOT healthy.
+        """
+        try:
+            from triade.memory.encrypted_backup import EncryptedBackup
+
+            result = EncryptedBackup.key_status()
+            if isinstance(result, dict) and type(result.get("usable")) is bool:
+                return result["usable"]
+        except (
+            ImportError,
+            OSError,
+            PermissionError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
+            pass
+        return None
 
     @staticmethod
     def _ollama_probe() -> dict[str, Any]:

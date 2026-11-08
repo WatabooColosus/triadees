@@ -311,3 +311,104 @@ def test_legacy_worker_event_schema_still_reports_real_failures(
     assert health.metrics["recent_repeated_errors"] == 5
     assert health.metrics["errors_without_progress"] is True
     assert "sqlite_unavailable_or_locked" not in health.reasons
+
+
+@pytest.mark.parametrize(
+    ("current_usable", "expected_state"),
+    [(True, "idle"), (False, "degraded"), (None, "degraded")],
+)
+def test_historical_backup_alerts_follow_current_configuration_without_erasure(
+    tmp_path: Path, monkeypatch, current_usable: bool | None, expected_state: str
+) -> None:
+    """A recovered key may clear only its own degraded flag, never old events."""
+    db = _db(tmp_path)
+    _heartbeat(db)
+    with sqlite3.connect(db) as conn:
+        for index in range(3):
+            conn.execute(
+                "INSERT INTO worker_events (id,event_type,task_type,status,created_at)"
+                " VALUES (?, 'internal_error', 'mission_planner.backup_key_degraded',"
+                " 'error', datetime('now','-2 minutes'))",
+                (index + 1,),
+            )
+    monkeypatch.setattr(
+        ServiceHealth,
+        "_current_backup_key_usable",
+        staticmethod(lambda: current_usable),
+    )
+    actual = ServiceHealth(db).inspect(
+        process_running=True, ollama_probe=_OLLAMA_OK
+    )
+    assert actual.state == expected_state
+    assert actual.metrics["recent_backup_key_alerts"] == 3
+    assert actual.metrics["backup_key_current_usable"] is current_usable
+    assert actual.metrics["backup_key_alerts_historical_recovered"] is (
+        current_usable is True
+    )
+    assert ("backup_key_configuration_degraded" in actual.reasons) is (
+        current_usable is not True
+    )
+    with sqlite3.connect(db) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM worker_events").fetchone()[0] == 3
+
+
+def test_valid_backup_key_never_hides_unrelated_worker_errors(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Recovery of the backup key must not conceal a stalled worker."""
+    db = _db(tmp_path)
+    _heartbeat(db)
+    with sqlite3.connect(db) as conn:
+        for index in range(7):
+            kind = (
+                "mission_planner.backup_key_degraded"
+                if index < 2
+                else "worker_loop.concurrent_task"
+            )
+            conn.execute(
+                "INSERT INTO worker_events (id,event_type,task_type,status,created_at)"
+                " VALUES (?, 'internal_error', ?, 'error', datetime('now'))",
+                (index + 1, kind),
+            )
+    monkeypatch.setattr(
+        ServiceHealth, "_current_backup_key_usable", staticmethod(lambda: True)
+    )
+    health = ServiceHealth(db).inspect(process_running=True, ollama_probe=_OLLAMA_OK)
+    assert health.metrics["recent_backup_key_alerts"] == 2
+    assert health.metrics["recent_repeated_errors"] == 5
+    assert health.metrics["errors_without_progress"] is True
+    assert "backup_key_configuration_degraded" not in health.reasons
+    assert "repeated_worker_errors" in health.reasons
+    assert health.state == "degraded"
+
+
+def test_backup_key_prober_fails_closed_when_status_cannot_be_observed(
+    monkeypatch,
+) -> None:
+    from triade.memory.encrypted_backup import EncryptedBackup
+
+    monkeypatch.setattr(
+        EncryptedBackup,
+        "key_status",
+        classmethod(lambda cls: (_ for _ in ()).throw(PermissionError())),
+    )
+    assert ServiceHealth._current_backup_key_usable() is None
+
+
+def test_backup_key_prober_returns_only_boolean_not_secret_material(
+    monkeypatch,
+) -> None:
+    from triade.memory.encrypted_backup import EncryptedBackup
+
+    monkeypatch.setattr(
+        EncryptedBackup,
+        "key_status",
+        classmethod(
+            lambda cls: {
+                "usable": True,
+                "path": "/tmp/secret-key",
+                "source": "file",
+            }
+        ),
+    )
+    assert ServiceHealth._current_backup_key_usable() is True
