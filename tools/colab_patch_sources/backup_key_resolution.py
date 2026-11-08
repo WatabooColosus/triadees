@@ -104,8 +104,27 @@ class EncryptedBackup:
                 file_readable = bool(Path(key_file).read_text(encoding="utf-8").strip())
             except OSError:
                 file_readable = False
+        # A nonempty key is not necessarily usable. The actual backup writer
+        # also checks private permissions and the Fernet key format. Check the
+        # same preconditions read-only BEFORE enqueueing another doomed task.
+        usable = False
+        failure_code: str | None = "key_missing"
+        if key_text or file_readable:
+            try:
+                cls._fernet()
+            except PermissionError:
+                failure_code = "key_file_not_private"
+            except (OSError, ValueError, TypeError, RuntimeError):
+                failure_code = "key_unusable"
+            else:
+                usable = True
+                failure_code = None
+        elif key_file:
+            failure_code = "key_file_unreadable" if file_exists else "key_file_missing"
         return {
             "configured": bool(key_text or file_readable),
+            "usable": usable,
+            "failure_code": failure_code,
             "source": "environment" if key_text else ("file" if key_file else "none"),
             "path": str(key_file) if key_file else None,
             "path_exists": file_exists,

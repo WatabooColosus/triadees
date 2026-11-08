@@ -613,6 +613,9 @@ def test_inspector_is_read_only_and_reports_no_fake_certification(
     assert result["full_certified"] is False
     assert result["functional_probes"] == []
     assert result["study_launch"]["reason"] == "embedding_inference_failed"
+    assert result["readiness_summary"]["study_launch_status"] == "blocked"
+    assert result["readiness_summary"]["improvement_certified"] is False
+    assert result["readiness_summary"]["study_monitor_alive"] is False
     assert db.read_bytes() == before
 
 
