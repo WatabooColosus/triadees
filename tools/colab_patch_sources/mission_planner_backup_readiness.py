@@ -176,7 +176,7 @@ class MissionPlanner:
                     planner_score=0.4,
                 )
             )
-        else:
+        elif not backup_key_status["usable"]:
             record_internal_error(
                 "mission_planner.backup_key_missing"
                 if backup_key_status.get("source") == "none"

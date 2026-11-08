@@ -350,6 +350,10 @@ def test_no_se_encola_backup_antes_de_terminar_el_cooldown(
     recent.write_bytes(b"cooldown fixture, not real ciphertext")
 
     assert "encrypted_backup" not in _planned_types(db)
+    from triade.core.error_bus import query_internal_errors
+
+    errors = query_internal_errors(db_path=db, limit=20) or []
+    assert not any("backup_key_" in str(x.get("task_type", "")) for x in errors)
     older = time.time() - 301
     os.utime(recent, (older, older))
     assert "encrypted_backup" in _planned_types(db)

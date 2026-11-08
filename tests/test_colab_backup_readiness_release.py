@@ -77,8 +77,15 @@ def test_colab_r5_planner_protects_key_without_rotating_or_chmodding(
     folder.mkdir(parents=True)
     recent = folder / "triade-test.db.gz.fernet"
     recent.write_bytes(b"cooldown fixture")
+    from triade.core.error_bus import query_internal_errors
+
+    before = query_internal_errors(db_path=db, limit=40) or []
+    before_count = sum("backup_key_" in str(x.get("task_type", "")) for x in before)
     plan = mission_planner_backup_readiness.MissionPlanner(db).plan_cycle()
     assert all(task.task_type != "encrypted_backup" for task in plan)
+    after = query_internal_errors(db_path=db, limit=40) or []
+    after_count = sum("backup_key_" in str(x.get("task_type", "")) for x in after)
+    assert after_count == before_count
     older = time.time() - 301
     os.utime(recent, (older, older))
     plan = mission_planner_backup_readiness.MissionPlanner(db).plan_cycle()
