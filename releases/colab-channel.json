@@ -2,12 +2,12 @@
   "schema": "triade.colab.release.v1",
   "repository": "WatabooColosus/triadees",
   "protocol": 1,
-  "sequence": 48,
-  "version": "R7.17.24-worker-serial-fallback",
+  "sequence": 49,
+  "version": "R7.17.25-backup-key-health-recovery",
   "runtime": "R6.3.1-candidate",
   "channel": "candidate",
   "auto_update_safe": false,
-  "commit": "83b44298b8af25dae91abc9e1ebb315fc48fae98",
+  "commit": "7193b30bcaa67de1839ad45aef1e971a0645edb7",
   "files": {
     "installer": {
       "path": "tools/triade_colab_release.py",
@@ -67,7 +67,7 @@
     },
     "service_health_progress": {
       "path": "tools/colab_patch_sources/service_health_progress.py",
-      "sha256": "9af13f32076697584d50bc6929cec466fa1a5c20525569ef9c5520a1ed0c7fcc"
+      "sha256": "706243bb5355d14be9c497f2ca3e298d4e7e7d520e0a57329d287d059e079ae6"
     },
     "worker_serial_fallback": {
       "path": "tools/colab_patch_sources/worker_serial_fallback.py",
