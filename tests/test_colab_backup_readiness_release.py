@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import ast
 import inspect
+import os
+import time
 from pathlib import Path
 
 from cryptography.fernet import Fernet
@@ -67,3 +69,17 @@ def test_colab_r5_planner_protects_key_without_rotating_or_chmodding(
     plan = mission_planner_backup_readiness.MissionPlanner(db).plan_cycle()
     assert all(task.task_type != "encrypted_backup" for task in plan)
     assert key_file.read_bytes() == original
+
+    # Now the key is private again, but the most recent backup remains inside
+    # the writer's cooldown. Neither path may fabricate a new backup task.
+    set_file_mode(key_file, 0o600)
+    folder = tmp_path / "artifacts" / "backups"
+    folder.mkdir(parents=True)
+    recent = folder / "triade-test.db.gz.fernet"
+    recent.write_bytes(b"cooldown fixture")
+    plan = mission_planner_backup_readiness.MissionPlanner(db).plan_cycle()
+    assert all(task.task_type != "encrypted_backup" for task in plan)
+    older = time.time() - 301
+    os.utime(recent, (older, older))
+    plan = mission_planner_backup_readiness.MissionPlanner(db).plan_cycle()
+    assert any(task.task_type == "encrypted_backup" for task in plan)
