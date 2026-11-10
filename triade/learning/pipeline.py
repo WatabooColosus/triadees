@@ -503,11 +503,9 @@ class LearningPipeline:
             if existing is not None:
                 # A retry is idempotent; a different score for the same run is
                 # a conflicting measurement and must not silently overwrite it.
-                if (
-                    float(existing["outcome_score"]) != score
-                    or str(existing["evidence_ref"] or "")
-                    != str(evidence_ref or "")
-                ):
+                if float(existing["outcome_score"]) != score or str(
+                    existing["evidence_ref"] or ""
+                ) != str(evidence_ref or ""):
                     raise ValueError(
                         "run_id ya registrado con resultado o evidencia diferentes"
                     )
