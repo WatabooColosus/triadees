@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="Tríade Omega">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#152844"/><stop offset="1" stop-color="#090e19"/></linearGradient><radialGradient id="glow"><stop stop-color="#56ddcf" stop-opacity=".55"/><stop offset="1" stop-color="#56ddcf" stop-opacity="0"/></radialGradient></defs>
+<rect width="192" height="192" rx="44" fill="url(#bg)"/><circle cx="96" cy="96" r="83" stroke="#365979" stroke-width="2" fill="none"/><circle cx="96" cy="96" r="73" fill="url(#glow)"/>
+<path d="M96 52 56 127H136Z" fill="none" stroke="#81dbe6" stroke-width="5" stroke-linejoin="round"/><circle cx="96" cy="52" r="17" fill="#22485a" stroke="#6aece9" stroke-width="5"/><circle cx="56" cy="127" r="17" fill="#422e60" stroke="#bb8cff" stroke-width="5"/><circle cx="136" cy="127" r="17" fill="#524034" stroke="#f8c77b" stroke-width="5"/><circle cx="96" cy="95" r="8" fill="#f3ffff"/>
+</svg>

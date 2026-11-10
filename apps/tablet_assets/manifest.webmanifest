@@ -1,0 +1,19 @@
+{
+  "name": "Tríade Ω · Centro de Control",
+  "short_name": "Tríade Ω",
+  "description": "Observatorio público de Tríade Ω, Agencia Digital Wataboo. Planificación y evidencia verificable, sin acceso a la Bodega original.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#090d19",
+  "background_color": "#090d19",
+  "lang": "es",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

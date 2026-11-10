@@ -1,0 +1,10 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "triade-observatorio": {
+      "type": "streamable-http",
+      "url": "https://triade-omega-mcp.onrender.com/mcp",
+      "extensions": {"com.openai": {"auth": {"type": "none"}}}
+    }
+  }
+}
