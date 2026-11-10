@@ -1,0 +1,18 @@
+# Blueprint separado: no cambia ni reinicia el relay público existente.
+services:
+  - type: web
+    name: triade-chatgpt-actions
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn apps.chatgpt_actions_app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: TRIADE_ACTIONS_TOKEN
+        generateValue: true
+      - key: TRIADE_ACTIONS_UPSTREAM_URL
+        sync: false
+      - key: TRIADE_ACTIONS_UPSTREAM_KEY
+        sync: false
+      - key: TRIADE_ACTIONS_ALLOW_RUN
+        value: "0"

@@ -1,0 +1,177 @@
+name: Tríade MCP Live Public Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/triade-public-mcp-live-smoke.yml
+
+permissions:
+  contents: read
+
+jobs:
+  public-mcp-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Verify live public MCP server over HTTPS
+        env:
+          PUBLIC_MCP: https://triade-omega-mcp.onrender.com
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.request
+
+          url = os.environ["PUBLIC_MCP"]
+
+          def request(path, payload=None):
+              data = json.dumps(payload).encode() if payload is not None else None
+              headers = {"Accept": "application/json, text/event-stream"}
+              if data is not None:
+                  headers["Content-Type"] = "application/json"
+              req = urllib.request.Request(url + path, data=data, headers=headers)
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  assert response.status == 200, response.status
+                  return json.load(response)
+
+          health = None
+          for attempt in range(4):
+              try:
+                  health = request("/health")
+                  break
+              except (urllib.error.URLError, ValueError, TimeoutError, ConnectionError) as exc:
+                  print(f"Render Free cold-start attempt {attempt + 1}/4: {type(exc).__name__}", flush=True)
+                  if attempt == 3:
+                      raise
+                  time.sleep(8)
+          assert health["service"] == "triade-omega-public-mcp", health
+          init = request("/mcp", {
+              "jsonrpc": "2.0",
+              "id": 1,
+              "method": "initialize",
+              "params": {
+                  "protocolVersion": "2025-06-18",
+                  "capabilities": {},
+                  "clientInfo": {"name": "triade-public-ci", "version": "0.1"}
+              }
+          })
+          assert init.get("result"), init
+          listed = request("/mcp", {
+              "jsonrpc": "2.0", "id": 2, "method": "tools/list"
+          })
+          names = {item["name"] for item in listed["result"]["tools"]}
+          expected = {
+              "triade_estado_publico", "triade_codigo_publico", "triade_plan_publico"
+          }
+          assert names == expected, sorted(names)
+          def call(name, arguments):
+              return request("/mcp", {
+                  "jsonrpc": "2.0",
+                  "id": 3,
+                  "method": "tools/call",
+                  "params": {"name": name, "arguments": arguments},
+              })
+
+          status = call("triade_estado_publico", {})
+          status_text = str(status)
+          assert "runtime_original_conectado" in status_text
+          assert "False" in status_text or "false" in status_text
+          plan = call(
+              "triade_plan_publico",
+              {"objetivo": "auditar un ciclo educativo reproducible"},
+          )
+          assert "neurona_central" in str(plan)
+          assert "hipotalamo_emocional" in str(plan)
+          assert "bodega" in str(plan)
+          code = call("triade_codigo_publico", {})
+          assert "repository" in str(code)
+          info = code["result"].get("structuredContent", {})
+          if info.get("verified"):
+              assert len(info["main_commit"]) == 40
+              print("PUBLIC GITHUB VERIFIED:", info["source"])
+          else:
+              assert info.get("api_error_type"), code
+              assert info.get("feed_error_type"), code
+              print(
+                  "GITHUB PUBLIC DATA UNAVAILABLE (degraded, not certified):",
+                  info.get("api_http_status"),
+                  info.get("feed_http_status"),
+              )
+          print("MCP LIVE OK: HTTPS, initialize, tools/list and 3 real tool calls")
+
+          # Independent browser-facing verification on the public Render URL.
+          with urllib.request.urlopen(url + "/", timeout=30) as response:
+              assert response.status == 200
+              html = response.read().decode("utf-8")
+              csp = response.headers.get("Content-Security-Policy", "")
+              assert 'id="plan-form"' in html, html[:200]
+              assert 'id="history-list"' in html
+              assert "Tríade Ω · Centro de Control" in html
+              assert "frame-ancestors 'none'" in csp
+          for asset, keyword in [
+              ("/ui.css", "@media"),
+              ("/ui.js", "api/public/plan"),
+              ("/sw.js", "network-only"),
+              ("/manifest.webmanifest", "standalone"),
+              ("/icon.svg", "<svg"),
+          ]:
+              with urllib.request.urlopen(url + asset, timeout=30) as response:
+                  assert response.status == 200
+                  assert keyword in response.read().decode("utf-8")
+          web_status = request("/api/public/status")
+          assert web_status["operativo"] is True
+          assert web_status["runtime_original_conectado"] is False
+          assert web_status["bodega_original_conectada"] is False
+          assert web_status["escrituras_habilitadas"] is False
+          planned = request("/api/public/plan", {
+              "objetivo": "Verificar una misión pública desde Android"
+          })
+          assert planned["objetivo"] == "Verificar una misión pública desde Android"
+          assert planned["ejecutado"] is False
+          assert "neurona_central" in planned
+          assert "hipotalamo_emocional" in planned
+          assert "bodega" in planned
+          print("TABLET LIVE OK: HTML, 5 assets, guarded APIs and real plan")
+          # Private runtime endpoints must never be queryable anonymously.
+          for private_path in [
+              "/api/private/connection", "/api/private/status",
+              "/api/private/learning", "/api/private/telemetry"
+          ]:
+              try:
+                  urllib.request.urlopen(url + private_path, timeout=30)
+              except urllib.error.HTTPError as exc:
+                  assert exc.code == 401, (private_path, exc.code)  # operator key active, deny anonymous
+                  body = exc.read().decode("utf-8")
+                  assert "secret" not in body.lower()
+                  assert "TRIADE_ACTIONS_UPSTREAM_KEY" not in body
+              else:
+                  raise AssertionError("Private route exposed: " + private_path)
+          print("PRIVATE LINK VERIFIED: operator key configured, anonymous requests receive 401")
+          # Colab emitter endpoint cannot accept a public or malformed report.
+          report = {
+              "schema_version": 1,
+              "observations": {"api_server_alive": True},
+              "stats": {"cycles_last_24h": 1},
+          }
+          unauthorized_request = urllib.request.Request(
+              url + "/api/telemetry/ingest",
+              data=json.dumps(report).encode("utf-8"),
+              headers={
+                  "Accept": "application/json",
+                  "Content-Type": "application/json",
+                  "Authorization": "Bearer invalid-test-token",
+              },
+              method="POST",
+          )
+          try:
+              urllib.request.urlopen(unauthorized_request, timeout=30)
+          except urllib.error.HTTPError as exc:
+              assert exc.code == 401, exc.code  # receiver secret is active
+              assert b"accepted" not in exc.read()
+          else:
+              raise AssertionError("Telemetry ingestion accepted an invalid key")
+          print("TELEMETRY READY: receiver secret active; invalid keys and private reads denied")
+          PY
