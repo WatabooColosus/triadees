@@ -555,6 +555,7 @@ class LearningPipeline:
             notes = row["verification_notes"] or "{}"
             status = str(row["status"])
             if promotes:
+                assert evidence is not None
                 try:
                     decoded = json.loads(notes)
                 except (TypeError, ValueError):
