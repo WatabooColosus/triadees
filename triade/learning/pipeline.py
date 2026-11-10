@@ -666,6 +666,8 @@ class LearningPipeline:
         measurement_evidence = self.evidence_bridge.require_improvement(candidate_id)
         # Pre-migration counters lack run IDs and cannot prove distinct use.
         # Keep historical values for audit, but do not let them authorize stable.
+        from triade.core.runtime_scope import is_test_runtime
+
         if not is_test_runtime():
             with self._connect() as conn:
                 distinct_uses = conn.execute(
