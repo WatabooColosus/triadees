@@ -42,7 +42,8 @@ jobs:
               try:
                   health = request("/health")
                   break
-              except (urllib.error.URLError, ValueError):
+              except (urllib.error.URLError, ValueError, TimeoutError, ConnectionError) as exc:
+                  print(f"Render Free cold-start attempt {attempt + 1}/4: {type(exc).__name__}", flush=True)
                   if attempt == 3:
                       raise
                   time.sleep(8)

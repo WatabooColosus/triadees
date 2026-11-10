@@ -916,11 +916,11 @@ def _symbol_hits(
 def recent_activity(
     connection: sqlite3.Connection | None, tables: list[str]
 ) -> dict[str, bool]:
-    """¿Escribió alguien en las últimas 24 h?
+    """Read actual writes from *any* supported timestamp, without mutations.
 
-    Las tablas mezclan ISO-8601 con ``T`` y ``CURRENT_TIMESTAMP`` con espacio.
-    ``julianday`` interpreta ambos antes de comparar y evita que la Bodega viva
-    parezca inactiva sólo por el separador del timestamp.
+    Rows created months ago but updated today are current activity, too.
+    Looking only at created_at made updated semantic records look abandoned.
+    Timestamps are normalized with julianday (space, T, and UTC offsets).
     """
     if connection is None:
         return {}
@@ -934,24 +934,23 @@ def recent_activity(
             }
         except sqlite3.Error:
             continue
-        column = next(
-            (
-                c
-                for c in ("created_at", "updated_at", "started_at", "ts")
-                if c in columns
-            ),
-            None,
-        )
-        if column is None:
+        timestamps = [
+            col
+            for col in ("created_at", "updated_at", "started_at", "ts")
+            if col in columns
+        ]
+        if not timestamps:
             continue
+        recent_predicate = " OR ".join(
+            f"julianday({col}) >= julianday('now', '-1 day')" for col in timestamps
+        )
         try:
             row = connection.execute(
-                f"SELECT COUNT(*) FROM {table} "  # identificador validado con isidentifier()
-                f"WHERE julianday({column}) >= julianday('now', '-1 day')"
+                f"SELECT 1 FROM {table} WHERE {recent_predicate} LIMIT 1"
             ).fetchone()
         except sqlite3.Error:
             continue
-        fresh[table] = bool(row and row[0])
+        fresh[table] = row is not None
     return fresh
 
 

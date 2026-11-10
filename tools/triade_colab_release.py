@@ -258,6 +258,12 @@ def _apply_runtime_path_patches(context):
         "neuron_activity_schema": "triade/core/neuron_activity_store.py",
         "neuron_registry_schema": "triade/core/neuron_registry.py",
         "learning_pipeline_schema": "triade/learning/pipeline.py",
+        "backup_key_resolution": "triade/memory/encrypted_backup.py",
+        "mission_planner_backup_readiness": "triade/workers/mission_planner.py",
+        "service_health_progress": "triade/runtime/service_health.py",
+        "worker_serial_fallback": "triade/workers/background_service.py",
+        "vital_chain_causal_introspection": "triade/observability/introspection.py",
+        "vital_chain_recent_activity": "triade/observability/runtime_graph.py",
     }
     if "r5" not in context:
         return {"status": "not_applicable", "restarted": False}
@@ -390,11 +396,12 @@ def _record_learning_launch(context, launch):
 
 
 def _enforce_observation_panel(context):
-    """Collapse legacy widget action sets to one explicit lifecycle control.
+    """Keep lifecycle/open and already-wired read-only inspection controls.
 
     The installer can be loaded by an older Colab bootstrap that still owns
-    its previous widgets. This changes only the displayed controls, never
-    runs a hidden action or bypasses a runtime/memory safety gate.
+    its previous widgets. Only known inspection labels are kept; legacy
+    save, recovery and manual learning-action buttons remain hidden. This
+    changes only the displayed controls and never invokes their callbacks.
     """
     client = getattr(context.get("progress"), "__self__", None)
     view = getattr(client, "view", None)
@@ -404,6 +411,31 @@ def _enforce_observation_panel(context):
     children = getattr(actions, "children", None)
     if children is None:
         return {"status": "non_widget_panel_unchanged"}
+
+    # R7.17.19 installed an observer which hides all inspection buttons.
+    # Unregister ONLY that known callback before upgrading its policy.
+    # Never unregister unrelated notebook observers or touch the runtime.
+    if (
+        getattr(actions, "_triade_lifecycle_observer_installed", False)
+        and getattr(actions, "_triade_inspection_guard_version", 0) != 2
+    ):
+        all_notifiers = getattr(actions, "_trait_notifiers", {}) or {}
+        handlers = all_notifiers.get("children", {}).get("change", ())
+        removed = 0
+        for handler in tuple(handlers):
+            if (
+                getattr(handler, "__name__", "") == "maintain_controls"
+                and "_enforce_observation_panel" in getattr(handler, "__qualname__", "")
+                and callable(getattr(actions, "unobserve", None))
+            ):
+                actions.unobserve(handler, names="children")
+                removed += 1
+        if not removed:
+            return {
+                "status": "panel_refresh_required",
+                "visible_buttons": len(children),
+            }
+        actions._triade_lifecycle_observer_installed = False
     chosen = None
     for item in children:
         label = str(getattr(item, "description", "")).lower()
@@ -424,9 +456,92 @@ def _enforce_observation_panel(context):
         ),
         None,
     )
-    # Keep the existing notebook's navigation control, but do not synthesize
-    # one with an untrusted callback. The current panel creates its own gate.
-    allowed = (chosen, opener) if opener is not None else (chosen,)
+    # Preserve only the already-wired read-only diagnostics. Do not fabricate
+    # widget callbacks: the permanent panel supplies the guarded actions.
+    safe_inspections = {
+        "estado real",
+        "auditar actividad (30 s)",
+        "verificar aprendizaje",
+        "ver circuito de aprendizaje",
+    }
+    diagnostics = tuple(
+        item
+        for item in children
+        if str(getattr(item, "description", "")).strip().lower() in safe_inspections
+    )
+    # The new client renders diagnostics in a separate box, outside the
+    # legacy lifecycle widget that may be pruned by the permanent notebook.
+    # Keep this independent surface rather than reinjecting duplicate buttons
+    # into the guarded lifecycle box.
+    separate_controls = tuple(
+        getattr(getattr(client, "inspection_view", None), "children", ())
+    )
+    separate_labels = {
+        str(getattr(item, "description", "")).strip().lower()
+        for item in separate_controls
+    }
+    separate_inspections = len(separate_controls) == 3 and separate_labels == {
+        "estado real",
+        "auditar actividad (30 s)",
+        "verificar aprendizaje",
+    }
+    if separate_inspections:
+        diagnostics = ()
+
+    # Updating an already-open Colab session must restore the buttons without
+    # asking the owner to run a new cell. The verified Client supplies only
+    # read-only callbacks and displays escaped JSON in its existing output.
+    if (
+        not separate_inspections
+        and len(view) >= 7
+        and callable(getattr(client, "action", None))
+        and hasattr(view[-1], "value")
+    ):
+        try:
+            import ipywidgets as widgets
+        except ImportError:
+            widgets = None
+        if widgets is not None:
+            current_labels = {
+                str(getattr(item, "description", "")).strip().lower()
+                for item in diagnostics
+            }
+            for label, method in (
+                ("Estado real", "status"),
+                ("Auditar actividad (30 s)", "audit"),
+                ("Verificar aprendizaje", "learning_status"),
+            ):
+                if label.lower() in current_labels:
+                    continue
+                control = widgets.Button(
+                    description=label,
+                    layout=widgets.Layout(width="300px", height="44px"),
+                )
+
+                def inspect_clicked(_button, action=method):
+                    try:
+                        result = client.action(action)
+                        rendered = json.dumps(
+                            result, ensure_ascii=False, indent=2, default=str
+                        )
+                    except Exception as exc:  # noqa: BLE001 - existing UI diagnostic boundary
+                        rendered = (
+                            "Inspección no acreditada: "
+                            + type(exc).__name__
+                            + " "
+                            + str(exc)[:1500]
+                        )
+                    from html import escape
+
+                    view[-1].value = (
+                        "<pre style='white-space:pre-wrap;overflow-wrap:anywhere'>"
+                        + escape(rendered)
+                        + "</pre>"
+                    )
+
+                control.on_click(inspect_clicked)
+                diagnostics += (control,)
+    allowed = ((chosen, opener) if opener is not None else (chosen,)) + diagnostics
     actions.children = allowed
     # Legacy notebooks may repopulate the SAME widget after installation.
     # A single observer keeps lifecycle controls stable without invoking them.
@@ -458,15 +573,17 @@ def _enforce_observation_panel(context):
             if replacement is not None and current and current[0] is replacement:
                 allowed = (
                     (replacement, opener) if opener is not None else (replacement,)
-                )
+                ) + diagnostics
             if current != allowed:
                 actions.children = allowed
 
         observer(maintain_controls, names="children")
         actions._triade_lifecycle_observer_installed = True
+        actions._triade_inspection_guard_version = 2
     return {
         "status": "lifecycle_and_open_controls",
-        "visible_buttons": len(actions.children),
+        "visible_buttons": len(actions.children)
+        + (len(separate_controls) if separate_inspections else 0),
     }
 
 
@@ -610,6 +727,7 @@ def install(context):
             "Actualizando el auditor del panel; Tríade sigue encendida…"
         )
         runtime_patches = _apply_runtime_path_patches(context)
+        context["require_runtime_patch_verification"] = True
         router_patch = _apply_router_patch(context)
         protection = _attach_panel_components(context)
         return {
@@ -629,6 +747,7 @@ def install(context):
     ):
         raise RuntimeError("El arranque no terminó verificado")
     runtime_patches = _apply_runtime_path_patches(context)
+    context["require_runtime_patch_verification"] = True
     router_patch = _apply_router_patch(context)
     protection = _attach_panel_components(context)
     return {
@@ -639,6 +758,40 @@ def install(context):
         "router_patch": router_patch,
         "backup_protection": protection,
     }
+
+
+def _runtime_patches_match(context):
+    """Verify only the explicitly supplied runtime patches after installation."""
+    if not context.get("require_runtime_patch_verification"):
+        return True
+    r5 = context["r5"]
+    mapping = {
+        "worker_state_store": "triade/workers/state_store.py",
+        "neuron_activity_schema": "triade/core/neuron_activity_store.py",
+        "neuron_registry_schema": "triade/core/neuron_registry.py",
+        "learning_pipeline_schema": "triade/learning/pipeline.py",
+        "backup_key_resolution": "triade/memory/encrypted_backup.py",
+        "mission_planner_backup_readiness": "triade/workers/mission_planner.py",
+        "service_health_progress": "triade/runtime/service_health.py",
+        "worker_serial_fallback": "triade/workers/background_service.py",
+        "vital_chain_causal_introspection": "triade/observability/introspection.py",
+        "vital_chain_recent_activity": "triade/observability/runtime_graph.py",
+    }
+    for name, relative in mapping.items():
+        staged = context.get("files", {}).get(name)
+        if staged is None:
+            continue
+        installed = Path(r5.ROOT) / relative
+        source = Path(staged)
+        if (
+            not installed.is_file()
+            or installed.is_symlink()
+            or not source.is_file()
+            or source.is_symlink()
+            or installed.read_bytes() != source.read_bytes()
+        ):
+            return False
+    return True
 
 
 def verify(context):
@@ -654,6 +807,7 @@ def verify(context):
     observed = _center(context).status()
     ready = bool(
         router_ok
+        and _runtime_patches_match(context)
         and observed.get("api_http_200") is True
         and observed.get("ollama_http_200") is True
         and observed.get("bodega", "").startswith("SQLite ok")

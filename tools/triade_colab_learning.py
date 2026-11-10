@@ -388,6 +388,8 @@ def _refresh_worker_runtime_modules(*, reload_runner=False):
         "triade.core.experimental_neuron_runtime",
         "triade.core.neuron_autopromoter",
         "triade.core.run_neuron_orchestrator",
+        "triade.memory.encrypted_backup",
+        "triade.workers.mission_planner",
         "triade.workers.state_store",
         "triade.workers.task_queue",
         "triade.workers.worker_loop",
@@ -592,6 +594,29 @@ def inspect(r5):
     report["study_monitor_alive"] = bool(
         monitor and monitor["thread"].is_alive() and not monitor["stop"].is_set()
     )
+    lineage_status = str(report["memory_lineage"].get("status") or "not_observed")
+    wait_reason = str(report["study_wait"].get("reason") or "none")
+    # A compact summary makes a pending fresh epoch distinguishable from a
+    # quarantined historical claim, without changing either stored state.
+    safe_reason = (
+        wait_reason
+        if len(wait_reason) <= 96
+        and all(ch.isalnum() or ch in "_:-" for ch in wait_reason)
+        else "unclassified"
+    )
+    report["readiness_summary"] = {
+        "lineage_status": lineage_status,
+        "new_epoch_lineage_verified": lineage_status
+        in (
+            "aligned",
+            "quarantined_fresh_epoch_ready",
+            "quarantined_fresh_epoch_aligned",
+        ),
+        "study_monitor_alive": report["study_monitor_alive"],
+        "study_launch_status": report["study_launch"].get("status"),
+        "study_wait_reason_code": safe_reason,
+        "improvement_certified": False,
+    }
     report["truth"] = (
         "Application, functional trend and causal improvement are distinct. Old sessions without pre-lesson measurements remain uncertified."
     )

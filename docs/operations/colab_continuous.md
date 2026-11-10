@@ -175,12 +175,29 @@ sesiones. El modo `observe_only` y las restricciones de aprendizaje permanecen.
 
 ## Apertura y continuidad educativa (noviembre de 2026)
 
-El panel continuo presenta dos acciones visibles: **Instalar / encender / actualizar**
-y **Abrir Tríade**. El segundo control verifica el runtime actual y rechaza la
-apertura si la publicación, los servicios o la continuidad no están acreditados.
-La política de compatibilidad conserva ambos controles cuando el cuaderno antiguo
-ya tiene su botón de apertura. La observación de continuidad identifica sesiones
-retrocedidas y referencias concretas de evaluaciones ausentes de forma solo lectura.
+El panel continuo presenta **cinco acciones**: **Instalar / encender / actualizar**,
+**Abrir Tríade**, **Estado real**, **Auditar actividad (30 s)** y
+**Verificar aprendizaje**. El segundo control verifica el runtime actual y rechaza
+la apertura si la publicación, los servicios o la continuidad no están acreditados.
+Los últimos tres controles solo consultan los inspectores existentes `status`,
+`audit` y `learning_status`: no arrancan un ciclo educativo, no acreditan una
+mejora causal, no restauran ni promocionan neuronas.
+
+La versión R7.17.21 muestra las acciones de ciclo de vida y navegación en el
+grupo primario del panel, y **los tres diagnósticos en un grupo independiente**,
+visible junto al grupo principal. Se conserva intacta la estructura posicional
+de siete elementos de `client.view` para los notebooks anteriores, y se
+muestra `client.inspection_view` como widget adicional. Esto evita que los
+callbacks del notebook heredado (que limitan `view[3]` a dos controles)
+oculten también los diagnósticos. La política de compatibilidad
+preserva los botones seguros ya conectados y, en paneles antiguos de siete
+elementos, sigue permitiendo recuperar los tres diagnósticos mediante las
+acciones verificadas del cliente activo. El observador antiguo que descartaba
+los diagnósticos se desliga por identidad de función, conservando los demás
+observadores. Repetir la actualización no duplica controles ni ejecuta
+inspecciones sin un clic. La observación de continuidad identifica
+sesiones retrocedidas y referencias concretas de evaluaciones ausentes de
+forma solo lectura.
 
 El registro histórico de una sesión marcada `done` en Drive **no sustituye** los
 registros funcionales en la Bodega. Si una copia conserva solamente 9 de 10

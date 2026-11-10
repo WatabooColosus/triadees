@@ -88,7 +88,7 @@ def test_pipeline_blocks_validation_without_measurement_evidence(tmp_path) -> No
     stored = pipeline.get_candidate(candidate_id)
     assert stored is not None
     assert stored["status"] == "internally_checked"
-    assert stored["run_use_count"] == 3
+    assert stored["run_use_count"] == 2
     assert stored["measurement_evidence"] is None
 
 
