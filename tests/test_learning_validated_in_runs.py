@@ -167,6 +167,7 @@ def test_validate_in_run_alias(tmp_path: Path) -> None:
     assert result["run_use_count"] == 1
     assert result["avg_outcome_score"] == 0.90
 
+
 def test_duplicate_run_id_is_idempotent(tmp_path: Path) -> None:
     pipe = _pipe(tmp_path)
     cid = _verified_candidate(pipe)
