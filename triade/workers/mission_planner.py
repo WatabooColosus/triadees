@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from contextlib import closing
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -75,6 +76,31 @@ class MissionPlanner:
         conn.row_factory = sqlite3.Row
         return conn
 
+    def _backup_cooldown_active(self) -> bool:
+        """Match the writer's five-minute cooldown without opening SQLite.
+
+        The worker DB can be moved for isolated recovery. Resolve the backing
+        artifact directory from its checkout rather than trusting the cwd.
+        """
+        root = self.db_path.resolve().parent
+        if root.name == "memory" and root.parent.name == "triade":
+            root = root.parent.parent
+        folder = root / "artifacts" / "backups"
+        try:
+            latest = max(
+                (
+                    entry.stat().st_mtime
+                    for entry in folder.glob("triade-*.db.gz.fernet")
+                    if entry.is_file()
+                ),
+                default=None,
+            )
+        except OSError:
+            # The writer owns final validation; do not silently mask I/O errors
+            # by claiming a backup was already created.
+            return False
+        return latest is not None and time.time() - latest < 300
+
     def plan_cycle(self, run_ref: str | None = None) -> list[PlannedTask]:
         """Produce una lista priorizada de tareas para el próximo ciclo."""
         tasks: list[PlannedTask] = []
@@ -140,7 +166,7 @@ class MissionPlanner:
         except (OSError, ValueError, TypeError, AttributeError):
             pass
         backup_key_status = EncryptedBackup.key_status()
-        if backup_key_status["configured"]:
+        if backup_key_status["usable"] and not self._backup_cooldown_active():
             tasks.append(
                 PlannedTask(
                     task_type="encrypted_backup",
@@ -150,19 +176,22 @@ class MissionPlanner:
                     planner_score=0.4,
                 )
             )
-        else:
+        elif not backup_key_status["usable"]:
             record_internal_error(
                 "mission_planner.backup_key_missing"
                 if backup_key_status.get("source") == "none"
                 else "mission_planner.backup_key_degraded",
                 RuntimeError(
-                    "backup degradado: falta TRIADE_BACKUP_KEY o "
-                    "TRIADE_BACKUP_KEY_FILE; no se planifica copia cifrada"
+                    "backup degradado: clave ausente o no utilizable; "
+                    "no se planifica copia cifrada"
                 ),
                 payload={
                     "module": __name__,
                     "function": "plan_cycle",
-                    "backup_key_status": backup_key_status,
+                    "backup_key_status": {
+                        name: backup_key_status.get(name)
+                        for name in ("configured", "usable", "source", "failure_code")
+                    },
                 },
                 db_path=self.db_path,
             )

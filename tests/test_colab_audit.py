@@ -81,3 +81,43 @@ def test_event_cursor_advance_despite_retained_row_count_and_bounded_details(
     assert audit.details(db, 1, 2)["worker_events"] == [
         {"id": 2, "event_type": "new fixture"}
     ]
+
+
+def test_audit_reports_only_recent_failure_counts_without_payloads(tmp_path):
+    db = tmp_path / "fixture.db"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE TABLE worker_events("
+            "id INTEGER PRIMARY KEY,task_type TEXT,event_type TEXT,"
+            "status TEXT,created_at TEXT,payload_json TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO worker_events VALUES "
+            "(1,'worker_loop.concurrent_task','internal_error','error',"
+            "datetime('now'),'{\"secret\":\"do not disclose\"}')"
+        )
+        conn.execute(
+            "INSERT INTO worker_events VALUES "
+            "(2,'encrypted_backup','task_blocked','failed',"
+            "datetime('now','-2 hours'),'private payload')"
+        )
+    report = audit.recent_failures(db)
+    assert report["status"] == "observed"
+    assert report["window_minutes"] == 60
+    assert len(report["items"]) == 1
+    assert report["items"][0]["scope"] == "worker_loop.concurrent_task"
+    assert report["items"][0]["count"] == 1
+    assert "secret" not in str(report)
+    with sqlite3.connect(db) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM worker_events").fetchone()[0] == 2
+
+
+def test_recent_failures_with_missing_schema_is_explicit(tmp_path):
+    db = tmp_path / "fixture.db"
+    with sqlite3.connect(db) as conn:
+        conn.execute("CREATE TABLE worker_events(id INTEGER PRIMARY KEY)")
+    assert audit.recent_failures(db) == {
+        "status": "not_observed",
+        "window_minutes": 60,
+        "items": [],
+    }

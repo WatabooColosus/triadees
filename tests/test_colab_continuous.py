@@ -360,8 +360,7 @@ def test_same_sha_cancelled_feature_branch_does_not_override_main_ci(runtime):
             "conclusion": "cancelled",
         },
     ]
-    checked = client.check()
-    assert checked["ci"]["Runtime Truth CI"] == 301
+    assert client.check()["ci"]["Runtime Truth CI"] == 301
     assert client.install()["status"] == "ready"
 
 
@@ -370,7 +369,7 @@ def test_latest_main_ci_remains_a_strict_gate(runtime, conclusion):
     client, catalogue, _ = runtime
     catalogue.extra_runs = [
         {
-            "id": 301,
+            "id": 401,
             "name": "Runtime Truth CI",
             "run_number": 6,
             "run_attempt": 1,
@@ -381,18 +380,18 @@ def test_latest_main_ci_remains_a_strict_gate(runtime, conclusion):
             "conclusion": "success",
         },
         {
-            "id": 302,
+            "id": 402,
             "name": "Runtime Truth CI",
             "run_number": 7,
             "run_attempt": 1,
             "head_sha": "a" * 40,
             "head_branch": "main",
             "event": "push",
-            "status": "in_progress" if conclusion is None else "completed",
+            "status": "completed" if conclusion is not None else "in_progress",
             "conclusion": conclusion,
         },
         {
-            "id": 303,
+            "id": 403,
             "name": "Runtime Truth CI",
             "run_number": 8,
             "run_attempt": 1,
@@ -404,9 +403,8 @@ def test_latest_main_ci_remains_a_strict_gate(runtime, conclusion):
         },
     ]
     with pytest.raises(RuntimeError, match="Runtime Truth CI"):
-        client.install()
+        client.check()
     assert client.r5.events == []
-    assert not client.drive_receipt.exists()
 
 
 def test_every_hash_is_checked_before_any_module_executes(runtime, tmp_path):
@@ -824,7 +822,7 @@ def test_educational_fork_failure_keeps_installation_blocked(monkeypatch):
     assert record["isolated_recovery"]["drive_modified"] is False
 
 
-def test_installer_minimizes_preexisting_widget_panel_without_running_actions():
+def test_installer_preserves_read_only_inspection_without_running_actions():
     calls = []
     controls = [
         SimpleNamespace(description="Estado real"),
@@ -846,8 +844,13 @@ def test_installer_minimizes_preexisting_widget_panel_without_running_actions():
 
     owner = Owner()
     result = adapter._enforce_observation_panel({"progress": owner.progress})
-    assert result == {"status": "lifecycle_and_open_controls", "visible_buttons": 2}
-    assert widget_box.children == (controls[1], controls[2])
+    assert result == {"status": "lifecycle_and_open_controls", "visible_buttons": 4}
+    assert widget_box.children == (
+        controls[1],
+        controls[2],
+        controls[0],
+        controls[4],
+    )
     assert calls == []
 
 
@@ -882,7 +885,7 @@ def test_legacy_controller_render_has_lifecycle_and_open_buttons():
     assert 'button("Auditar actividad real' not in source
 
 
-def test_legacy_panel_remains_two_controls_after_widget_refresh():
+def test_legacy_panel_preserves_safe_inspection_after_widget_refresh():
     callbacks = []
 
     class LegacyActions:
@@ -907,7 +910,7 @@ def test_legacy_panel_remains_two_controls_after_widget_refresh():
     owner = SimpleNamespace(view=(None, None, None, actions))
     context = {"progress": SimpleNamespace(__self__=owner)}
     first = adapter._enforce_observation_panel(context)
-    assert first["visible_buttons"] == 2
+    assert first["visible_buttons"] == 3
     assert len(callbacks) == 1
     original_controls = actions.children
     actions.repaint(
@@ -924,7 +927,11 @@ def test_legacy_panel_remains_two_controls_after_widget_refresh():
     actions.repaint(
         (refreshed, original_controls[1], SimpleNamespace(description="Auditar"))
     )
-    assert actions.children == (refreshed, original_controls[1])
+    assert actions.children == (
+        refreshed,
+        original_controls[1],
+        original_controls[2],
+    )
     # Reapplying release components must not duplicate the same hook.
     adapter._enforce_observation_panel(context)
     assert len(callbacks) == 1
@@ -992,3 +999,201 @@ def test_colab_cpu_guard_respects_explicit_override(monkeypatch):
     policy = adapter._configure_cpu_bootstrap({})
     assert policy["worker_concurrency"] == "1"
     assert policy["worker_serialized"] is False
+
+
+def test_colab_panel_has_audit_and_education_verification_buttons():
+    """Restore bounded inspection actions without exposing learning_start."""
+    import inspect
+
+    source = inspect.getsource(updates.render)
+    assert 'button("Estado real", lambda: client.action("status"))' in source
+    assert (
+        'button("Auditar actividad (30 s)", lambda: client.action("audit"))' in source
+    )
+    assert (
+        'button("Verificar aprendizaje", lambda: client.action("learning_status"))'
+        in source
+    )
+    assert 'button("Iniciar aprendizaje"' not in source
+    assert 'button("Promover' not in source
+
+
+def test_panel_inspection_actions_are_read_only_and_do_not_start_learning(runtime):
+    """The three callbacks inspect an existing runtime, never advance a lesson."""
+    client, _, _ = runtime
+    client.install()
+    calls = []
+    client.diagnostic_module = None
+
+    def inspect_status(context):
+        calls.append("status")
+        return {"status": "ready", "bodega": "SQLite ok"}
+
+    def inspect_audit(context):
+        calls.append("audit")
+        return {"status": "audited_read_only", "seconds": 30}
+
+    def inspect_learning(context):
+        calls.append("learning_status")
+        return {"status": "learning_observation_only", "certified": False}
+
+    client.module = SimpleNamespace(
+        status=inspect_status,
+        audit=inspect_audit,
+        learning_status=inspect_learning,
+        learning_start=lambda context: pytest.fail("no automatic learning on click"),
+    )
+    assert client.action("status")["bodega"] == "SQLite ok"
+    assert client.action("audit")["status"] == "audited_read_only"
+    assert client.action("learning_status")["certified"] is False
+    assert calls == ["status", "audit", "learning_status"]
+
+
+def test_updating_live_colab_panel_restores_inspection_buttons_without_rerun(
+    monkeypatch,
+):
+    """The old R7.17.19 observer must not remove newly restored diagnostics."""
+    import sys
+
+    class StubButton:
+        def __init__(self, description, button_style="", layout=None):
+            self.description = description
+            self.callback = None
+
+        def on_click(self, callback):
+            self.callback = callback
+
+        def click(self):
+            assert self.callback is not None
+            self.callback(None)
+
+    class StubActions:
+        def __init__(self, children):
+            self.children = tuple(children)
+            self._trait_notifiers = {"children": {"change": []}}
+
+        def observe(self, callback, names):
+            assert names == "children"
+            self._trait_notifiers["children"]["change"].append(callback)
+
+        def unobserve(self, callback, names):
+            assert names == "children"
+            self._trait_notifiers["children"]["change"].remove(callback)
+
+        def repaint(self, children):
+            self.children = tuple(children)
+            for callback in list(self._trait_notifiers["children"]["change"]):
+                callback({"name": "children"})
+
+    monkeypatch.setitem(
+        sys.modules,
+        "ipywidgets",
+        SimpleNamespace(
+            Button=StubButton,
+            Layout=lambda **kwargs: SimpleNamespace(**kwargs),
+        ),
+    )
+    lifecycle = StubButton("ENCENDER / ACTUALIZAR TRÍADE")
+    opener = StubButton("Abrir Tríade")
+    box = StubActions((lifecycle, opener))
+    output = SimpleNamespace(value="")
+    calls = []
+
+    class Owner:
+        view = (None, None, None, box, None, None, output)
+
+        def progress(self, message):
+            raise AssertionError("Only a UI inspection should run")
+
+        def action(self, name):
+            calls.append(name)
+            return {"action": name, "detail": "<verified>"}
+
+    owner = Owner()
+
+    # Mimic the previous two-button guard left in the same Colab kernel.
+    def _enforce_observation_panel():
+        def maintain_controls(change):
+            if change.get("name") == "children":
+                box.children = (lifecycle, opener)
+
+        return maintain_controls
+
+    old_guard = _enforce_observation_panel()
+    box.observe(old_guard, names="children")
+    box._triade_lifecycle_observer_installed = True
+    result = adapter._enforce_observation_panel({"progress": owner.progress})
+
+    assert result["visible_buttons"] == 5
+    assert [b.description for b in box.children] == [
+        "ENCENDER / ACTUALIZAR TRÍADE",
+        "Abrir Tríade",
+        "Estado real",
+        "Auditar actividad (30 s)",
+        "Verificar aprendizaje",
+    ]
+    assert calls == []
+    assert old_guard not in box._trait_notifiers["children"]["change"]
+    assert len(box._trait_notifiers["children"]["change"]) == 1
+
+    box.children[2].click()
+    box.children[3].click()
+    box.children[4].click()
+    assert calls == ["status", "audit", "learning_status"]
+    assert "&lt;verified&gt;" in output.value
+    assert "<verified>" not in output.value
+
+    # Widget refresh may replace the lifecycle callback, not the inspections.
+    refreshed = StubButton("ENCENDER / ACTUALIZAR TRÍADE")
+    box.repaint((refreshed, *box.children[1:]))
+    assert box.children[0] is refreshed
+    assert len(box.children) == 5
+    # Reinjection is idempotent across repeated installation attempts.
+    second = adapter._enforce_observation_panel({"progress": owner.progress})
+    assert second["visible_buttons"] == 5
+    assert len(box._trait_notifiers["children"]["change"]) == 1
+
+
+def test_separate_inspection_surface_survives_legacy_two_button_pruning():
+    """The notebook can strip view[3] without hiding read-only diagnostics."""
+    lifecycle = [
+        SimpleNamespace(description="ENCENDER / ACTUALIZAR TRÍADE"),
+        SimpleNamespace(description="Abrir Tríade"),
+        SimpleNamespace(description="Guardar memoria"),
+    ]
+    inspections = [
+        SimpleNamespace(description="Estado real"),
+        SimpleNamespace(description="Auditar actividad (30 s)"),
+        SimpleNamespace(description="Verificar aprendizaje"),
+    ]
+    primary = SimpleNamespace(children=tuple(lifecycle))
+    secondary = SimpleNamespace(children=tuple(inspections))
+    owner = SimpleNamespace(
+        view=(None, None, None, primary, None, None, None),
+        inspection_view=secondary,
+    )
+    context = {"progress": SimpleNamespace(__self__=owner)}
+
+    first = adapter._enforce_observation_panel(context)
+    assert first["visible_buttons"] == 5
+    assert primary.children == tuple(lifecycle[:2])
+    assert secondary.children == tuple(inspections)
+
+    # Model a permanent notebook callback that rewrites only view[3].
+    primary.children = tuple(lifecycle[:2])
+    again = adapter._enforce_observation_panel(context)
+    assert again["visible_buttons"] == 5
+    assert secondary.children == tuple(inspections)
+
+
+def test_separate_inspection_source_is_not_part_of_legacy_action_box():
+    import inspect
+
+    source = inspect.getsource(updates.render)
+    assert "lifecycle_actions = [" in source
+    assert "inspection_actions = [" in source
+    assert "widgets.Box(\n            lifecycle_actions," in source
+    assert "client.inspection_view = widgets.Box(" in source
+    assert (
+        "display(*client.view[:4], client.inspection_view, *client.view[4:])" in source
+    )

@@ -180,10 +180,12 @@ class LearningEvidenceProducer:
                 if grupo == "treatment" and candidate_id not in decision_r.injected_ids:
                     outcome.decision = "invalid"
                     outcome.reason = "treatment_sin_inyeccion"
+                    self._record_attempt(outcome, capability)
                     return outcome
                 if grupo == "control" and candidate_id in decision_r.injected_ids:
                     outcome.decision = "invalid"
                     outcome.reason = "control_contaminado"
+                    self._record_attempt(outcome, capability)
                     return outcome
 
                 respuesta = self.generate(prompt)

@@ -1038,3 +1038,148 @@ def test_reports_evolution_declared_manual_entrypoint_is_classified(
     node = next(node for node in nodes if node.node_id == node_id)
     assert node.metadata["activation"] == "manual_diagnostic"
     assert node.metadata["launchers"] == 0
+
+
+# -- Continuidad real: sin demandas no se fabrica actividad de memoria --------
+
+
+def _real_run_effect_db(tmp_path: Path) -> Path:
+    db = tmp_path / "vital-run-evidence.db"
+    with sqlite3.connect(db) as con:
+        con.executescript(
+            """
+            CREATE TABLE runs (
+                run_id TEXT PRIMARY KEY, source TEXT, user_input TEXT,
+                created_at TEXT, closed_at TEXT
+            );
+            CREATE TABLE episodic_memory (
+                id INTEGER PRIMARY KEY, run_id TEXT, created_at TEXT
+            );
+            CREATE TABLE learning_retrieval_decisions (
+                id INTEGER PRIMARY KEY, run_id TEXT, created_at TEXT
+            );
+            """
+        )
+        for table in ("episodic_memory", "learning_retrieval_decisions"):
+            con.execute(
+                f"INSERT INTO {table} (run_id,created_at)"
+                " VALUES ('historic', '2026-08-01T10:00:00+00:00')"
+            )
+    return db
+
+
+def test_no_real_recent_run_is_explicit_idle_not_broken(tmp_path: Path) -> None:
+    """Neither a worker pulse nor stale historical rows constitute demand."""
+    db = _real_run_effect_db(tmp_path)
+    result = _vital_chain_gaps(db)
+    assert {"Bodega", "efecto futuro"} <= set(result["idle_without_demand"])
+    assert not any(
+        item.startswith(("Bodega:", "efecto futuro:")) for item in result["items"]
+    )
+    assert result["causal_run_coverage"]["Bodega"]["recent_requests"] == 0
+
+
+def test_real_closed_run_missing_both_effects_is_not_hidden(tmp_path: Path) -> None:
+    """Actual user request with no stored episode or retrieval must be visible."""
+    db = _real_run_effect_db(tmp_path)
+    with sqlite3.connect(db) as con:
+        con.execute(
+            "INSERT INTO runs VALUES ('real-1','api','Consulta real',"
+            "datetime('now'),datetime('now'))"
+        )
+    result = _vital_chain_gaps(db)
+    assert any(x.startswith("Bodega: 1 de 1 runs reales") for x in result["items"])
+    assert any(
+        x.startswith("efecto futuro: 1 de 1 runs reales") for x in result["items"]
+    )
+    assert result["causal_run_coverage"]["efecto futuro"]["missing_effects"] == 1
+
+
+def test_run_effects_require_matching_run_id(tmp_path: Path) -> None:
+    """An unrelated new record is not proof of causality for a real request."""
+    db = _real_run_effect_db(tmp_path)
+    with sqlite3.connect(db) as con:
+        con.execute(
+            "INSERT INTO runs VALUES ('real-2','api','Consulta real',"
+            "datetime('now'),datetime('now'))"
+        )
+        con.execute(
+            "INSERT INTO episodic_memory (run_id,created_at)"
+            " VALUES ('real-2',datetime('now'))"
+        )
+        con.execute(
+            "INSERT INTO learning_retrieval_decisions (run_id,created_at)"
+            " VALUES ('different-run',datetime('now'))"
+        )
+    result = _vital_chain_gaps(db)
+    assert not any(x.startswith("Bodega:") for x in result["items"])
+    assert any(x.startswith("efecto futuro:") for x in result["items"])
+    with sqlite3.connect(db) as con:
+        con.execute(
+            "INSERT INTO learning_retrieval_decisions (run_id,created_at)"
+            " VALUES ('real-2',datetime('now'))"
+        )
+    recovered = _vital_chain_gaps(db)
+    assert not any(
+        x.startswith(("Bodega:", "efecto futuro:")) for x in recovered["items"]
+    )
+    assert (
+        recovered["causal_run_coverage"]["efecto futuro"]["status"]
+        == "verified_run_effects"
+    )
+
+
+def test_unfinished_user_run_does_not_count_as_verified(tmp_path: Path) -> None:
+    db = _real_run_effect_db(tmp_path)
+    with sqlite3.connect(db) as con:
+        con.execute(
+            "INSERT INTO runs VALUES ('running','api','Consulta real',"
+            "datetime('now'),NULL)"
+        )
+    result = _vital_chain_gaps(db)
+    assert result["causal_run_coverage"]["Bodega"]["status"] == (
+        "unverified_unfinished_request"
+    )
+    assert any(x.startswith("Bodega:") for x in result["items"])
+
+
+def test_activity_counts_a_real_update_not_only_insertion(tmp_path: Path) -> None:
+    from triade.observability.runtime_graph import recent_activity
+
+    db = tmp_path / "updated.db"
+    with sqlite3.connect(db) as con:
+        con.execute("CREATE TABLE memory_probe (created_at TEXT, updated_at TEXT)")
+        con.execute(
+            "INSERT INTO memory_probe VALUES ('2026-08-01T10:00:00Z',datetime('now'))"
+        )
+        assert recent_activity(con, ["memory_probe"])["memory_probe"] is True
+        con.execute("UPDATE memory_probe SET updated_at='2026-08-01T10:00:00Z'")
+        assert recent_activity(con, ["memory_probe"])["memory_probe"] is False
+
+
+def test_colab_vital_chain_overlays_are_identical_to_real_sources() -> None:
+    """Both bounded overlays must be installed, not just merged into main."""
+    import inspect
+
+    from tools import triade_colab_release as installer
+
+    for name, path, overlay in (
+        (
+            "vital_chain_causal_introspection",
+            "triade/observability/introspection.py",
+            "tools/colab_patch_sources/vital_chain_causal_introspection.py",
+        ),
+        (
+            "vital_chain_recent_activity",
+            "triade/observability/runtime_graph.py",
+            "tools/colab_patch_sources/vital_chain_recent_activity.py",
+        ),
+    ):
+        expected = (REPO_ROOT / path).read_text(encoding="utf-8")
+        assert expected == (REPO_ROOT / overlay).read_text(encoding="utf-8")
+        for method in (
+            installer._apply_runtime_path_patches,
+            installer._runtime_patches_match,
+        ):
+            source = inspect.getsource(method)
+            assert f'"{name}": "{path}"' in source

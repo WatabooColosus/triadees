@@ -427,11 +427,18 @@ def test_rerender_rebuilds_widgets_but_preserves_verified_context(
     assert new.module is old.module
     assert new.context["verified_counts"] == {"neurons": 16}
     assert new.context["progress"].__self__ is new
-    # Only the lifecycle and verified frontend actions remain.
+    # Lifecycle stays guarded while the independent diagnostics survive
+    # notebook compatibility rules that prune the primary button group.
     assert new.auto_apply is False
     assert [button.description for button in new.view[3].children] == [
         "Instalar / encender / actualizar",
         "Abrir Tríade",
+    ]
+    assert len(new.view) == 7
+    assert [button.description for button in new.inspection_view.children] == [
+        "Estado real",
+        "Auditar actividad (30 s)",
+        "Verificar aprendizaje",
     ]
     assert "learning_circuit" in new.view[-2].value
     assert "blocked" in new.view[-2].value
@@ -606,6 +613,9 @@ def test_inspector_is_read_only_and_reports_no_fake_certification(
     assert result["full_certified"] is False
     assert result["functional_probes"] == []
     assert result["study_launch"]["reason"] == "embedding_inference_failed"
+    assert result["readiness_summary"]["study_launch_status"] == "blocked"
+    assert result["readiness_summary"]["improvement_certified"] is False
+    assert result["readiness_summary"]["study_monitor_alive"] is False
     assert db.read_bytes() == before
 
 

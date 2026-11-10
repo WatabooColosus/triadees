@@ -144,12 +144,19 @@ class LearningPipeline:
         enforce_model_policy: bool | None = None,
     ) -> None:
         self.db_path = Path(db_path)
-        self.enforce_model_policy = (
-            os.getenv("TRIADE_ENFORCE_MODEL_POLICY", "").strip().lower()
-            in {"1", "true", "yes"}
-            if enforce_model_policy is None
-            else bool(enforce_model_policy)
-        )
+        # F-002: production always fails closed when cognitive blood is absent.
+        # Tests can explicitly opt into a synthetic or human-evaluated contract.
+        from triade.core.runtime_scope import is_test_runtime
+
+        if is_test_runtime():
+            self.enforce_model_policy = (
+                os.getenv("TRIADE_ENFORCE_MODEL_POLICY", "").strip().lower()
+                in {"1", "true", "yes"}
+                if enforce_model_policy is None
+                else bool(enforce_model_policy)
+            )
+        else:
+            self.enforce_model_policy = True
         # Resolve the schema beside the installed package. Colab commonly
         # executes from /content while this release lives under Drive.
         self.schema_path = Path(__file__).resolve().parents[1] / "memory/schemas.sql"
@@ -189,6 +196,27 @@ class LearningPipeline:
         for name, ddl in additions.items():
             if name not in columns:
                 conn.execute(f"ALTER TABLE learning_queue ADD COLUMN {name} {ddl}")
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS learning_candidate_run_uses (
+                candidate_id TEXT NOT NULL,
+                run_id TEXT NOT NULL,
+                outcome_score REAL NOT NULL,
+                evidence_ref TEXT,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (candidate_id, run_id)
+            )"""
+        )
+        # Existing aggregate counters have no run IDs. Preserve them for audit,
+        # but never treat them as independently evidenced unique runs.
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS learning_candidate_legacy_run_counts (
+                candidate_id TEXT PRIMARY KEY,
+                run_use_count INTEGER NOT NULL,
+                run_outcome_scores TEXT NOT NULL,
+                avg_outcome_score REAL NOT NULL,
+                captured_at TEXT NOT NULL
+            )"""
+        )
         conn.execute(
             "UPDATE learning_queue SET status='internally_checked' WHERE status='verified'"
         )
@@ -432,56 +460,137 @@ class LearningPipeline:
         *,
         evidence_ref: str | None = None,
     ) -> dict[str, Any]:
-        """Registra que un candidato verified fue usado en un run.
+        """F-001/F-003: count each run once, and never mutate before gates.
 
-        Si acumula MIN_RUN_USES usos con promedio >= MIN_OUTCOME_SCORE,
-        se promueve a validated_in_runs.
+        The unique ledger is authoritative for NEW measured uses. Existing
+        untraceable aggregates are snapshotted before their first replacement.
         """
-        row = self._require(candidate_id)
+        import math
+
         from triade.core.runtime_scope import is_test_runtime
 
-        if outcome_score > 0 and not evidence_ref and not is_test_runtime():
+        run_key = str(run_id or "").strip()
+        if not run_key:
+            raise ValueError("run_id es obligatorio para acreditar usos distintos")
+        score = float(outcome_score)
+        if not math.isfinite(score) or not 0.0 <= score <= 1.0:
+            raise ValueError("outcome_score debe ser finito y estar entre 0 y 1")
+        score = round(score, 3)
+        if score > 0 and not evidence_ref and not is_test_runtime():
             raise ValueError(
                 "outcome_score positivo requiere evidence_ref real y trazable"
             )
-        if row["status"] not in self.RUN_TRACKABLE_STATES:
-            raise ValueError(
-                f"Solo se marca uso de candidatos "
-                f"{'/'.join(self.RUN_TRACKABLE_STATES)} (actual: {row['status']})."
+
+        with self._connect() as conn:
+            # Serialise competing workers (two retries must not double count).
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT * FROM learning_queue WHERE candidate_id = ?",
+                (candidate_id,),
+            ).fetchone()
+            if row is None:
+                raise ValueError(f"Candidato no existe: {candidate_id}")
+            if row["status"] not in self.RUN_TRACKABLE_STATES:
+                raise ValueError(
+                    f"Solo se marca uso de candidatos "
+                    f"{'/'.join(self.RUN_TRACKABLE_STATES)} (actual: {row['status']})."
+                )
+            existing = conn.execute(
+                "SELECT outcome_score, evidence_ref FROM learning_candidate_run_uses "
+                "WHERE candidate_id = ? AND run_id = ?",
+                (candidate_id, run_key),
+            ).fetchone()
+            if existing is not None:
+                # A retry is idempotent; a different score for the same run is
+                # a conflicting measurement and must not silently overwrite it.
+                if float(existing["outcome_score"]) != score or str(
+                    existing["evidence_ref"] or ""
+                ) != str(evidence_ref or ""):
+                    raise ValueError(
+                        "run_id ya registrado con resultado o evidencia diferentes"
+                    )
+                return self.get_candidate(candidate_id) or {}
+
+            recorded = list(
+                conn.execute(
+                    "SELECT outcome_score FROM learning_candidate_run_uses "
+                    "WHERE candidate_id = ? ORDER BY created_at, run_id",
+                    (candidate_id,),
+                )
             )
-
-        scores_raw = row["run_outcome_scores"] or "[]"
-        try:
-            scores = json.loads(scores_raw)
-        except (json.JSONDecodeError, TypeError):
-            scores = []
-
-        scores.append(round(max(0.0, min(1.0, outcome_score)), 3))
-        use_count = len(scores)
-        avg_score = round(sum(scores) / use_count, 3) if use_count else 0.0
-
-        self._update_run_tracking(candidate_id, use_count, scores, avg_score)
-
-        if (
-            use_count >= self.MIN_RUN_USES
-            and avg_score >= self.MIN_OUTCOME_SCORE
-            and row["status"] == "internally_checked"
-        ):
-            evidence = self.evidence_bridge.require_improvement(candidate_id)
-            self._update(
-                candidate_id,
-                status="validated_in_runs",
-                note_step="validated_in_runs",
-                note_payload={
+            scores = [float(item["outcome_score"]) for item in recorded] + [score]
+            use_count = len(scores)
+            avg_score = round(sum(scores) / use_count, 3)
+            promotes = (
+                use_count >= self.MIN_RUN_USES
+                and avg_score >= self.MIN_OUTCOME_SCORE
+                and row["status"] == "internally_checked"
+            )
+            evidence = (
+                self.evidence_bridge.require_improvement(candidate_id)
+                if promotes
+                else None
+            )
+            # Only after all promotion gates have passed may we change state
+            # or counters. A failed gate rolls back the entire attempt.
+            if not recorded and int(row["run_use_count"] or 0) > 0:
+                conn.execute(
+                    "INSERT OR IGNORE INTO learning_candidate_legacy_run_counts "
+                    "(candidate_id, run_use_count, run_outcome_scores, "
+                    "avg_outcome_score, captured_at) VALUES (?, ?, ?, ?, ?)",
+                    (
+                        candidate_id,
+                        int(row["run_use_count"]),
+                        str(row["run_outcome_scores"] or "[]"),
+                        float(row["avg_outcome_score"] or 0.0),
+                        utc_now(),
+                    ),
+                )
+            conn.execute(
+                "INSERT INTO learning_candidate_run_uses "
+                "(candidate_id, run_id, outcome_score, evidence_ref, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (candidate_id, run_key, score, evidence_ref, utc_now()),
+            )
+            notes = row["verification_notes"] or "{}"
+            status = str(row["status"])
+            if promotes:
+                assert evidence is not None
+                try:
+                    decoded = json.loads(notes)
+                except (TypeError, ValueError):
+                    decoded = {}
+                if not isinstance(decoded, dict):
+                    decoded = {}
+                event = {
                     "decision": "validated_in_runs",
                     "run_use_count": use_count,
                     "avg_outcome_score": avg_score,
                     "measurement_decision": evidence["decision"],
                     "measurement_artifact_ref": evidence.get("artifact_ref"),
                     "at": utc_now(),
-                },
+                }
+                decoded["validated_in_runs"] = event
+                decoded.setdefault("history", []).append(
+                    {"step": "validated_in_runs", "status": status, "at": event["at"]}
+                )
+                notes = json.dumps(decoded, ensure_ascii=False)
+                status = "validated_in_runs"
+            conn.execute(
+                "UPDATE learning_queue SET run_use_count = ?, "
+                "run_outcome_scores = ?, avg_outcome_score = ?, status = ?, "
+                "verification_notes = ?, updated_at = ? "
+                "WHERE candidate_id = ?",
+                (
+                    use_count,
+                    json.dumps(scores, ensure_ascii=False),
+                    avg_score,
+                    status,
+                    notes,
+                    utc_now(),
+                    candidate_id,
+                ),
             )
-
         return self.get_candidate(candidate_id) or {}
 
     def validate_in_run(
@@ -554,6 +663,22 @@ class LearningPipeline:
         # Una aprobación humana gobierna la promoción, pero nunca sustituye la
         # medición antes/después. Sin evidencia reproducible no hay aprendizaje.
         measurement_evidence = self.evidence_bridge.require_improvement(candidate_id)
+        # Pre-migration counters lack run IDs and cannot prove distinct use.
+        # Keep historical values for audit, but do not let them authorize stable.
+        from triade.core.runtime_scope import is_test_runtime
+
+        if not is_test_runtime():
+            with self._connect() as conn:
+                distinct_uses = conn.execute(
+                    "SELECT COUNT(*) FROM learning_candidate_run_uses "
+                    "WHERE candidate_id = ?",
+                    (candidate_id,),
+                ).fetchone()[0]
+            if distinct_uses < self.MIN_RUN_USES:
+                raise ValueError(
+                    "No se consolida sin usos únicos trazables: "
+                    f"distinct_runs={distinct_uses}, mínimo={self.MIN_RUN_USES}."
+                )
 
         # Ningún gate miraba si el candidato afirma lo contrario de lo que ya
         # está consolidado. Dos hechos incompatibles en `stable` los recupera los

@@ -29,6 +29,7 @@ ENV_KEYS = (
     "TRIADE_WORKERS_AUTOSTART",
     "TRIADE_CONTINUOUS_RUNNER",
     "TRIADE_CONTINUOUS_AUTONOMY_LEVEL",
+    "TRIADE_WORKER_CONCURRENCY",
 )
 
 
@@ -133,6 +134,31 @@ def details(db, cursor, upper_cursor=None):
                 )
             ]
     return result
+
+
+def recent_failures(db):
+    """Aggregate recent failures without exposing task payloads or credentials."""
+    with contextlib.closing(
+        sqlite3.connect(Path(db).resolve().as_uri() + "?mode=ro", uri=True, timeout=3)
+    ) as conn:
+        needed = {"task_type", "event_type", "status", "created_at"}
+        if not needed.issubset(_columns(conn, "worker_events")):
+            return {"status": "not_observed", "window_minutes": 60, "items": []}
+        rows = conn.execute(
+            "SELECT task_type, event_type, COUNT(*) AS count, "
+            "MAX(created_at) AS last_at FROM worker_events "
+            "WHERE (status IN ('error','failed') OR event_type='internal_error') "
+            "AND julianday(created_at)>=julianday('now','-60 minutes') "
+            "GROUP BY task_type,event_type ORDER BY last_at DESC LIMIT 20"
+        ).fetchall()
+    return {
+        "status": "observed",
+        "window_minutes": 60,
+        "items": [
+            {"scope": row[0], "event_type": row[1], "count": row[2], "last_at": row[3]}
+            for row in rows
+        ],
+    }
 
 
 def local_debt(r5):
@@ -263,6 +289,7 @@ def audit(r5, seconds=30, *, emit=True):
             r5.DB, before.get("event_cursor"), after.get("event_cursor")
         ),
         "effective_config": effective_config(r5.WORK),
+        "recent_failures": recent_failures(r5.DB),
         "local_debt": local_debt(r5),
         "endpoints": {
             path: endpoint(path)

@@ -216,8 +216,10 @@ def test_without_measurement_core_evidence_there_is_no_promotion(
         for i in range(5):
             pipe.mark_used_in_run(cid, f"run-sin-evidencia-{i}", outcome_score=1.0)
 
-    assert pipe.get_candidate(cid)["status"] == "internally_checked"
-    with pytest.raises(ValueError, match="Measurement Core"):
+    stored = pipe.get_candidate(cid)
+    assert stored["status"] == "internally_checked"
+    assert stored["run_use_count"] == 2
+    with pytest.raises(ValueError, match="evidencia suficiente"):
         pipe.consolidate(cid, approved_by="operador")
 
 
