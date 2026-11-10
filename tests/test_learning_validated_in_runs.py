@@ -91,8 +91,8 @@ def test_mark_used_in_run_multiple_uses_requires_evidence_at_promotion_gate(
     with pytest.raises(ValueError, match="No existe evidencia"):
         pipe.mark_used_in_run(cid, "run-3", outcome_score=0.70)
     result = pipe.get_candidate(cid)
-    assert result["run_use_count"] == 3
-    assert result["avg_outcome_score"] == 0.80
+    assert result["run_use_count"] == 2
+    assert result["avg_outcome_score"] == 0.85
     assert result["status"] == "internally_checked"
 
 
@@ -166,3 +166,81 @@ def test_validate_in_run_alias(tmp_path: Path) -> None:
     result = pipe.validate_in_run(cid, "run-alias-1", outcome_score=0.90)
     assert result["run_use_count"] == 1
     assert result["avg_outcome_score"] == 0.90
+
+def test_duplicate_run_id_is_idempotent(tmp_path: Path) -> None:
+    pipe = _pipe(tmp_path)
+    cid = _verified_candidate(pipe)
+    first = pipe.mark_used_in_run(cid, "same-run", 0.80)
+    retry = pipe.mark_used_in_run(cid, "same-run", 0.80)
+    assert first["run_use_count"] == retry["run_use_count"] == 1
+    assert retry["status"] == "internally_checked"
+    pipe.mark_used_in_run(cid, "different-run", 0.90)
+    assert pipe.get_candidate(cid)["run_use_count"] == 2
+
+
+def test_conflicting_retry_does_not_overwrite_original(tmp_path: Path) -> None:
+    pipe = _pipe(tmp_path)
+    cid = _verified_candidate(pipe)
+    pipe.mark_used_in_run(cid, "same-run", 0.80)
+    with pytest.raises(ValueError, match="ya registrado"):
+        pipe.mark_used_in_run(cid, "same-run", 0.99)
+    assert pipe.get_candidate(cid)["run_outcome_scores"] == "[0.8]"
+
+
+def test_legacy_counter_is_preserved_separately(tmp_path: Path) -> None:
+    import sqlite3
+
+    pipe = _pipe(tmp_path)
+    cid = _verified_candidate(pipe)
+    with sqlite3.connect(pipe.db_path) as conn:
+        conn.execute(
+            "UPDATE learning_queue SET run_use_count=2, "
+            "run_outcome_scores='[0.7,0.8]', avg_outcome_score=0.75 "
+            "WHERE candidate_id=?", (cid,)
+        )
+    result = pipe.mark_used_in_run(cid, "first-traceable-run", 0.90)
+    assert result["run_use_count"] == 1
+    with sqlite3.connect(pipe.db_path) as conn:
+        old = conn.execute(
+            "SELECT run_use_count, run_outcome_scores "
+            "FROM learning_candidate_legacy_run_counts WHERE candidate_id=?",
+            (cid,),
+        ).fetchone()
+    assert old == (2, "[0.7,0.8]")
+
+
+def test_production_model_policy_is_strict_even_with_disable_override(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from triade.core import runtime_scope
+
+    monkeypatch.setattr(runtime_scope, "is_test_runtime", lambda: False)
+    monkeypatch.setenv("TRIADE_ENFORCE_MODEL_POLICY", "0")
+    monkeypatch.setattr(
+        "triade.learning.pipeline.check_ollama_blood",
+        lambda: {"status": "degraded", "can_reason": False},
+    )
+    pipe = LearningPipeline(tmp_path / "no-model.db", enforce_model_policy=False)
+    assert pipe.enforce_model_policy is True
+    cid = pipe.ingest(
+        content="Patrón con fuente para comprobar bloqueo de modelo",
+        source_type="document",
+        source_ref="test:model",
+        domain="test",
+    )["candidate_id"]
+    assert pipe.evaluate(cid)["status"] == "requires_model"
+    assert pipe.get_candidate(cid)["status"] == "candidate"
+
+
+def test_missing_evidence_preserves_counter_and_allows_later_retry(tmp_path: Path) -> None:
+    pipe = _pipe(tmp_path)
+    cid = _verified_candidate(pipe)
+    pipe.mark_used_in_run(cid, "run-1", 0.80)
+    pipe.mark_used_in_run(cid, "run-2", 0.90)
+    with pytest.raises(ValueError, match="No existe evidencia"):
+        pipe.mark_used_in_run(cid, "run-3", 0.70)
+    assert pipe.get_candidate(cid)["run_use_count"] == 2
+    _attach_improved_evidence(pipe, cid)
+    result = pipe.mark_used_in_run(cid, "run-3", 0.70)
+    assert result["run_use_count"] == 3
+    assert result["status"] == "validated_in_runs"
