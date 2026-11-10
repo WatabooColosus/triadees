@@ -334,6 +334,79 @@ def test_newer_ci_attempt_cannot_be_hidden_by_old_success(runtime):
         client.install()
 
 
+def test_same_sha_cancelled_feature_branch_does_not_override_main_ci(runtime):
+    client, catalogue, _ = runtime
+    catalogue.extra_runs = [
+        {
+            "id": 301,
+            "name": "Runtime Truth CI",
+            "run_number": 6,
+            "run_attempt": 1,
+            "head_sha": "a" * 40,
+            "head_branch": "main",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "success",
+        },
+        {
+            "id": 302,
+            "name": "Runtime Truth CI",
+            "run_number": 7,
+            "run_attempt": 2,
+            "head_sha": "a" * 40,
+            "head_branch": "fix/unrelated",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "cancelled",
+        },
+    ]
+    assert client.check()["ci"]["Runtime Truth CI"] == 301
+    assert client.install()["status"] == "ready"
+
+
+@pytest.mark.parametrize("conclusion", ["failure", "cancelled", None])
+def test_latest_main_ci_remains_a_strict_gate(runtime, conclusion):
+    client, catalogue, _ = runtime
+    catalogue.extra_runs = [
+        {
+            "id": 401,
+            "name": "Runtime Truth CI",
+            "run_number": 6,
+            "run_attempt": 1,
+            "head_sha": "a" * 40,
+            "head_branch": "main",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "success",
+        },
+        {
+            "id": 402,
+            "name": "Runtime Truth CI",
+            "run_number": 7,
+            "run_attempt": 1,
+            "head_sha": "a" * 40,
+            "head_branch": "main",
+            "event": "push",
+            "status": "completed" if conclusion is not None else "in_progress",
+            "conclusion": conclusion,
+        },
+        {
+            "id": 403,
+            "name": "Runtime Truth CI",
+            "run_number": 8,
+            "run_attempt": 1,
+            "head_sha": "a" * 40,
+            "head_branch": "fix/unrelated",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "success",
+        },
+    ]
+    with pytest.raises(RuntimeError, match="Runtime Truth CI"):
+        client.check()
+    assert client.r5.events == []
+
+
 def test_every_hash_is_checked_before_any_module_executes(runtime, tmp_path):
     client, catalogue, _ = runtime
     sentinel = tmp_path / "should-not-be-created"
