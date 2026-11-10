@@ -196,7 +196,8 @@ def test_legacy_counter_is_preserved_separately(tmp_path: Path) -> None:
         conn.execute(
             "UPDATE learning_queue SET run_use_count=2, "
             "run_outcome_scores='[0.7,0.8]', avg_outcome_score=0.75 "
-            "WHERE candidate_id=?", (cid,)
+            "WHERE candidate_id=?",
+            (cid,),
         )
     result = pipe.mark_used_in_run(cid, "first-traceable-run", 0.90)
     assert result["run_use_count"] == 1
@@ -232,7 +233,9 @@ def test_production_model_policy_is_strict_even_with_disable_override(
     assert pipe.get_candidate(cid)["status"] == "candidate"
 
 
-def test_missing_evidence_preserves_counter_and_allows_later_retry(tmp_path: Path) -> None:
+def test_missing_evidence_preserves_counter_and_allows_later_retry(
+    tmp_path: Path,
+) -> None:
     pipe = _pipe(tmp_path)
     cid = _verified_candidate(pipe)
     pipe.mark_used_in_run(cid, "run-1", 0.80)
