@@ -1,7 +1,8 @@
 @echo off
 setlocal
-set "REPO=E:\triade"
-set "PYTHONHOME=%REPO%\tools\python"
+set "REPO=%~dp0.."
+for %%I in ("%REPO%") do set "REPO=%%~fI"
+set "PYTHONHOME=%REPO%\..\runtime\python\windows-x86_64\cpython-3.12.15-windows-x86_64-none"
 set "PYTHONPATH=%REPO%"
 set "TRIADE_RUNTIME_SCOPE=local"
 set "TRIADE_OFFLINE_MODE=1"
@@ -23,7 +24,12 @@ if %ERRORLEVEL% EQU 0 (
   echo [%date% %time%] existing healthy runtime>> "%REPO%\artifacts\system-start.log"
   exit /b 0
 )
-"%REPO%\tools\python\python.exe" -m scripts.serve_local_api --host 127.0.0.1 --port 8010 >> "%REPO%\artifacts\system-start.log" 2>&1
+if exist "%REPO%\..\runtime\envs\windows-x86_64\Scripts\python.exe" (
+  set "PYTHON=%REPO%\..\runtime\envs\windows-x86_64\Scripts\python.exe"
+) else (
+  set "PYTHON=python.exe"
+)
+"%PYTHON%" -m scripts.serve_local_api --host 127.0.0.1 --port 8010 >> "%REPO%\artifacts\system-start.log" 2>&1
 set "CODE=%ERRORLEVEL%"
 echo [%date% %time%] system launcher exit=%CODE%>> "%REPO%\artifacts\system-start.log"
 exit /b %CODE%
