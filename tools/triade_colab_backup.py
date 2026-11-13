@@ -161,7 +161,7 @@ def provision(r5, persistent):
     local = Path(r5.WORK) / "private_backup_keys" / (fp + ".key")
     _private_new(local, raw)
     local.chmod(0o600)
-    if local.stat().st_mode & 0o077:
+    if os.name != "nt" and local.stat().st_mode & 0o077:
         raise RuntimeError("local_backup_key_not_private")
     return (
         local,
@@ -341,8 +341,11 @@ def _serialized(fn):
                 try:
                     return fn(r5, **kwargs)
                 finally:
-                    stream.seek(0)
-                    msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+                    try:
+                        stream.seek(0)
+                        msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+                    except OSError:
+                        pass
             else:
                 import fcntl
 
