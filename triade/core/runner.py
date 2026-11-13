@@ -1920,7 +1920,7 @@ class TriadeRunner:
             registry.store_training(neuron_id, training_result)
             # Restaurar status a candidate normalizado — store_training
             # sobrescribe con lo que el trainer devuelva.
-            normalized = normalize_candidate_status(training_result.status)
+            normalize_candidate_status(training_result.status)
             # TRIADE_FORMATION_STATUS_ISOLATION_V1: sin cambio de estado desde formaci?n
         return proposal
 

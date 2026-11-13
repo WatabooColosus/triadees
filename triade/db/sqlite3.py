@@ -14,6 +14,7 @@ they enter a ``with`` block, they stay open until their owner calls ``close``.
 from __future__ import annotations
 
 import os
+
 try:
     import resource
 except ImportError:

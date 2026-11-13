@@ -10,7 +10,7 @@ from triade.db import sqlite3
 from triade.learning.evidence_bridge import LearningEvidenceBridge
 
 from .competency_store import CompetencyStore, utc_now
-from .curriculum import domain_query, relevant_material, source_domain
+from .curriculum import domain_query, relevant_material
 from .spaced_repetition import next_review_for
 
 

@@ -230,12 +230,14 @@ def _is_learning_worthy_failure(status: str, result: dict[str, Any]) -> bool:
     reason = str(result.get("error") or result.get("reason") or "").strip()
     if status == "cancelled" and reason == "cancellation_requested":
         return False
-    if status == "failed" and reason in {
-        "KeyboardInterrupt: KeyboardInterrupt()",
-        "KeyboardInterrupt: KeyboardInterrupt",
-    }:
-        return False
-    return True
+    return not (
+        status == "failed"
+        and reason
+        in {
+            "KeyboardInterrupt: KeyboardInterrupt()",
+            "KeyboardInterrupt: KeyboardInterrupt",
+        }
+    )
 
 class WorkerLoop:
     READ_ONLY_TASKS_WITHOUT_BLOOD = frozenset(
