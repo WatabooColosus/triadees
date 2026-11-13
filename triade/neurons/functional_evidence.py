@@ -171,7 +171,9 @@ def ensure_schema(conn: sqlite3.Connection):
 
 def _verified_persisted_answer(db: Path, run_id: str) -> str:
     """Check runner artifact consistency; not cryptographic tamper resistance."""
-    if not isinstance(run_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", run_id):
+    if not isinstance(run_id, str):
+        raise TypeError("Identificador de run debe ser texto")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", run_id):
         raise ValueError("Identificador de run inseguro")
     root = db.resolve().parents[2] if db.parent.name == "memory" and db.parent.parent.name == "triade" else db.resolve().parent
     runs_root = (root / "runs").resolve()
