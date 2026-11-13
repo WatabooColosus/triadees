@@ -133,7 +133,12 @@ def test_persistent_symlink_is_rejected_without_writing_target(runtime, tmp_path
     outside.write_bytes(Fernet.generate_key())
     persistent = protection._paths(runtime)
     persistent.mkdir(parents=True)
-    (persistent / "backup.key").symlink_to(outside)
+    try:
+        (persistent / "backup.key").symlink_to(outside)
+    except OSError as exc:
+        if getattr(exc, "winerror", None) == 1314:
+            pytest.skip("Windows symlink privilege is unavailable")
+        raise
     before = outside.read_bytes()
     with pytest.raises(RuntimeError, match="symlink"):
         protection.repair(runtime)
