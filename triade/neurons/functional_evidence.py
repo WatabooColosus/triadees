@@ -11,11 +11,11 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 
 from triade.db import sqlite3
-from contextlib import closing
 
 VERSION = "functional-probe-1"
 MIN_FUNCTIONAL_POST_RUNS = 5

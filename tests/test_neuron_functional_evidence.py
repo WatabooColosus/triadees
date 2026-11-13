@@ -1,8 +1,8 @@
 import json
-from contextlib import closing
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 from triade.neurons import functional_evidence
