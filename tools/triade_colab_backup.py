@@ -19,6 +19,7 @@ import uuid
 from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
+
 from triade.security.file_privacy import protect_private_file
 
 
@@ -270,9 +271,8 @@ def _verify_archived_study(backup, file, study):
             "production_overwritten"
         ):
             raise RuntimeError("prospective_checkpoint_restore_unverified")
-        with sqlite3.connect(
-            extracted.resolve().as_uri() + "?mode=ro", uri=True
-        ) as conn:
+        conn = sqlite3.connect(extracted.resolve().as_uri() + "?mode=ro", uri=True)
+        try:
             row = conn.execute(
                 "SELECT state,post_score FROM neuron_education_sessions "
                 "WHERE session_id=? AND neuron_id=?",
@@ -303,6 +303,9 @@ def _verify_archived_study(backup, file, study):
                     raise RuntimeError(
                         "prospective_checkpoint_run_missing_or_mismatched"
                     )
+        finally:
+            conn.rollback()
+            conn.close()
     return {
         "verified_run_count": len(run_proofs),
         "study_id": str(study.get("study_id") or ""),
