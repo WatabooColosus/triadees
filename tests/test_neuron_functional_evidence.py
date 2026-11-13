@@ -5,9 +5,9 @@ import unittest
 from pathlib import Path
 
 from triade.neurons.functional_evidence import (
+    register_actual_probe as _register_actual_probe,
     assess_answer,
     functional_comparison,
-    register_actual_probe as _register_actual_probe,
 )
 
 def register_actual_probe(db_path, **kwargs):
