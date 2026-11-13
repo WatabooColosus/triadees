@@ -1,0 +1,10 @@
+{
+  "project": "triadees",
+  "latest_version": "7.17.1",
+  "channel": "stable",
+  "branch": "main",
+  "commit": "8c76dab14512827d01218dc42476355235209580",
+  "release_path": "releases/7.17.1/README.md",
+  "updated_at": "2026-11-03T01:06:00Z",
+  "requires_review": false
+}

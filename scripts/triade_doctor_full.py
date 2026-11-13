@@ -7,13 +7,16 @@ Returns JSON and human-readable output.
 
 import json
 import os
+import platform
 import subprocess
 import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-REPO_ROOT = Path("/teamspace/studios/this_studio/triadees")
+# Resolve the checkout at runtime; the former Lightning Studio path made the
+# doctor report a missing database on Windows Portable installations.
+REPO_ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = REPO_ROOT / "triade/memory/triade.db"
 ENV_FILE = Path("/etc/triade/triade.env")
 PUBLIC_URL_TEMPLATE = "https://lightning.ai/agenciadigitalwataboo-org/deploy-model-project/studios/triade/web-ui?port={port}"
@@ -57,7 +60,7 @@ def check_ollama():
 def check_inference():
     out, rc = sh(
         "curl -s --max-time 120 http://127.0.0.1:11434/api/generate "
-        '-d \'{"model":"qwen2.5:3b-instruct","prompt":"Hi","stream":false}\'',
+        '-d \'{"model":"qwen2.5:1.5b","prompt":"Hi","stream":false}\'',
         timeout=120,
     )
     if rc != 0 or not out:
@@ -265,7 +268,10 @@ def check_systemd_units():
 def main():
     results = {
         "timestamp": datetime.now(UTC).isoformat(),
-        "host": os.uname().nodename,
+        # ``os.uname`` no existe en Windows, que es un entorno soportado por
+        # Tríade Portable.  ``platform.node`` conserva el mismo dato sin
+        # introducir una dependencia del sistema operativo.
+        "host": platform.node(),
         "sha": check_git()["sha"],
         "checks": {},
     }

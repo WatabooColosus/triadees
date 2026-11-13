@@ -7,11 +7,13 @@ ni las protecciones internas del WorkerLoop.
 from __future__ import annotations
 
 import threading
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from triade.core.resource_governor import WORK_MODE_RANK, decide_work_mode
+from triade.runtime.process_lock import RuntimeProcessLock
 from triade.workers.background_service import WorkerBackgroundService
 
 _WORKER_THREAD: threading.Thread | None = None
@@ -124,6 +126,20 @@ def ensure_workers_alive(
                     int(_WORKER_STATE.get("restart_attempts", 0) or 0) + 1
                 )
             _WORKER_STATE.update({"status": "starting", "last_error": None})
+
+    # WorkerLoop keeps its run lock while a governed task is in flight.  If the
+    # thread crashes after retaining that lock, the lock still belongs to this
+    # API process and a watchdog restart otherwise sees a "live owner" forever.
+    # Once the in-process worker thread is confirmed dead, reclaim only that
+    # same-process lock; never remove a lock owned by another process.
+    if not already_running:
+        try:
+            lock_path = Path(runs_dir) / ".triade_workers.lock"
+            inspection = RuntimeProcessLock.inspect(lock_path)
+            if inspection.status == "live" and inspection.pid == os.getpid():
+                lock_path.unlink(missing_ok=True)
+        except (OSError, ValueError):
+            pass
 
     if already_running:
         # **Fuera** del `with`, y esa es toda la corrección. Llamar aquí dentro a

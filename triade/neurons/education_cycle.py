@@ -11,6 +11,9 @@ from triade.learning.evidence_bridge import LearningEvidenceBridge
 
 from .competency_store import CompetencyStore, utc_now
 from .curriculum import domain_query, relevant_material
+from .functional_evidence import ensure_schema
+from .functional_evidence import supported_domain
+from .education_coordinator import EducationCoordinator
 from .spaced_repetition import next_review_for
 
 
@@ -19,6 +22,12 @@ class NeuronEducationCycle:
         self.db_path = Path(db_path)
         self.store = CompetencyStore(db_path)
         self.evidence = LearningEvidenceBridge(db_path)
+        # The functional-assessment store is part of the education contract.
+        # Initialize it idempotently before any new session can be created;
+        # historical sessions remain untouched.
+        with sqlite3.connect(self.db_path, timeout=20) as conn:
+            ensure_schema(conn)
+            conn.commit()
 
     def run_once(
         self, *, force: bool = False, target_neuron_id: int | None = None
@@ -135,6 +144,44 @@ class NeuronEducationCycle:
                 **session,
             }
 
+        # Baseline-first: never create a new educational session before the
+        # functional pre-probe has been requested. The coordinator is
+        # idempotent, so retries do not duplicate work.
+        probe_domain = supported_domain(str(target.get("name") or ""), domain)
+        if probe_domain:
+            case_id = {
+                "visual_text": "vis1",
+                "python_text": "py1",
+                "android_cli_text": "adb1",
+                "live_pulse_text": "pulse1",
+                "code_repair_text": "code1",
+            }.get(probe_domain)
+            if case_id:
+                with sqlite3.connect(self.db_path) as coord_conn:
+                    baseline_ready = coord_conn.execute(
+                        "SELECT 1 FROM neuron_education_coordination "
+                        "WHERE neuron_id=? AND case_id=? AND phase='pre' "
+                        "AND state='baseline_registered' LIMIT 1",
+                        (neuron_id, case_id),
+                    ).fetchone() is not None
+                if baseline_ready:
+                    # The pre-probe is persisted; continue to create the
+                    # lesson and let the post-probe coordinator attach to its
+                    # session after insertion.
+                    pass
+                else:
+                    baseline = EducationCoordinator(self.db_path).request_baseline(
+                        neuron_id=neuron_id, case_id=case_id
+                    )
+                    return {
+                        "status": "baseline_requested",
+                        "learned": False,
+                        "neuron": target["name"],
+                        "domain": domain,
+                        "probe_case": case_id,
+                        **baseline,
+                    }
+
         lesson = {
             "objective": objective,
             "claims": [str(item["content"])[:280] for item in materials[:3]],
@@ -164,6 +211,21 @@ class NeuronEducationCycle:
             },
             result="uncertain",
         )
+        post_request = None
+        probe_domain = supported_domain(str(target.get("name") or ""), domain)
+        case_id = {
+            "visual_text": "vis1",
+            "python_text": "py1",
+            "android_cli_text": "adb1",
+            "live_pulse_text": "pulse1",
+            "code_repair_text": "code1",
+        }.get(probe_domain or "")
+        if case_id:
+            post_request = EducationCoordinator(self.db_path).request_post(
+                session_id=str(session["session_id"]),
+                neuron_id=neuron_id,
+                case_id=case_id,
+            )
         evidence_candidate_id = f"neuron-education:{session['session_id']}"
         evidence = self.evidence.declare_hypothesis(
             evidence_candidate_id,
@@ -184,6 +246,7 @@ class NeuronEducationCycle:
             "learning_evidence_id": evidence.get("id"),
             "learning_evidence_candidate_id": evidence_candidate_id,
             "truth_status": "hypothesis_pending_independent_evaluation",
+            "post_probe": post_request,
             **session,
         }
 
@@ -283,8 +346,16 @@ class NeuronEducationCycle:
                 (target_neuron_id, target_neuron_id, 1 if force else 0, utc_now()),
             ).fetchall()
         candidates = self._candidate_materials()
+        # No crear otra lección que el resolver no pueda evaluar.  Las
+        # competencias funcionales actuales tienen probes explícitos; un
+        # dominio sin probe (por ejemplo live_pulse) debe esperar a que exista
+        # un evaluador, en lugar de acumular sesiones `insufficient_evidence`.
+        from .functional_evidence import supported_domain
+
         for row in rows:
             target = dict(row)
+            if supported_domain(str(target.get("name") or ""), domain) is None:
+                continue
             objective = str(target.get("mission") or target.get("name") or "")
             domain = str(target.get("domain") or "general")
             matched = relevant_material(
@@ -296,7 +367,11 @@ class NeuronEducationCycle:
                 return target
         # Conserva el diagnóstico para neuronas que aún no tienen material;
         # sólo se usa cuando no existe ningún dominio con material relevante.
-        return dict(rows[0]) if rows else None
+        for row in rows:
+            target = dict(row)
+            if supported_domain(str(target.get("name") or ""), str(target.get("domain") or "")) is not None:
+                return target
+        return None
 
     def _candidate_materials(self) -> list[dict[str, Any]]:
         # Estados reales del pipeline (triade/learning/pipeline.py):

@@ -1631,6 +1631,7 @@ class WorkerLoop:
                     "goal_lora_train": self._goal_lora_train,
                     "encrypted_backup": self._encrypted_backup,
                     "neuron_education_cycle": self._neuron_education_cycle,
+                    "neuron_functional_probe": self._neuron_functional_probe,
                     "write_governed_text_artifact": self._write_governed_text_artifact,
                     "self_improvement_evaluation": self._self_improvement_evaluation,
                     "self_improvement_canary_observation": (
@@ -2034,6 +2035,38 @@ class WorkerLoop:
             "restore_drill": backup.run_restore_drill(backup_ref),
             "effect_receipt": receipt.model_dump(mode="json"),
         }
+
+    def _neuron_functional_probe(
+        self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
+    ) -> dict[str, Any]:
+        from triade.core.runner import TriadeRunner
+        from triade.neurons.functional_probe_runner import run_functional_probe
+
+        neuron_id = int(task.payload["neuron_id"])
+        case_id = str(task.payload["case_id"])
+        phase = str(task.payload.get("phase") or "pre")
+        session_id = task.payload.get("session_id")
+        model = self._installed_ollama_model()
+        result = run_functional_probe(
+            self.db_path,
+            runner=TriadeRunner(
+                runs_dir=self.runs_dir,
+                db_path=self.db_path,
+                use_ollama=True,
+                auto_select_models=False,
+                central_model=model,
+                hypothalamus_model=model,
+            ),
+            neuron_id=neuron_id,
+            case_id=case_id,
+            phase=phase,
+            session_id=str(session_id) if session_id else None,
+            context={"correlation_id": task.payload.get("correlation_id")},
+        )
+        artifact = task_dir / "functional-probe.json"
+        artifact.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+        result["artifact_ref"] = str(artifact)
+        return result
 
     def _neuron_education_cycle(
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig

@@ -1,0 +1,755 @@
+"""Version-independent Colab release client; Drive is memory, Git is code.
+
+The channel is a mutable catalogue. Every executable file is fetched from its
+immutable commit, hash checked and gated on completed CI for that commit.
+Opening the panel only watches the catalogue. Installation is one transaction
+from an empty VM or an existing runtime; no numbered update buttons.
+"""
+
+from __future__ import annotations
+
+import ast
+import datetime as dt
+import hashlib
+import importlib.util
+import json
+import os
+import re
+import sys
+import tempfile
+import threading
+import time
+import urllib.request
+from pathlib import Path, PurePosixPath
+
+REPO = "WatabooColosus/triadees"
+CHANNEL = (
+    f"https://raw.githubusercontent.com/{REPO}/colab-releases/"
+    "releases/colab-channel.json"
+)
+REQUIRED_CI = frozenset({"Runtime Truth CI", "Python Tests", "Tríade Tests"})
+PROTOCOL = 1
+_SHA = re.compile(r"[0-9a-f]{40}")
+_HASH = re.compile(r"[0-9a-f]{64}")
+_active_client = None
+
+
+def fetch(url, limit=300_000):
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "triade-colab-continuous/1",
+            "Cache-Control": "no-cache",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        data = response.read(limit + 1)
+    if len(data) > limit:
+        raise RuntimeError("Respuesta de actualización demasiado grande")
+    return data
+
+
+def validate_manifest(value):
+    if not isinstance(value, dict):
+        raise TypeError("Catálogo de versiones inválido")
+    if (
+        value.get("schema") != "triade.colab.release.v1"
+        or value.get("repository") != REPO
+        or type(value.get("protocol")) is not int
+        or value.get("protocol") != PROTOCOL
+        or type(value.get("sequence")) is not int
+        or value["sequence"] < 1
+        or not _SHA.fullmatch(str(value.get("commit", "")))
+        or not isinstance(value.get("version"), str)
+        or not 0 < len(value["version"]) <= 100
+        or value.get("channel") not in ("candidate", "stable")
+        or type(value.get("auto_update_safe")) is not bool
+    ):
+        raise ValueError("La publicación no cumple el protocolo del actualizador")
+    files = value.get("files")
+    if (
+        not isinstance(files, dict)
+        or not 1 <= len(files) <= 20
+        or "installer" not in files
+    ):
+        raise ValueError("Publicación sin instalador completo")
+    paths = set()
+    for name, record in files.items():
+        if not re.fullmatch(r"[a-z][a-z0-9_]{0,40}", name) or not isinstance(
+            record, dict
+        ):
+            raise ValueError("Componente inválido")
+        path = record.get("path")
+        if not isinstance(path, str):
+            raise TypeError("Ruta de publicación inválida")
+        parts = PurePosixPath(path)
+        allowed_path = bool(
+            re.fullmatch(r"tools/[A-Za-z0-9_./-]+\.py", path)
+            or path == "triade/workers/state_store.py"
+            or path == "triade/models/model_router.py"
+        )
+        if (
+            parts.is_absolute()
+            or not allowed_path
+            or ".." in parts.parts
+            or "\\" in path
+            or parts.as_posix() != path
+            or not path.endswith(".py")
+            or path in paths
+            or not _HASH.fullmatch(str(record.get("sha256", "")))
+        ):
+            raise ValueError("Ruta o SHA de publicación inválidos")
+        paths.add(path)
+    return value
+
+
+def release_identity(manifest):
+    public = {
+        key: manifest[key]
+        for key in ("protocol", "sequence", "version", "commit", "files")
+    }
+    return hashlib.sha256(json.dumps(public, sort_keys=True).encode()).hexdigest()
+
+
+def verify_ci(manifest, downloader=fetch):
+    url = (
+        f"https://api.github.com/repos/{REPO}/actions/runs"
+        f"?head_sha={manifest['commit']}&event=push&per_page=100"
+    )
+    payload = json.loads(downloader(url, 2_000_000))
+    runs = [
+        run
+        for run in payload.get("workflow_runs", [])
+        if run.get("head_sha") == manifest["commit"]
+        and run.get("event") == "push"
+        and run.get("name") in REQUIRED_CI
+    ]
+    # A SHA can be pushed to main and subsequently re-pushed to a branch.
+    # Both events validate identical code, but the latter CI run might be
+    # cancelled by workflow concurrency. Prefer the default branch as the
+    # authoritative release evidence when that evidence exists.
+    # IMPORTANT: the latest run *within* main still wins, even if failed,
+    # cancelled or in progress. No previous main success may override it.
+    main_proven = {run["name"] for run in runs if run.get("head_branch") == "main"}
+    latest = {}
+    for run in runs:
+        name = run["name"]
+        if name in main_proven and run.get("head_branch") != "main":
+            continue
+        rank = (run.get("run_number", 0), run.get("run_attempt", 0), run.get("id", 0))
+        if name not in latest or rank > latest[name][0]:
+            latest[name] = (rank, run)
+    missing = [
+        name
+        for name in sorted(REQUIRED_CI)
+        if name not in latest
+        or latest[name][1].get("status") != "completed"
+        or latest[name][1].get("conclusion") != "success"
+    ]
+    if missing:
+        raise RuntimeError("Versión aún no aprobada por CI: " + ", ".join(missing))
+    return {name: latest[name][1]["id"] for name in sorted(REQUIRED_CI)}
+
+
+def read_record(path):
+    if path.is_symlink():
+        raise RuntimeError("Estado de actualización con enlace inesperado")
+    if not path.exists():
+        return None
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise TypeError("Estado de actualización inválido")
+    return value
+
+
+def write_record(path, value):
+    if path.is_symlink() or path.parent.is_symlink():
+        raise RuntimeError("Destino de estado inseguro")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        dir=path.parent,
+        prefix=".release-",
+        suffix=".partial",
+        delete=False,
+    ) as stream:
+        temporary = Path(stream.name)
+        json.dump(value, stream, ensure_ascii=False, indent=2)
+    try:
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+class Client:
+    def __init__(
+        self, r5, *, mount_drive, drive_ready, work=None, downloader=fetch, notify=None
+    ):
+        self.r5 = r5
+        self.mount_drive = mount_drive
+        self.drive_ready = drive_ready
+        self.work = Path(
+            work
+            or os.environ.get("TRIADE_UPDATER_WORK", "/content/triade_actualizador")
+        )
+        self.downloader = downloader
+        self.notify = notify or (lambda message: None)
+        self.lock = threading.RLock()
+        self.stop_event = threading.Event()
+        self.thread = None
+        self.auto_apply = False
+        self.last_check = None
+        self.last_error = None
+        self.failed_release = None
+        self.module = None
+        self.context = None
+        self.diagnostic_module = None
+        self.diagnostic_context = None
+        self.stage_message = "Preparando instalación"
+        self.set_busy = lambda value: None
+        self.last_observation = None
+        self.on_observation = lambda value: None
+
+    def progress(self, message):
+        self.stage_message = message
+        self.notify(message)
+
+    @property
+    def drive_receipt(self):
+        return Path(self.r5.BASE) / "operacion_colab_continua" / "installed.json"
+
+    def installed(self):
+        local = read_record(self.work / "installed.json")
+        remote = read_record(self.drive_receipt) if self.drive_ready() else None
+        choices = [record for record in (local, remote) if record]
+        for record in choices:
+            validate_manifest(record.get("manifest"))
+            if record.get("identity") != release_identity(record["manifest"]):
+                raise RuntimeError("Recibo de versión inconsistente")
+        if (
+            len(choices) == 2
+            and choices[0]["manifest"]["sequence"] == choices[1]["manifest"]["sequence"]
+            and choices[0]["identity"] != choices[1]["identity"]
+        ):
+            raise RuntimeError("Dos publicaciones distintas usan la misma secuencia")
+        return max(choices, key=lambda item: item["manifest"]["sequence"], default=None)
+
+    def check(self):
+        with self.lock:
+            manifest = validate_manifest(json.loads(self.downloader(CHANNEL)))
+            installed = self.installed()
+            if installed:
+                old = installed["manifest"]
+                if manifest["sequence"] < old["sequence"]:
+                    raise RuntimeError(
+                        "El canal retrocede: se conserva la versión instalada"
+                    )
+                if (
+                    manifest["sequence"] == old["sequence"]
+                    and release_identity(manifest) != installed["identity"]
+                ):
+                    raise RuntimeError("Publicación modificada sin aumentar secuencia")
+            ci = verify_ci(manifest, self.downloader)
+            result = {
+                "checked_at": dt.datetime.now(dt.UTC).isoformat(),
+                "manifest": manifest,
+                "ci": ci,
+                "update_available": not installed
+                or installed["identity"] != release_identity(manifest),
+                "installed_version": installed["manifest"]["version"]
+                if installed
+                else None,
+            }
+            self.last_check = result
+            self.last_error = None
+            self.notify(
+                "Disponible: "
+                + manifest["version"]
+                + " · CI aprobada · "
+                + dt.datetime.now(dt.UTC).strftime("%H:%M:%S UTC")
+            )
+            return result
+
+    def _stage(self, manifest):
+        destination = self.work / "packages" / release_identity(manifest)
+        if destination.is_symlink():
+            raise RuntimeError("Carpeta de publicación insegura")
+        destination.mkdir(parents=True, exist_ok=True)
+        files = {}
+        # Check every component before importing or executing any of them.
+        for name, record in manifest["files"].items():
+            path = destination / (name + ".py")
+            if path.is_symlink():
+                raise RuntimeError("Conflicto de código local: " + name)
+            data = (
+                path.read_bytes()
+                if path.exists()
+                else self.downloader(
+                    f"https://raw.githubusercontent.com/{REPO}/{manifest['commit']}/{record['path']}"
+                )
+            )
+            if hashlib.sha256(data).hexdigest() != record["sha256"]:
+                raise RuntimeError("SHA de componente no coincide: " + name)
+            ast.parse(data.decode("utf-8"), filename=record["path"])
+            if path.is_symlink() or (path.exists() and path.read_bytes() != data):
+                raise RuntimeError("Conflicto de código local: " + name)
+            if not path.exists():
+                with path.open("xb") as stream:
+                    stream.write(data)
+            files[name] = str(path)
+        name = "triade_release_" + release_identity(manifest)
+        spec = importlib.util.spec_from_file_location(name, files["installer"])
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        try:
+            spec.loader.exec_module(module)
+            if not all(
+                callable(getattr(module, fn, None))
+                for fn in ("install", "verify", "recover")
+            ):
+                raise RuntimeError("Instalador sin contrato install/verify/recover")
+        except BaseException:
+            sys.modules.pop(name, None)
+            raise
+        context = {
+            "r5": self.r5,
+            "files": files,
+            "manifest": manifest,
+            "progress": self.progress,
+        }
+        return module, context
+
+    def install(self):
+        with self.lock:
+            self.set_busy(True)
+            done = threading.Event()
+            started = time.monotonic()
+
+            def heartbeat():
+                while not done.wait(2):
+                    self.notify(
+                        f"{self.stage_message} · {int(time.monotonic() - started)} s transcurridos"
+                    )
+
+            thread = threading.Thread(
+                target=heartbeat, name="triade-install-progress", daemon=True
+            )
+            thread.start()
+            try:
+                return self._install()
+            except Exception as exc:
+                self.last_error = type(exc).__name__ + ": " + str(exc)[:300]
+                self.progress("Operación detenida: " + self.last_error)
+                raise
+            finally:
+                done.set()
+                thread.join(timeout=1)
+                self.set_busy(False)
+
+    def _install(self):
+        # Mount and read the persistent receipt BEFORE resolving a release:
+        # an empty Colab must not silently downgrade the last Drive version.
+        self.progress("1/5 · Autoriza Drive; después continuaré automáticamente")
+        if not self.drive_ready():
+            self.mount_drive()
+        if not self.drive_ready():
+            raise RuntimeError("Drive no quedó montado; instalación detenida")
+        self.progress("2/5 · Drive conectado. Comprobando publicación y CI")
+        result = self.check()
+        manifest = result["manifest"]
+        self.progress("3/5 · Preparando paquete verificado: " + manifest["version"])
+        module, context = self._stage(manifest)
+        self.diagnostic_module, self.diagnostic_context = module, context
+        try:
+            self.progress("4/5 · Instalando dependencias, memoria y servicios")
+            installed = module.install(context)
+            self.progress("5/5 · Verificando arranque y guardando recibo en Drive")
+            verified = module.verify(context)
+            if (
+                not isinstance(installed, dict)
+                or installed.get("status") != "ready"
+                or verified is not True
+            ):
+                raise RuntimeError("La versión no acreditó su arranque real")
+        except Exception as exc:
+            self.failed_release = release_identity(manifest)
+            self.last_error = type(exc).__name__ + ": " + str(exc)[:300]
+            recovery = module.recover(context, self.last_error)
+            self.last_observation = recovery
+            self.on_observation(recovery)
+            self.notify(
+                "Instalación incompleta; se conservaron los registros y la memoria"
+            )
+            raise RuntimeError(
+                f"No se activó la publicación: {self.last_error}; recuperación: {recovery}"
+            ) from exc
+        record = {
+            "installed_at": dt.datetime.now(dt.UTC).isoformat(),
+            "manifest": manifest,
+            "identity": release_identity(manifest),
+            "ci": result["ci"],
+            "installation": installed,
+        }
+        # Drive first: local success alone must not promise persistence.
+        write_record(self.drive_receipt, record)
+        write_record(self.work / "installed.json", record)
+        self.module, self.context = module, context
+        self.last_error = None
+        self.failed_release = None
+        self.progress("Instalación / actualización verificada: " + manifest["version"])
+        self.last_observation = {
+            "status": "runtime_verified",
+            "version": manifest["version"],
+            "runtime": installed.get("runtime", {}).get("state"),
+        }
+        self.on_observation(self.last_observation)
+        return {
+            "status": "ready",
+            "version": manifest["version"],
+            "result": installed,
+        }
+
+    def run_cycle(self):
+        """Main notebook cell: authorization continues into the same install call."""
+        self.stop_watch()
+        try:
+            with self.lock:
+                probe = getattr(self.module, "resume", None) or getattr(
+                    self.module, "verify", None
+                )
+                if (
+                    self.drive_ready()
+                    and callable(probe)
+                    and probe(self.context) is True
+                ):
+                    self.progress(
+                        "Tríade ya está encendida y verificada; sesión reutilizada"
+                    )
+                    return {"status": "ready", "reused": True}
+                return self.install()
+        finally:
+            self.start_watch()
+
+    def watch_once(self):
+        """Passive monitoring only; new releases always need the main button."""
+        if not self.lock.acquire(blocking=False):
+            return
+        try:
+            # Git version discovery is read-only and works before Drive mounts.
+            # Requiring Drive here broke the observer's offline preflight.
+            try:
+                result = self.check()
+                manifest = result["manifest"]
+                # Preserve previously authorized opt-in behavior only for
+                # stable CI-verified releases; the new panel never enables it.
+                if (
+                    self.auto_apply
+                    and not self.stop_event.is_set()
+                    and self.installed()
+                    and result["update_available"]
+                    and self.failed_release != release_identity(manifest)
+                    and manifest["channel"] == "stable"
+                    and manifest["auto_update_safe"] is True
+                ):
+                    self.install()
+            except Exception as exc:  # noqa: BLE001 - monitoring must survive network outages
+                self.last_error = type(exc).__name__ + ": " + str(exc)[:300]
+                self.notify("Comprobación pendiente: " + self.last_error)
+            source = self.diagnostic_module or self.module
+            context = self.diagnostic_context or self.context
+            callback = getattr(source, "status", None)
+            if callable(callback) and context is not None:
+                try:
+                    observed = callback(context)
+                except Exception as exc:  # noqa: BLE001 - read-only observation boundary
+                    observed = {
+                        "status": "observation_blocked",
+                        "error_type": type(exc).__name__,
+                        "reason": str(exc)[:260],
+                    }
+                self.last_observation = observed
+                self.on_observation(observed)
+        finally:
+            self.lock.release()
+
+    def start_watch(self, seconds=600):
+        if self.thread and self.thread.is_alive():
+            return self.thread
+        self.stop_event.clear()
+
+        def watch():
+            while not self.stop_event.wait(seconds):
+                self.watch_once()
+
+        self.thread = threading.Thread(
+            target=watch, name="triade-release-watch", daemon=True
+        )
+        self.thread.start()
+        return self.thread
+
+    def stop_watch(self):
+        self.stop_event.set()
+        if self.thread and self.thread is not threading.current_thread():
+            self.thread.join(timeout=1)
+
+    def action(self, name):
+        if name in ("status", "prepare_isolated_recovery") and self.diagnostic_module:
+            with self.lock:
+                callback = getattr(self.diagnostic_module, name, None)
+                if not callable(callback):
+                    raise TypeError("Esta versión no ofrece la acción: " + name)
+                return callback(self.diagnostic_context)
+        if not self.module:
+            if self.last_error:
+                raise RuntimeError(
+                    "Arranque detenido; consulta Estado real. Causa: " + self.last_error
+                )
+            raise RuntimeError("Pulsa Instalar / encender / actualizar primero")
+        callback = getattr(self.module, name, None)
+        if not callable(callback):
+            raise TypeError("Esta versión no ofrece la acción: " + name)
+        with self.lock:
+            self.context["progress"] = self.progress
+            if name == "open_frontend":
+                # Never open a stale or unverified service just because the
+                # notebook still has a connected kernel.
+                verifier = getattr(self.module, "verify", None)
+                if not callable(verifier) or verifier(self.context) is not True:
+                    raise RuntimeError(
+                        "Abrir Tríade bloqueado: primero acredita API, Ollama, "
+                        "Bodega y versión mediante Encender / actualizar"
+                    )
+            return callback(self.context)
+
+
+def transfer_render_state(client, previous):
+    """Preserve an existing verified runtime across legacy panel refreshes.
+
+    Observation metadata was added after older Colab clients were instantiated.
+    Treat it as optional, but require the runtime module/context to exist so a
+    refreshed panel cannot silently detach from its running API and Bodega.
+    """
+    if previous is None or previous.r5 is not client.r5:
+        return False
+    for required in ("module", "context"):
+        if not hasattr(previous, required):
+            raise RuntimeError(
+                "Migración del panel bloqueada: falta estado de sesión " + required
+            )
+    for field in (
+        "module",
+        "context",
+        "diagnostic_module",
+        "diagnostic_context",
+        "last_check",
+        "last_error",
+        "failed_release",
+        "last_observation",
+    ):
+        if hasattr(previous, field):
+            setattr(client, field, getattr(previous, field))
+    for context in (client.context, client.diagnostic_context):
+        if context is not None:
+            context["progress"] = client.progress
+    # Candidates must never inherit a previous auto-apply setting.
+    client.auto_apply = False
+    return True
+
+
+def render(r5, *, watch=True):
+    global _active_client
+    from html import escape
+
+    import ipywidgets as widgets
+    from google.colab import drive
+    from IPython.display import display
+
+    previous = _active_client
+    if previous is not None:
+        if not previous.lock.acquire(blocking=False):
+            raise RuntimeError(
+                "Una operación anterior sigue terminando; conserva ese panel hasta que concluya"
+            )
+        try:
+            previous.stop_watch()
+        finally:
+            previous.lock.release()
+    banner = widgets.HTML(
+        "<h2>TRÍADE Ω · Centro continuo de Colab</h2>"
+        "<p>Encender / actualizar prepara Tríade; Abrir Tríade abre solo "
+        "una instancia verificada. Estado real, auditoría y verificación "
+        "educativa son consultas de solo lectura. Drive conserva tu memoria.</p>"
+    )
+    status = widgets.HTML(
+        "Panel listo; el ciclo comprobará la versión después de conectar Drive"
+    )
+    progress = widgets.IntProgress(value=0, min=0, max=5, description="Etapa")
+    output = widgets.HTML(
+        value="",
+        layout=widgets.Layout(
+            max_height="480px",
+            overflow="auto",
+        ),
+    )
+
+    def mounted():
+        return os.path.ismount("/content/drive")
+
+    def mount():
+        if not mounted():
+            drive.mount("/content/drive")
+
+    def report(text):
+        status.value = escape(text)
+        step = re.match(r"([1-5])/5", text)
+        if step:
+            progress.value = int(step.group(1))
+            progress.bar_style = "info"
+        elif text.startswith(
+            ("Instalación / actualización verificada", "Tríade ya está")
+        ):
+            progress.value = 5
+            progress.bar_style = "success"
+        elif text.startswith("Operación detenida"):
+            progress.bar_style = "danger"
+
+    client = Client(
+        r5,
+        mount_drive=mount,
+        drive_ready=mounted,
+        notify=report,
+    )
+    _active_client = client
+    busy = threading.Lock()
+    buttons = []
+
+    def button(label, callback, style=""):
+        item = widgets.Button(
+            description=label,
+            button_style=style,
+            layout=widgets.Layout(width="300px", height="44px"),
+        )
+        buttons.append(item)
+
+        def click(_):
+            if not busy.acquire(blocking=False):
+                return
+            for control in buttons:
+                control.disabled = True
+            try:
+                output.value = "<small>Acción en curso…</small>"
+                try:
+                    result = callback()
+                    rendered = json.dumps(
+                        result, ensure_ascii=False, indent=2, default=str
+                    )
+                except Exception as exc:  # noqa: BLE001 - UI boundary displays the actual release error
+                    rendered = (
+                        "Operación detenida: "
+                        + type(exc).__name__
+                        + " "
+                        + str(exc)[:1600]
+                    )
+                output.value = (
+                    "<pre style='white-space:pre-wrap;overflow-wrap:anywhere'>"
+                    + escape(rendered)
+                    + "</pre>"
+                )
+            finally:
+                for control in buttons:
+                    control.disabled = False
+                busy.release()
+
+        item.on_click(click)
+        return item
+
+    lifecycle_actions = [
+        button("Instalar / encender / actualizar", client.install, "success"),
+        button("Abrir Tríade", lambda: client.action("open_frontend"), "info"),
+    ]
+    # Separate this surface from view[3]. Legacy notebook compatibility code
+    # may replace view[3].children with only the lifecycle/navigation buttons.
+    # These read-only inspections must remain visible even when it does so.
+    inspection_actions = [
+        button("Estado real", lambda: client.action("status")),
+        button("Auditar actividad (30 s)", lambda: client.action("audit")),
+        button("Verificar aprendizaje", lambda: client.action("learning_status")),
+    ]
+    client.set_busy = lambda value: [
+        setattr(control, "disabled", value) for control in buttons
+    ]
+    observation = widgets.HTML(
+        "<small>Observación automática de CI, memoria, workers y aprendizaje. "
+        "Los botones de diagnóstico consultan evidencias sin iniciar aprendizaje, "
+        "restaurar memoria ni promover neuronas.</small>",
+        layout=widgets.Layout(max_height="360px", overflow="auto"),
+    )
+
+    def show_observation(value):
+        # No raw HTML from runtime data is ever rendered.
+        if isinstance(value, dict):
+            visible = {
+                key: value[key]
+                for key in (
+                    "status",
+                    "version",
+                    "runtime",
+                    "api_http_200",
+                    "ollama_http_200",
+                    "bodega",
+                    "known_regression",
+                    "education_continuity",
+                    "backup_protection",
+                    "cpu_policy",
+                    "autonomous_monitor",
+                    "learning_circuit",
+                    "isolated_recovery",
+                    "memory_replaced_by_recovery",
+                )
+                if key in value
+            }
+        else:
+            visible = {"status": "invalid_observation"}
+        observation.value = (
+            "<strong>Estado autónomo de Tríade</strong>"
+            "<pre style='white-space:pre-wrap;overflow-wrap:anywhere'>"
+            + escape(json.dumps(visible, ensure_ascii=False, indent=2, default=str))
+            + "</pre>"
+        )
+
+    client.on_observation = show_observation
+    client.view = (
+        banner,
+        status,
+        progress,
+        widgets.Box(
+            lifecycle_actions,
+            layout=widgets.Layout(display="flex", flex_flow="row wrap"),
+        ),
+        widgets.HTML(
+            "<small>Tríade vigila su estado cada 10 minutos mientras Colab siga "
+            "conectado. Los respaldos, las recuperaciones aisladas y el aprendizaje "
+            "son procesos gobernados; la Bodega original permanece protegida.</small>"
+        ),
+        observation,
+        output,
+    )
+    # Widget comms belong to their frontend. Reusing old views after opening
+    # another browser produced HTML(value=...) text instead of live controls.
+    # Rebuild views while keeping the verified runtime/release context.
+    if transfer_render_state(client, previous):
+        if client.last_observation is not None:
+            show_observation(client.last_observation)
+        client.progress(getattr(previous, "stage_message", client.stage_message))
+    # Keep the seven-element view contract unchanged for older notebook cells.
+    # Render diagnostics as a distinct widget between lifecycle and information,
+    # so a legacy view[3].children observer cannot hide them.
+    client.inspection_view = widgets.Box(
+        inspection_actions,
+        layout=widgets.Layout(display="flex", flex_flow="row wrap"),
+    )
+    display(*client.view[:4], client.inspection_view, *client.view[4:])
+    if watch:
+        client.start_watch()
+    return client

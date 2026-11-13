@@ -1,0 +1,1217 @@
+"""Owner-requested prospective education using genuine TriadeRunner probes.
+
+Never changes autonomy, stable promotion gates, old lessons, run timestamps,
+answer keys, or worker leases. A failed prerequisite is an explicit outcome.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import datetime as dt
+import hashlib
+import importlib
+import json
+import math
+import statistics
+import sys
+import threading
+import time
+import traceback
+import uuid
+from pathlib import Path
+
+from triade.db import sqlite3
+
+
+class NotReady(RuntimeError):
+    pass
+
+
+def _connect(db):
+    conn = sqlite3.connect(
+        Path(db).resolve().as_uri() + "?mode=ro", uri=True, timeout=5
+    )
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _tables(conn):
+    return {
+        r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    }
+
+
+def _read(path):
+    try:
+        value = json.loads(path.read_text())
+        return value if isinstance(value, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _hash_file(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for block in iter(lambda: stream.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _active_epoch_after_abandonment(folder, epoch_id):
+    """Read-only verification of a single archived, unfinished pre-probe."""
+    original = folder / "epochs" / epoch_id / "current.json"
+    if not original.is_file() or original.is_symlink():
+        return epoch_id
+    digest = hashlib.sha256(original.read_bytes()).hexdigest()
+    root = original.parent / "abandoned" / digest
+    receipt_file = root / "receipt.json"
+    if not receipt_file.is_file():
+        return epoch_id
+    archive = root / "original.json"
+    if (
+        any(path.is_symlink() for path in (root, receipt_file, archive))
+        or not archive.is_file()
+        or hashlib.sha256(archive.read_bytes()).hexdigest() != digest
+    ):
+        raise NotReady("abandoned_preprobe_archive_invalid")
+    receipt = _read(receipt_file)
+    expected = "retry-" + digest[:16]
+    if not (
+        receipt.get("schema") == "triade.colab.preprobe_abandonment.v1"
+        and receipt.get("status") == "unbacked_preprobe_archived"
+        and receipt.get("original_epoch") == epoch_id
+        and receipt.get("original_sha256") == digest
+        and receipt.get("retry_epoch") == expected
+        and receipt.get("historical_certified") is False
+        and receipt.get("learning_credit") is False
+        and receipt.get("original_pointer_preserved") is True
+        and len(receipt.get("missing_run_ids") or []) == 1
+        and (
+            not receipt.get("local_run_present")
+            or (
+                isinstance(receipt.get("source_local_sha256"), str)
+                and (root / "original-local.sqlite3").is_file()
+                and not (root / "original-local.sqlite3").is_symlink()
+                and _hash_file(root / "original-local.sqlite3")
+                == receipt["source_local_sha256"]
+            )
+        )
+    ):
+        raise NotReady("abandoned_preprobe_receipt_invalid")
+    return expected
+
+
+def _quarantined_epoch(r5):
+    """Use a separate learning namespace only after an immutable forensic receipt.
+
+    An unbacked legacy `done` claim remains unchanged, with no learned credit.
+    No application can silently convert that historical claim to a real run.
+    """
+    root = Path(r5.WORK)
+    proof = _read(root / "restore_proof.json")
+    lineage = str(proof.get("source_sha256") or "")
+    if len(lineage) != 64 or any(ch not in "0123456789abcdef" for ch in lineage):
+        return None
+    original = (
+        Path(r5.BASE)
+        / "operacion_colab_continua"
+        / "aprendizaje"
+        / lineage[:16]
+        / "current.json"
+    )
+    if not original.is_file() or any(
+        p.is_symlink() for p in (original, *original.parents)
+    ):
+        return None
+    digest = hashlib.sha256(original.read_bytes()).hexdigest()
+    receipt_path = original.parent / "quarantine" / digest / "receipt.json"
+    archived = receipt_path.parent / "original.json"
+    if (
+        not receipt_path.is_file()
+        or not archived.is_file()
+        or any(p.is_symlink() for p in (receipt_path, archived))
+    ):
+        return None
+    receipt = _read(receipt_path)
+    restore = _read(root / "control_r7" / "last_restore.json")
+    if not (
+        receipt.get("schema") == "triade.colab.historical_study_quarantine.v1"
+        and receipt.get("status") == "historical_claim_unverified"
+        and receipt.get("source_sha256") == lineage
+        and receipt.get("original_sha256") == digest
+        and receipt.get("historical_certified") is False
+        and receipt.get("historical_promotion_authorized") is False
+        and restore.get("status") == "review_restored_quarantined_history"
+        and receipt.get("selected_review_sha256") == restore.get("sha256")
+        and hashlib.sha256(archived.read_bytes()).hexdigest() == digest
+        and receipt.get("epoch") == "recovery-" + digest[:16]
+    ):
+        return None
+    epoch = _active_epoch_after_abandonment(original.parent, receipt["epoch"])
+    return {
+        "id": epoch,
+        "local": root / ("prospective_" + epoch + ".json"),
+        "remote": original.parent / "epochs" / epoch / "current.json",
+        "original_study_id": receipt.get("session_id"),
+        "historical_certified": False,
+    }
+
+
+def _epoch_state(epoch):
+    """Reject split-brain state rather than choose an older local/Drive mirror."""
+    local = _read(epoch["local"])
+    remote = _read(epoch["remote"])
+    if local and remote and local != remote:
+        raise NotReady("fresh_epoch_mirror_conflict")
+    return local or remote
+
+
+def _quarantined_learning_lineage(r5, epoch):
+    """Validate every recorded fresh probe and all terminal claims on startup."""
+    try:
+        state = _epoch_state(epoch)
+    except NotReady:
+        return {"status": "blocked", "reason": "fresh_epoch_mirror_conflict"}
+    if not state:
+        return {
+            "status": "quarantined_fresh_epoch_ready",
+            "historical_certified": False,
+            "new_epoch": epoch["id"],
+        }
+    if state.get("session_id") == epoch["original_study_id"]:
+        return {"status": "blocked", "reason": "fresh_epoch_reused_historical_session"}
+    if state.get("phase") == "done" and not (
+        isinstance(state.get("backup"), dict)
+        and state["backup"].get("study_checkpoint")
+    ):
+        return {"status": "blocked", "reason": "fresh_epoch_checkpoint_missing"}
+    neuron = state.get("neuron_id")
+    if type(neuron) is not int:
+        return {"status": "blocked", "reason": "fresh_epoch_neuron_invalid"}
+    try:
+        with contextlib.closing(_connect(r5.DB)) as conn:
+            tables = _tables(conn)
+            for phase in ("pre", "post"):
+                for item in state.get(phase, []):
+                    run_id = item.get("run_id") if isinstance(item, dict) else None
+                    if not isinstance(run_id, str) or not run_id:
+                        return {"status": "blocked", "reason": "fresh_run_invalid"}
+                    if (
+                        "neuron_functional_assessments" not in tables
+                        or not conn.execute(
+                            "SELECT 1 FROM neuron_functional_assessments "
+                            "WHERE run_id=? AND neuron_id=? AND phase=?",
+                            (run_id, neuron, phase),
+                        ).fetchone()
+                    ):
+                        return {
+                            "status": "regressed",
+                            "reason": "fresh_epoch_run_missing",
+                        }
+            session_id = state.get("session_id")
+            if session_id:
+                if "neuron_education_sessions" not in tables:
+                    return {
+                        "status": "regressed",
+                        "reason": "fresh_epoch_session_missing",
+                    }
+                row = conn.execute(
+                    "SELECT state FROM neuron_education_sessions "
+                    "WHERE session_id=? AND neuron_id=?",
+                    (session_id, neuron),
+                ).fetchone()
+                if row is None:
+                    return {
+                        "status": "regressed",
+                        "reason": "fresh_epoch_session_missing",
+                    }
+                if state.get("phase") == "done":
+                    expected = ((state.get("result") or {}).get("session") or {}).get(
+                        "state"
+                    )
+                    if not expected or row[0] != expected:
+                        return {
+                            "status": "regressed",
+                            "reason": "fresh_epoch_state_rolled_back",
+                        }
+    except (sqlite3.Error, OSError, ValueError):
+        return {"status": "blocked", "reason": "fresh_epoch_unreadable"}
+    return {
+        "status": "quarantined_fresh_epoch_aligned",
+        "historical_certified": False,
+        "new_epoch": epoch["id"],
+        "phase": state.get("phase"),
+    }
+
+
+def _study_memory_lineage(r5):
+    """Observe whether a verified Drive study points beyond the active SQLite.
+
+    This is a read-only continuity gate, not a restore or a claim of learning.
+    A stored completed study must never silently become a fresh lesson after
+    another Colab installation chooses an older valid snapshot.
+    """
+    if not hasattr(r5, "BASE") or not hasattr(r5, "WORK"):
+        return {"status": "not_observed"}
+    epoch = _quarantined_epoch(r5)
+    if epoch is not None:
+        return _quarantined_learning_lineage(r5, epoch)
+    proof = _read(Path(r5.WORK) / "restore_proof.json")
+    source = str(proof.get("source_sha256") or "")
+    if len(source) != 64 or any(ch not in "0123456789abcdef" for ch in source):
+        return {"status": "not_observed"}
+    path = (
+        Path(r5.BASE)
+        / "operacion_colab_continua"
+        / "aprendizaje"
+        / source[:16]
+        / "current.json"
+    )
+    if not path.is_file():
+        return {"status": "not_observed"}
+    if any(parent.is_symlink() for parent in (path, *path.parents)):
+        return {"status": "blocked", "reason": "untrusted_study_pointer"}
+    study = _read(path)
+    if study.get("phase") != "done":
+        return {"status": "not_observed", "reason": "study_not_finished"}
+    session_id = str(study.get("session_id") or "")
+    neuron_id = study.get("neuron_id")
+    if not session_id or type(neuron_id) is not int:
+        return {"status": "blocked", "reason": "invalid_study_pointer"}
+    if not all(isinstance(study.get(phase), list) for phase in ("pre", "post")):
+        return {"status": "blocked", "reason": "invalid_study_pointer"}
+    counts = {"pre": len(study["pre"]), "post": len(study["post"])}
+    try:
+        with contextlib.closing(_connect(r5.DB)) as conn:
+            tables = _tables(conn)
+            required = {"neuron_functional_assessments", "neuron_education_sessions"}
+            if not required.issubset(tables):
+                return {
+                    "status": "regressed",
+                    "reason": "study_tables_missing",
+                    **counts,
+                }
+            row = conn.execute(
+                "SELECT state FROM neuron_education_sessions "
+                "WHERE session_id=? AND neuron_id=?",
+                (session_id, neuron_id),
+            ).fetchone()
+            missing = {"pre": 0, "post": 0}
+            for phase in ("pre", "post"):
+                proofs = study.get(phase, [])
+                if not isinstance(proofs, list):
+                    return {"status": "blocked", "reason": "invalid_study_pointer"}
+                for item in proofs:
+                    run_id = item.get("run_id") if isinstance(item, dict) else None
+                    if not isinstance(run_id, str) or not run_id:
+                        return {"status": "blocked", "reason": "invalid_study_pointer"}
+                    present = conn.execute(
+                        "SELECT 1 FROM neuron_functional_assessments "
+                        "WHERE run_id=? AND neuron_id=? AND phase=?",
+                        (run_id, neuron_id, phase),
+                    ).fetchone()
+                    if present is None:
+                        missing[phase] += 1
+    except (OSError, sqlite3.Error, ValueError, TypeError):
+        return {"status": "blocked", "reason": "memory_lineage_unreadable"}
+    if row is None or missing["pre"] or missing["post"]:
+        return {
+            "status": "regressed",
+            "reason": "documented_study_evidence_missing",
+            "missing_evidence": missing,
+            **counts,
+        }
+    if row["state"] == "lesson_prepared":
+        return {
+            "status": "regressed",
+            "reason": "finished_study_reopened",
+            **counts,
+        }
+    return {"status": "aligned", **counts}
+
+
+def _ledger(r5):
+    from triade.runtime.resource_ledger import ResourceLedger, load_runtime_budget
+
+    ledger = object.__new__(ResourceLedger)
+    ledger.db_path = Path(r5.DB)
+    ledger.budget = load_runtime_budget(Path(r5.ROOT) / "triade.yml")
+    return ledger
+
+
+def _measured(r5, task_class, call, model=None):
+    from triade.runtime.resource_ledger import ResourceMeasurementCollector
+
+    ledger = _ledger(r5)
+    if not ledger.allows(task_class):
+        raise NotReady("resource_budget:" + task_class)
+    collector = ResourceMeasurementCollector()
+    success = False
+    try:
+        result = call()
+        success = bool(getattr(result, "ok", True))
+        return result
+    finally:
+        ledger.record_usage(
+            task_id=None,
+            worker_id="owner_requested_prospective_education",
+            usage=collector.finish(),
+            success=success,
+            task_class=task_class,
+            model=model,
+        )
+
+
+def _refresh_worker_runtime_modules(*, reload_runner=False):
+    """Use a runtime-patched WorkerStateStore in an already-live Colab kernel.
+
+    The panel can update files while the notebook process keeps Python modules
+    cached. Reload the worker modules that imported the store before creating a
+    new TriadeRunner, otherwise learning would continue using the pre-patch
+    schema resolver.
+    """
+    # The reload is only safe in the live Colab runtime. In ordinary test
+    # processes, reloading worker_loop replaces its class object while spawned
+    # multiprocessing tasks still reference the previous class, causing
+    # PicklingError ("it's not the same object").
+    if not Path("/content/Triade").is_dir():
+        return
+    importlib.invalidate_caches()
+    # The R5 checkout was pinned before these schema-path repairs existed.
+    # Reload the schema owners before their consumers: reloading runner alone
+    # retains NeuronRegistry/NeuronActivityStore classes imported by older
+    # experimental and learning modules in this long-lived Colab kernel.
+    names = (
+        "triade.core.neuron_registry",
+        "triade.core.neuron_activity_store",
+        "triade.learning.pipeline",
+        "triade.core.experimental_neuron_runtime",
+        "triade.core.neuron_autopromoter",
+        "triade.core.run_neuron_orchestrator",
+        "triade.memory.encrypted_backup",
+        "triade.workers.mission_planner",
+        "triade.workers.state_store",
+        "triade.workers.task_queue",
+        "triade.workers.worker_loop",
+        "triade.workers.background_service",
+        "triade.services.supervisor",
+    )
+    if reload_runner:
+        names += (
+            "triade.core.goal_orchestrator",
+            "triade.core.learning_planner",
+            "triade.core.runner",
+        )
+    for name in names:
+        module = sys.modules.get(name)
+        if module is not None:
+            importlib.reload(module)
+
+
+def inspect(r5):
+    from triade.core.ollama_blood import check_ollama_blood
+    from triade.neurons.functional_evidence import supported_domain
+
+    report = {
+        "read_only": True,
+        "full_certified": False,
+        "blood": check_ollama_blood(),
+        "education": {},
+        "recent_error_groups": [],
+        "neurons": [],
+    }
+    with contextlib.closing(_connect(r5.DB)) as conn:
+        tables = _tables(conn)
+        for table, column in (
+            ("neurons", "status"),
+            ("neuron_education_sessions", "state"),
+            ("learning_queue", "status"),
+            ("neuron_learning_assignments", "status"),
+        ):
+            if table in tables:
+                report["education"][table] = dict(
+                    conn.execute(
+                        f'SELECT "{column}", COUNT(*) FROM "{table}" GROUP BY "{column}"'
+                    )
+                )
+        if "neurons" in tables:
+            report["neurons"] = [
+                {
+                    "id": row["id"],
+                    "status": row["status"],
+                    "functional_suite": supported_domain(row["name"], row["domain"]),
+                }
+                for row in conn.execute(
+                    "SELECT id,name,domain,status FROM neurons ORDER BY id LIMIT 100"
+                )
+            ]
+        if "neuron_education_sessions" in tables:
+            report["recent_sessions"] = [
+                dict(row)
+                for row in conn.execute(
+                    "SELECT session_id,neuron_id,state,independent_source_count,baseline_score,post_score,applied_run_count,result,created_at FROM neuron_education_sessions ORDER BY created_at DESC LIMIT 20"
+                )
+            ]
+            report["lesson_gates"] = []
+            for row in conn.execute(
+                "SELECT session_id,neuron_id,lesson_json,baseline_score FROM neuron_education_sessions WHERE state='lesson_prepared'"
+            ):
+                ids = json.loads(row["lesson_json"] or "{}").get("candidate_ids", [])
+                states = [
+                    item[0]
+                    for candidate_id in ids
+                    for item in conn.execute(
+                        "SELECT status FROM learning_queue WHERE candidate_id=?",
+                        (candidate_id,),
+                    )
+                ]
+                missions = conn.execute(
+                    "SELECT COUNT(*) FROM neuron_missions WHERE neuron_id=? AND status IN ('experimental','active')",
+                    (row["neuron_id"],),
+                ).fetchone()[0]
+                report["lesson_gates"].append(
+                    {
+                        "session_id": row["session_id"],
+                        "neuron_id": row["neuron_id"],
+                        "material_states": states,
+                        "eligible_missions": missions,
+                        "baseline_present": row["baseline_score"] is not None,
+                        "application_ready": bool(
+                            any(
+                                s in ("evidence_verified", "consolidated")
+                                for s in states
+                            )
+                            or missions
+                        ),
+                    }
+                )
+        if "neuron_education_events" in tables:
+            report["admission_blocks"] = []
+            for row in conn.execute(
+                "SELECT payload_json,created_at FROM neuron_education_events WHERE event_type='domain_training_completed' ORDER BY id DESC LIMIT 20"
+            ):
+                payload = json.loads(row[0] or "{}")
+                if payload.get("status") == "training_blocked":
+                    report["admission_blocks"].append(
+                        {
+                            "neuron_id": payload.get("neuron_id"),
+                            "reason": payload.get("reason"),
+                            "at": row[1],
+                            "activated": False,
+                        }
+                    )
+        if "neuron_functional_assessments" in tables:
+            report["functional_probes"] = [
+                dict(row)
+                for row in conn.execute(
+                    "SELECT neuron_id,phase,COUNT(*) AS runs,COUNT(DISTINCT case_id) AS cases FROM neuron_functional_assessments GROUP BY neuron_id,phase"
+                )
+            ]
+            # This is an audit of scores already recorded by the original rubric.
+            # Never reinterpret responses, change grades or expose model output.
+            report["functional_case_scores"] = [
+                dict(row)
+                for row in conn.execute(
+                    "SELECT neuron_id,phase,case_id,COUNT(*) AS runs,"
+                    "SUM(CASE WHEN score=1.0 THEN 1 ELSE 0 END) AS passed,"
+                    "ROUND(AVG(score),3) AS mean_score "
+                    "FROM neuron_functional_assessments "
+                    "GROUP BY neuron_id,phase,case_id "
+                    "ORDER BY neuron_id,phase,case_id LIMIT 60"
+                )
+            ]
+        else:
+            report["functional_probes"] = []
+            report["functional_case_scores"] = []
+        if "worker_events" in tables:
+            report["recent_error_groups"] = [
+                dict(row)
+                for row in conn.execute(
+                    "SELECT task_type,event_type,COUNT(*) AS count,MAX(created_at) AS last_at FROM worker_events WHERE status IN ('error','failed') AND julianday(created_at)>=julianday('now','-15 minutes') GROUP BY task_type,event_type ORDER BY last_at DESC LIMIT 20"
+                )
+            ]
+            report["recent_error_classes"] = []
+            for row in conn.execute(
+                "SELECT task_type,payload_json,created_at FROM worker_events "
+                "WHERE event_type='internal_error' "
+                "AND julianday(created_at)>=julianday('now','-60 minutes') "
+                "ORDER BY id DESC LIMIT 15"
+            ):
+                try:
+                    payload = json.loads(row["payload_json"] or "{}")
+                except (TypeError, ValueError):
+                    payload = {}
+                if not isinstance(payload, dict):
+                    payload = {}
+                error_type = str(payload.get("error_type") or "unknown")
+                if len(error_type) > 64 or not all(
+                    c.isalnum() or c == "_" for c in error_type
+                ):
+                    error_type = "unclassified"
+                message = str(payload.get("error_message") or "").casefold()
+                failure_code = "unclassified"
+                for phrase, category in (
+                    ("database is locked", "database_locked"),
+                    ("no such table", "missing_table"),
+                    ("no such column", "missing_column"),
+                    ("no existe el esquema", "schema_path_missing"),
+                    ("unable to open database", "database_unavailable"),
+                    ("readonly database", "readonly_database"),
+                ):
+                    if phrase in message:
+                        failure_code = category
+                        break
+                report["recent_error_classes"].append(
+                    {
+                        "scope": row["task_type"],
+                        "error_type": error_type,
+                        "failure_code": failure_code,
+                        "at": row["created_at"],
+                    }
+                )
+        else:
+            report["recent_error_classes"] = []
+        if "autonomous_tasks" in tables:
+            report["queue_order"] = [
+                dict(row)
+                for row in conn.execute(
+                    "SELECT task_id,task_type,status,attempt,priority,ROUND((julianday('now')-julianday(created_at))*1440,2) AS age_minutes,priority-MIN(100,CAST((julianday('now')-julianday(created_at))*1440 AS INTEGER)) AS effective_priority FROM autonomous_tasks WHERE status IN ('pending','queued','deferred','retry_wait','leased','running') ORDER BY effective_priority,created_at LIMIT 20"
+                )
+            ]
+    try:
+        report["resource_policy"] = _ledger(r5).policy()
+    except (OSError, sqlite3.Error, ValueError):
+        report["resource_policy"] = {"status": "not_observed"}
+    report["prospective_study"] = _read(Path(r5.WORK) / "prospective_learning.json")
+    report["study_launch"] = _read(Path(r5.WORK) / "prospective_launch.json")
+    report["memory_lineage"] = _study_memory_lineage(r5)
+    report["study_wait"] = _read(Path(r5.WORK) / "prospective_wait.json")
+    if report["study_wait"].get("at", "") < report["prospective_study"].get(
+        "updated_at", ""
+    ):
+        report["study_wait"] = {}
+    monitor = getattr(r5, "_prospective_learning_monitor", None)
+    report["study_monitor_alive"] = bool(
+        monitor and monitor["thread"].is_alive() and not monitor["stop"].is_set()
+    )
+    lineage_status = str(report["memory_lineage"].get("status") or "not_observed")
+    wait_reason = str(report["study_wait"].get("reason") or "none")
+    # A compact summary makes a pending fresh epoch distinguishable from a
+    # quarantined historical claim, without changing either stored state.
+    safe_reason = (
+        wait_reason
+        if len(wait_reason) <= 96
+        and all(ch.isalnum() or ch in "_:-" for ch in wait_reason)
+        else "unclassified"
+    )
+    report["readiness_summary"] = {
+        "lineage_status": lineage_status,
+        "new_epoch_lineage_verified": lineage_status
+        in (
+            "aligned",
+            "quarantined_fresh_epoch_ready",
+            "quarantined_fresh_epoch_aligned",
+        ),
+        "study_monitor_alive": report["study_monitor_alive"],
+        "study_launch_status": report["study_launch"].get("status"),
+        "study_wait_reason_code": safe_reason,
+        "improvement_certified": False,
+    }
+    report["truth"] = (
+        "Application, functional trend and causal improvement are distinct. Old sessions without pre-lesson measurements remain uncertified."
+    )
+    return report
+
+
+def _embedding_failure_code(result):
+    """Safe Ollama embedding failure categories: no raw backend errors or vectors."""
+    error = str(getattr(result, "error", "") or "").lower()
+    if not result.ok:
+        if "timed out" in error or "timeout" in error:
+            return "timeout"
+        if "http error 404" in error:
+            return "model_or_endpoint_not_found"
+        if any(f"http error {code}" in error for code in (429, 502, 503, 504)):
+            return "backend_transient"
+        if "http error 500" in error:
+            return "backend_internal_error"
+        if "connection refused" in error or "remote end closed" in error:
+            return "connection_unavailable"
+        if "valid" in error and "embedding" in error:
+            return "invalid_embedding_response"
+        return "inference_unspecified"
+    if result.dimensions <= 0 or not result.embeddings:
+        return "empty_embedding_response"
+    if not all(
+        math.isfinite(value) for vector in result.embeddings for value in vector
+    ):
+        return "nonfinite_embedding_values"
+    return None
+
+
+def prepare_models(context):
+    import shutil
+
+    import psutil
+
+    from triade.core.ollama_blood import check_ollama_blood
+    from triade.models.ollama_client import OllamaClient
+
+    r5 = context["r5"]
+    blood = check_ollama_blood()
+    if not blood.get("can_reason"):
+        raise NotReady("reasoning_model_not_available")
+    if not blood.get("can_embed"):
+        if (
+            shutil.disk_usage(r5.ROOT).free < 4 * 1024**3
+            or psutil.virtual_memory().available < 1.5 * 1024**3
+        ):
+            raise NotReady("insufficient_resources_for_embedding_setup")
+        context["progress"](
+            "Instalando el embedding compatible que falta; la API continúa activa…"
+        )
+        _measured(
+            r5,
+            "model_install",
+            lambda: r5.run(["ollama", "pull", "nomic-embed-text:latest"], timeout=900),
+            "nomic-embed-text:latest",
+        )
+        blood = check_ollama_blood()
+    if not blood.get("can_embed"):
+        raise NotReady("embedding_model_not_available_after_setup")
+    context.pop("embedding_probe", None)
+    failure = None
+    # /api/tags confirms model installation, not /api/embed inference. Make a
+    # bounded, ledger-accounted retry only for transient Ollama failures.
+    for attempt in (1, 2):
+        embedding = _measured(
+            r5,
+            "light",
+            lambda: OllamaClient(db_path=r5.DB, timeout=120).embed(
+                blood["embedding_model"],
+                "Comprobación de recuperación semántica de Tríade.",
+            ),
+            blood["embedding_model"],
+        )
+        failure = _embedding_failure_code(embedding)
+        context["embedding_probe"] = {
+            "status": "passed" if failure is None else "failed",
+            "failure_code": failure,
+            "dimensions": embedding.dimensions,
+            "vector_count": len(embedding.embeddings),
+            "attempts": attempt,
+        }
+        if failure is None:
+            break
+        if attempt == 2 or failure not in {
+            "timeout",
+            "backend_transient",
+            "connection_unavailable",
+        }:
+            break
+        time.sleep(2)
+    if failure is not None:
+        raise NotReady("embedding_inference_failed")
+    return {
+        "status": "models_ready",
+        "reasoning_model": blood["reasoning_model"],
+        "embedding_model": blood["embedding_model"],
+        "embedding_dimensions": embedding.dimensions,
+    }
+
+
+def _engine(db, material_ids=None, baseline_run_ids=()):
+    from triade.neurons.competency_store import CompetencyStore
+    from triade.neurons.education_cycle import NeuronEducationCycle
+    from triade.neurons.functional_evidence import MIN_DISTINCT_CASES, VERSION
+
+    class FunctionalBaselineStore(CompetencyStore):
+        def record_session(self, **kwargs):
+            if kwargs.get("state") == "lesson_prepared":
+                with contextlib.closing(_connect(self.db_path)) as conn:
+                    rows = conn.execute(
+                        "SELECT run_id,case_id,score FROM neuron_functional_assessments WHERE neuron_id=? AND phase='pre' AND rubric_version=? AND datetime(created_at)<datetime('now') ORDER BY datetime(created_at) DESC,id DESC",
+                        (kwargs["neuron_id"], VERSION),
+                    ).fetchall()
+                latest = {}
+                for run_id, case, score in rows:
+                    if run_id in baseline_run_ids:
+                        latest.setdefault(case, float(score))
+                if len(latest) < MIN_DISTINCT_CASES:
+                    raise NotReady("prospective_functional_baseline_missing")
+                kwargs["baseline_score"] = statistics.mean(latest.values())
+            return super().record_session(**kwargs)
+
+    class FrozenMaterialCycle(NeuronEducationCycle):
+        def _candidate_materials(self):
+            rows = super()._candidate_materials()
+            return (
+                rows
+                if material_ids is None
+                else [row for row in rows if row["candidate_id"] in material_ids]
+            )
+
+    engine = FrozenMaterialCycle(db)
+    engine.store = FunctionalBaselineStore(db)
+    return engine
+
+
+def _authorize_material_ids(db, candidate_ids, domain, run_id):
+    """Apply the native retrieval gates to curriculum-selected material IDs.
+
+    Curriculum relevance is established by ``relevant_material`` before this
+    helper is called.  The native retriever's lexical threshold is designed for
+    open-ended search, so comparing a short question against a long research
+    document silently drops otherwise eligible material.  Here each selected
+    document is retrieved only against its own content and ID; state,
+    provenance, canonicality, domain and safety checks remain native.
+    """
+    from triade.learning.retrieval import LearningRetriever
+
+    ids = sorted({str(candidate_id) for candidate_id in candidate_ids if candidate_id})
+    if not ids:
+        return []
+    placeholders = ",".join("?" for _ in ids)
+    with contextlib.closing(_connect(db)) as conn:
+        rows = conn.execute(
+            f"SELECT candidate_id,content FROM learning_queue "
+            f"WHERE candidate_id IN ({placeholders}) AND domain=?",
+            (*ids, domain),
+        ).fetchall()
+    retriever = LearningRetriever(db)
+    matches = []
+    for row in rows:
+        decision = retriever.retrieve_decision(
+            str(row["content"] or ""),
+            run_id=run_id,
+            limit=1,
+            domain=domain,
+            only_candidate_ids={str(row["candidate_id"])},
+        )
+        matches.extend(decision.matches)
+    return matches
+
+
+def _target(engine, db):
+    from triade.neurons.curriculum import domain_query, relevant_material, source_domain
+    from triade.neurons.functional_evidence import supported_domain
+
+    with contextlib.closing(_connect(db)) as conn:
+        candidates = list(
+            conn.execute(
+                "SELECT id,name,domain FROM neurons WHERE status='experimental' ORDER BY id LIMIT 100"
+            )
+        )
+    for neuron in candidates:
+        domain = supported_domain(neuron["name"], neuron["domain"])
+        if domain is None:
+            continue
+        # The owner requests a bounded evaluation now. Override only the review
+        # calendar, never source, safety, activation or promotion gates.
+        target = engine._target(force=True, target_neuron_id=neuron["id"])
+        if not target:
+            continue
+        materials = engine._candidate_materials()
+        query = f"{target.get('mission') or target['name']} {domain_query(target['domain'])}"
+        chosen = relevant_material(
+            materials,
+            query,
+            target["domain"],
+        )
+        # Match the official cycle's same-domain completion, with the same source gate.
+        seen = {item["candidate_id"] for item in chosen}
+        for material in materials:
+            if len(chosen) >= engine._required_sources():
+                break
+            if (
+                material.get("domain") == target["domain"]
+                and material["candidate_id"] not in seen
+            ):
+                chosen.append(material)
+                seen.add(material["candidate_id"])
+        authorized = _authorize_material_ids(
+            db,
+            {item["candidate_id"] for item in chosen},
+            target["domain"],
+            "study-planning-" + uuid.uuid4().hex,
+        )
+        authorized_ids = {match.candidate_id for match in authorized}
+        chosen = [item for item in chosen if item["candidate_id"] in authorized_ids]
+        sources = {
+            source_domain(ref)
+            for item in chosen
+            for ref in engine._material_source_refs(item)
+        }
+        if len(sources) >= engine._required_sources():
+            return {
+                "neuron_id": int(neuron["id"]),
+                "neuron_name": neuron["name"],
+                "domain": neuron["domain"],
+                "suite": domain,
+                "material_ids": sorted({item["candidate_id"] for item in chosen}),
+                "material_query": query,
+            }
+    raise NotReady("no_supported_neuron_with_independent_material")
+
+
+def _probe(r5, state, case, phase):
+    from triade.core.ollama_blood import check_ollama_blood
+    from triade.neurons.functional_evidence import register_actual_probe
+
+    model = check_ollama_blood().get("reasoning_model")
+    if not model:
+        raise NotReady("reasoning_model_not_available")
+    context = {
+        "semantic_domain": state["domain"],
+        "domain": state["domain"],
+        # An explicit target goes through the native should_activate policy;
+        # it does not write activity, change status, or force an activation.
+        "active_neuron": state["neuron_name"],
+        "functional_probe_case": case.id,
+        "prospective_study_id": state["study_id"],
+    }
+    prompt = f"{case.question}\nContexto de dominio: {state['domain']}."
+    material_ids = []
+    if phase == "post":
+        from triade.learning.retrieval import build_learning_block
+
+        # This is a bounded experiment, not production knowledge injection.
+        # The native experimental retriever keeps state, source, deduplication
+        # and safety gates. Nothing is consolidated or reclassified here.
+        matches = _authorize_material_ids(
+            r5.DB,
+            set(state.get("candidate_ids", [])),
+            state["domain"],
+            "study-" + uuid.uuid4().hex,
+        )
+        material_ids = [match.candidate_id for match in matches]
+        if not material_ids:
+            raise NotReady("lesson_material_not_authorized_by_experimental_retriever")
+        prompt = build_learning_block(matches) + "\n" + prompt
+        context["experimental_material_ids"] = material_ids
+    _refresh_worker_runtime_modules(reload_runner=Path("/content/Triade").is_dir())
+    from triade.core.runner import TriadeRunner
+
+    runner = TriadeRunner(
+        db_path=r5.DB,
+        runs_dir=Path(r5.ROOT) / "runs",
+        use_ollama=True,
+        auto_select_models=False,
+        central_model=model,
+        hypothalamus_model=model,
+        config_path=Path(r5.ROOT) / "triade.yml",
+    )
+
+    def run():
+        result = runner.run(
+            user_input=prompt,
+            source="neuron_functional_probe",
+            context=context,
+            propose_neurons=False,
+            semantic_recall_enabled=False,
+        )
+        models = result.get("models", {})
+        if not all(
+            models.get(role, {}).get("ok") is True
+            for role in ("central", "hypothalamus")
+        ):
+            raise NotReady("model_fallback_is_not_a_functional_measurement")
+        proof = register_actual_probe(
+            r5.DB,
+            run_id=str(result.get("run_id") or ""),
+            neuron_id=state["neuron_id"],
+            case_id=case.id,
+            phase=phase,
+            session_id=state.get("session_id") if phase == "post" else None,
+            answer=str(result.get("response") or ""),
+        )
+        return {
+            "run_id": result["run_id"],
+            "case_id": case.id,
+            "score": proof["score"],
+            "experimental_material_ids": material_ids,
+            "production_application_certified": False,
+        }
+
+    return _measured(r5, "deep_evaluation", run, model)
+
+
+def _record_target_applications(db, session_id, run_ids):
+    from triade.neurons.education_applications import NeuronEducationApplicationRecorder
+
+    recorder = NeuronEducationApplicationRecorder(db)
+    with contextlib.closing(recorder._connect()) as conn, conn:
+        session = conn.execute(
+            "SELECT neuron_id,created_at,state FROM neuron_education_sessions WHERE session_id=?",
+            (session_id,),
+        ).fetchone()
+        if not session or session["state"] != "lesson_prepared":
+            return {
+                "applications_added": 0,
+                "reason": "session_already_closed_or_missing",
+            }
+        added = 0
+        existing = {
+            row[0]
+            for row in conn.execute(
+                "SELECT run_id FROM neuron_education_applications WHERE session_id=?",
+                (session_id,),
+            )
+        }
+        for row in recorder._runs_de_la_neurona(
+            conn, session["neuron_id"], desde=session["created_at"], hasta=None
+        ):
+            if row["run_id"] not in run_ids or row["run_id"] in existing:
+                continue
+            score = recorder._score(row)
+            if (
+                score is None
+                or row["safety_score"] is None
+                or row["safety_score"] < 0.6
+            ):
+                continue
+            conn.execute(
+                "INSERT INTO neuron_education_applications (session_id,run_id,outcome_score,evidence_ref,created_at) VALUES(?,?,?,?,?)",
+                (
+                    session_id,
+                    row["run_id"],
+                    score,
+                    f"verification_reports:{row['run_id']}",
+                    dt.datetime.now(dt.UTC).isoformat(),
+                ),
+            )
+            existing.add(row["run_id"])
+            added += 1
+        conn.execute(
+            "UPDATE neuron_education_sessions SET applied_run_count=(SELECT COUNT(*) FROM neuron_education_applications WHERE session_id=?) WHERE session_id=?",
+            (session_id, session_id),
+        )
+    return {"applications_added": added, "scope": "current_prospective_lesson_only"}
+
+
+def _resolve(db, session_id, run_ids):
+    from triade.neurons.education_resolver import NeuronEducationResolver
+
+    class TargetResolver(NeuronEducationResolver):
+        def _next_session(self, conn):
+            return conn.execute(
+                "SELECT * FROM neuron_education_sessions WHERE session_id=? AND state='lesson_prepared'",
+                (session_id,),
+            ).fetchone()
+
+    recorded = _record_target_applications(db, session_id, run_ids)
+    result = TargetResolver(db).resolve_once()
+    with contextlib.closing(_connect(db)) as conn:
+        actual = conn.execute(
+            "SELECT state,result,baseline_score,post_score,applied_run_count FROM neuron_education_sessions WHERE session_id=?",
+            (session_id,),
+        ).fetchone()
+    return {
+        "recorder": recorded,
+        "resolution": result,
+        "session": dict(actual) if actual else None,
+        "causal_improvement_certified": False,
+        "full_certified": False,
+    }
+
+
+def _save(context, state):
+    protection = context["protection_module"]
+    epoch = _quarantined_epoch(context["r5"])
+    path = (
+        epoch["local"]
+        if epoch
+        else Path(context["r5"].WORK) / "prospective_learning.json"
+    )
+    if epoch and state.get("session_id") == epoch["original_study_id"]:
+        raise NotReady("fresh_epoch_reused_historical_session")
+    state["updated_at"] = dt.datetime.now(dt.UTC).isoformat()
+    protection._json(path, state)
+    if epoch:
+        # Never overwrite the historical done claim or its exact archived bytes.
+        remote = epoch["remote"]
+    else:
+        source = protection._paths(context["r5"]).name
+        remote = (
+            Path(context["r5"].BASE)
+            / "operacion_colab_continua"
+            / "aprendizaje"
+            / source
+            / "current.json"
+        )
+    protection._json(remote, state)
+    return state
+
+
+def _study_state(context):
+    r5 = context["r5"]
+    epoch = _quarantined_epoch(r5)
+    if epoch:
+        # Independent real run IDs; do not replay the old done pointer.
+        return _epoch_state(epoch)
+    state = _read(Path(r5.WORK) / "prospective_learning.json")
+    if state:
+        return state
+    source = context["protection_module"]._paths(r5).name
+    return _read(
+        Path(r5.BASE)
+        / "operacion_colab_continua"
+        / "aprendizaje"
+        / source
+        / "current.json"
+    )
+
+
+def step(context):
+    """One real probe or one official curriculum transition; never a synthetic run."""
+    from triade.neurons.functional_evidence import CASES, VERSION
+
+    r5 = context["r5"]
+    r5._owner_account_status(r5.DB)
+    context["protection_module"]._backend_environment(r5)
+    state = _study_state(context)
+    if state.get("phase") == "blocked":
+        return state
+    if not state:
+        engine = _engine(r5.DB)
+        state = {
+            "phase": "pre",
+            "rubric_version": VERSION,
+            **_target(engine, r5.DB),
+            "pre": [],
+            "post": [],
+            "stable_promotion_authorized": False,
+            "study_id": "prospective-" + uuid.uuid4().hex,
+            "measurement_scope": "textual_domain_battery; not device, vision or code execution",
+            "causal_improvement_certified": False,
+            "review_trigger": "owner_requested_prospective_evaluation",
+        }
+    if state.get("rubric_version") != VERSION:
+        raise NotReady("rubric_changed_requires_review")
+    cases = [case for case in CASES if case.domain == state["suite"]][:5]
+    if len(cases) < 3:
+        raise NotReady("functional_suite_incomplete")
+    with contextlib.closing(_connect(r5.DB)) as conn:
+        for proof in state["pre"] + state["post"]:
+            if (
+                "neuron_functional_assessments" not in _tables(conn)
+                or not conn.execute(
+                    "SELECT 1 FROM neuron_functional_assessments WHERE run_id=? AND neuron_id=?",
+                    (proof["run_id"], state["neuron_id"]),
+                ).fetchone()
+            ):
+                raise NotReady("study_state_ahead_of_restored_memory")
+        active = conn.execute(
+            "SELECT COUNT(*) FROM autonomous_tasks WHERE status IN ('leased','running')"
+        ).fetchone()[0]
+    if active:
+        raise NotReady("backend_tasks_active_wait_for_window")
+    if state["phase"] == "done":
+        return state
+    if state["phase"] in ("pre", "post"):
+        phase = state["phase"]
+        if len(state[phase]) < len(cases):
+            state[phase].append(_probe(r5, state, cases[len(state[phase])], phase))
+        if len(state[phase]) == len(cases):
+            state["phase"] = "lesson" if phase == "pre" else "resolve"
+    elif state["phase"] == "lesson":
+        lesson = _engine(
+            r5.DB, state["material_ids"], {proof["run_id"] for proof in state["pre"]}
+        ).run_once(force=True, target_neuron_id=state["neuron_id"])
+        if lesson.get("status") != "lesson_prepared":
+            raise NotReady("official_curriculum:" + str(lesson.get("status")))
+        epoch = _quarantined_epoch(r5)
+        if epoch and lesson.get("session_id") == epoch["original_study_id"]:
+            raise NotReady("fresh_epoch_reused_historical_session")
+        with contextlib.closing(_connect(r5.DB)) as conn:
+            stored = conn.execute(
+                "SELECT lesson_json FROM neuron_education_sessions WHERE session_id=?",
+                (lesson["session_id"],),
+            ).fetchone()
+        state.update(
+            session_id=lesson["session_id"],
+            candidate_ids=json.loads(stored[0]).get("candidate_ids", []),
+            phase="post",
+        )
+    elif state["phase"] == "resolve":
+        state.update(
+            phase="checkpoint_pending",
+            result=_resolve(
+                r5.DB, state["session_id"], {proof["run_id"] for proof in state["post"]}
+            ),
+        )
+        # Persist a truthful pending state before attempting a costly backup.
+        # A failure must never leave a public "done" without its matching DB.
+        _save(context, state)
+    if state["phase"] == "checkpoint_pending":
+        state["backup"] = context["protection_module"].repair(
+            r5, require_fresh=True, study_state=state
+        )
+        if state["backup"].get("status") != "encrypted_copy_verified" or not state[
+            "backup"
+        ].get("study_checkpoint"):
+            raise RuntimeError("prospective_study_checkpoint_not_certified")
+        state["phase"] = "done"
+    return _save(context, state)
+
+
+def start(context):
+    r5 = context["r5"]
+    lineage = _study_memory_lineage(r5)
+    if lineage.get("status") in ("regressed", "blocked"):
+        return {"status": "blocked", "reason": "study_memory_lineage_unverified"}
+    previous = getattr(r5, "_prospective_learning_monitor", None)
+    if previous and previous["thread"].is_alive():
+        return {"status": "study_already_running"}
+    stop = threading.Event()
+
+    def watch():
+        while not stop.is_set():
+            try:
+                state = step(context)
+                if state.get("phase") in ("done", "blocked"):
+                    break
+            except NotReady as exc:
+                context["protection_module"]._json(
+                    Path(r5.WORK) / "prospective_wait.json",
+                    {"reason": str(exc), "at": dt.datetime.now(dt.UTC).isoformat()},
+                )
+                # A model run or material gate must not consume quota forever.
+                # Only genuinely transient scheduling/budget waits are retried.
+                if not str(exc).startswith(
+                    ("resource_budget:", "backend_tasks_active_")
+                ):
+                    break
+            except Exception as exc:  # noqa: BLE001 - stop rather than repeatedly spend inference budget
+                context["protection_module"]._json(
+                    Path(r5.WORK) / "prospective_wait.json",
+                    {
+                        "reason": "study_stopped",
+                        "error_type": type(exc).__name__,
+                        "error": str(exc)[:1000],
+                        "traceback": traceback.format_exc(limit=8)[-4000:],
+                        "at": dt.datetime.now(dt.UTC).isoformat(),
+                    },
+                )
+                break
+            if stop.wait(60):
+                break
+
+    thread = threading.Thread(
+        target=watch, name="triade-prospective-study", daemon=True
+    )
+    r5._prospective_learning_monitor = {"stop": stop, "thread": thread}
+    thread.start()
+    return {
+        "status": "prospective_study_started",
+        "interval_seconds": 60,
+        "truth": "Only genuine model runs with activated target neuron and verifier count. Improvement is not guaranteed.",
+    }
+
+
+def attach(context):
+    """Learning is observed by the governed cycle, not triggered by UI buttons."""
+    client = getattr(context.get("progress"), "__self__", None)
+    if client is None or not getattr(client, "view", None):
+        return {"status": "panel_not_rendered"}
+    return {"status": "learning_observation_only", "manual_controls": False}

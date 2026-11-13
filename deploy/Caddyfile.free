@@ -1,0 +1,22 @@
+{$TRIADE_DOMAIN} {
+    encode gzip
+
+    reverse_proxy triade-free:8010 {
+        health_uri /health/live
+        health_interval 60s
+        health_timeout 5s
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    log {
+        output stdout
+        format json
+    }
+}

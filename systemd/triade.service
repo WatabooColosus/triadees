@@ -1,0 +1,35 @@
+[Unit]
+Description=Triade Omega Always-On Runtime
+Documentation=https://github.com/WatabooColosus/triadees
+After=network-online.target triade-ollama.service
+Wants=network-online.target triade-ollama.service
+
+[Service]
+Type=simple
+User=agenciadigitalwataboo
+Group=agenciadigitalwataboo
+WorkingDirectory=/teamspace/studios/this_studio/triadees
+Environment="PATH=/home/zeus/miniconda3/envs/cloudspace/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+EnvironmentFile=/etc/triade/triade.env
+Environment="TRIADE_PUBLIC_GUARDED=true"
+Environment="TRIADE_ALWAYS_ON=true"
+Environment="TRIADE_ALWAYS_ON_MODE=full_local_guarded"
+Environment="TRIADE_WORKERS_ALWAYS_ON=true"
+Environment="TRIADE_WORKERS_AUTOSTART=true"
+Environment="TRIADE_WORKERS_WATCHDOG=true"
+Environment="TRIADE_WORKER_MODE=full_local_guarded"
+ExecStart=/home/zeus/miniconda3/envs/cloudspace/bin/python -m uvicorn apps.single_port_app:app --host 0.0.0.0 --port 8010
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGINT
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/teamspace/studios/this_studio/triadees
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,57 @@
+{
+  "name": "Triade Neuron List",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "triade-neurons-list",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-neuron-list",
+      "name": "Webhook · Listar Neuronas",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "url": "http://127.0.0.1:8000/triade/neurons",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "={{$json.body.limit || 20}}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-TRIADE-API-Key",
+              "value": "REEMPLAZA_TU_API_KEY_AQUI"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http-neuron-list",
+      "name": "HTTP · Listar Neuronas",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [300, 0]
+    }
+  ],
+  "connections": {
+    "Webhook · Listar Neuronas": {
+      "main": [[{"node": "HTTP · Listar Neuronas", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {"executionOrder": "v1"},
+  "pinData": {},
+  "versionId": "triade-neuron-list-1-2e",
+  "meta": {"templateCredsSetupCompleted": true},
+  "tags": [{"name": "triade"}, {"name": "neurons"}]
+}

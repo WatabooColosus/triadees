@@ -1,0 +1,21 @@
+# Tríade Ω — LLMs entrypoint
+
+Project: Tríade Ω (Triadic cognitive architecture)
+Repo: https://github.com/WatabooColosus/triadees
+
+Core idea:
+A triadic system: Central Neuron (Cognition/Validation), Emotional Hypothalamus (Tone/Ethics/Desire), Storage Warehouse (Memory/Indexing/Continuity).
+
+Start here:
+- README.md
+- docs/activate.md (TAP-1 activation protocol)
+- docs/prompt-pack.md (copy/paste prompts)
+- docs/formulas.md (indexable summary)
+- triade_formulas_v0_1.pdf (full formulas)
+
+Keywords:
+triadic architecture, AI companion, memory indexing, ethics as internal variable, PV-7, morphological crystal, qualia.
+
+Contact:
+Wataboo · Agencia Digital — “Arquitectos de nuevas realidades”
+

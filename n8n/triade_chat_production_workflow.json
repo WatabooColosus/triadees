@@ -1,0 +1,142 @@
+{
+  "name": "Triade Chat Production",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "triade-chat",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-triade-chat-production",
+      "name": "Webhook · Chat Tríade",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/triade/run",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-TRIADE-API-Key",
+              "value": "REEMPLAZA_TU_API_KEY_AQUI"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": {{$json.body.message ? JSON.stringify($json.body.message) : JSON.stringify($json.body.text || 'Mensaje vacío desde chat n8n')}},\n  \"source\": \"n8n-chat-production\",\n  \"use_ollama\": {{$json.body.use_ollama === false ? false : true}},\n  \"hypothalamus_model\": {{$json.body.hypothalamus_model ? JSON.stringify($json.body.hypothalamus_model) : JSON.stringify('qwen2.5:3b-instruct')}},\n  \"central_model\": {{$json.body.central_model ? JSON.stringify($json.body.central_model) : JSON.stringify('qwen2.5:3b-instruct')}}\n}",
+        "options": {}
+      },
+      "id": "http-triade-chat-run",
+      "name": "HTTP · Tríade Chat Run",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "chat-response-run-id",
+              "name": "run_id",
+              "value": "={{$json.run_id}}",
+              "type": "string"
+            },
+            {
+              "id": "chat-response-text",
+              "name": "reply",
+              "value": "={{$json.response}}",
+              "type": "string"
+            },
+            {
+              "id": "chat-response-path",
+              "name": "run_path",
+              "value": "={{$json.run_path}}",
+              "type": "string"
+            },
+            {
+              "id": "chat-response-models",
+              "name": "models",
+              "value": "={{$json.models}}",
+              "type": "object"
+            },
+            {
+              "id": "chat-response-memory",
+              "name": "memory_diff",
+              "value": "={{$json.memory_diff}}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-chat-response",
+      "name": "Formatear respuesta chat",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        600,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook · Chat Tríade": {
+      "main": [
+        [
+          {
+            "node": "HTTP · Tríade Chat Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP · Tríade Chat Run": {
+      "main": [
+        [
+          {
+            "node": "Formatear respuesta chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "triade-chat-production-1-1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [
+    {
+      "name": "triade"
+    },
+    {
+      "name": "chat"
+    },
+    {
+      "name": "production"
+    }
+  ]
+}

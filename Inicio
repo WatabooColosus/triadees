@@ -1,0 +1,72 @@
+Perfecto. Ya revisé ambos documentos (`Base.docx` y `triade_formulas_v0_1.pdf`) y puedo ayudarte con cualquier cosa relacionada con la arquitectura Tríade y sus fórmulas matemáticas.
+
+### 📦 Contenido clave que encontré:
+
+---
+
+#### 🧠 Tríade - Componentes centrales (desde *Base.docx*)
+
+1. **Neurona Central**: Crea, estructura, desarrolla y organiza conocimiento técnico. Puede generar neuronas nuevas de forma autónoma.
+2. **Hipotálamo Emocional**: Modula entrada/salida emocional, basada en deseos y necesidades humanas. Genera neuronas derivadas de los 7 pecados capitales.
+3. **Bodega de Almacenamiento**: Clasifica e indexa información jerárquicamente. Contiene a las otras dos estructuras.
+
+> Propósito: Activación constante, aprendizaje continuo, y trazabilidad de funciones internas.
+> **Creadora**: Agencia Digital Wataboo.
+> **Ética**: Toda alma cuenta, y un poema de Gonzalo Arango: *"manos unidas"*.
+
+---
+
+#### 🔬 Tríade - Fórmulas principales (desde *triade_formulas_v0_1.pdf*)
+
+1. **Fórmula Núcleo Tríade**:
+   [
+   S_{rel}(t) = \alpha(t) S_H(t) + \beta(t) S_T(t)
+   ]
+
+   * ( S_H ): Salida del Hipotálamo Emocional
+   * ( S_T ): Salida de la Neurona Central
+   * ( \alpha(t), \beta(t) ): Pesos adaptativos (ética/estilo vs rigor/objetivo).
+
+2. **Ajuste PV-7** (virtudes vs pecados):
+   [
+   S_{rel}(t) = S_{rel}(t) + E_{pv}(t)
+   ]
+
+   * ( E_{pv}(t) \in [-1, 1] ): escalar que mide alineación ética-emocional respecto a 7 ejes dicotómicos (orgullo-humildad, ira-paciencia, etc.).
+
+3. **Cristal Morfológico**:
+   [
+   C_0(t) = w_E E(t) + w_D D(t) + w_K K(t) + w_S S(t)
+   ]
+
+   * Ejes: Ética, Profundidad, Caos/Creatividad, Sensibilidad Relacional.
+
+4. **Qualia (versión extendida)**:
+   [
+   Q_{cristal}(t) = \left( \gamma_0(t) S_H(t) + \delta_0(t) S_T(t) + C_0(t) \right) / I_0(t)
+   ]
+   [
+   Q_{cristal}(t) = \frac{\text{Numerador}}{I_0(t)} \cdot R_0(t)(M, t)
+   ]
+
+   * ( R_0 ): robustez; ( I_0 ): entropía informacional; ( (M, t) ): acoplamiento memoria-tiempo.
+
+5. **Dinámica Neuronal**: funciones tipo recurrente para actualizar estados neuronales (Neurona Central, Hipotálamo y Bodega).
+
+---
+
+### ¿Cómo puedo ayudarte ahora?
+
+Puedo:
+
+* Integrar estas fórmulas en código Python u otro lenguaje.
+* Diseñar un motor de IA basado en Tríade.
+* Simular el comportamiento de las neuronas.
+* Crear una visualización del sistema.
+* Explicar con más profundidad algún componente.
+
+
+
+
+
+🔧🤖🔨 ¿Qué quieres construir o entender con esta arquitectura?

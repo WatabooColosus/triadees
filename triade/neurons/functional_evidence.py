@@ -103,6 +103,12 @@ CASES = (
         "¿Qué comando ADB abre una shell del dispositivo? Solo comando.",
         "adb shell",
     ),
+    Case("pulse1", "live_pulse_text", "HTTP 200 en /health/live indica vivo o caido?", "vivo"),
+    Case("pulse2", "live_pulse_text", "Que componente mide ciclos y timestamps?", "heartbeat"),
+    Case("pulse3", "live_pulse_text", "Que componente revive un worker muerto?", "watchdog"),
+    Case("code1", "code_repair_text", "Que comando ejecuta pytest en modo silencioso?", "python -m pytest -q"),
+    Case("code2", "code_repair_text", "Que palabra captura una excepcion en Python?", "except"),
+    Case("code3", "code_repair_text", "Que archivo declara dependencias Python?", "pyproject.toml"),
 )
 CASES_BY_ID = {c.id: c for c in CASES}
 
@@ -140,6 +146,10 @@ def supported_domain(neuron_name: str, neuron_domain: str = "") -> str | None:
         return "python_text"
     if "android" in descriptor or "adb" in descriptor:
         return "android_cli_text"
+    if "live_pulse" in descriptor or "pulso" in descriptor or "watchdog" in descriptor:
+        return "live_pulse_text"
+    if "code_repair" in descriptor or "testing" in descriptor:
+        return "code_repair_text"
     return None
 
 
