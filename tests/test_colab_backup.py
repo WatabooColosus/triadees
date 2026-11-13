@@ -1,8 +1,8 @@
 """Only temporary SQLite/key fixtures; never user memory or real credentials."""
 
 import hashlib
-import os
 import json
+import os
 from types import SimpleNamespace
 
 import pytest
