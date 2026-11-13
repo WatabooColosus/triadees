@@ -169,6 +169,31 @@ def ensure_schema(conn: sqlite3.Connection):
     )
 
 
+def _verified_persisted_answer(db: Path, run_id: str) -> str:
+    """Check runner artifact consistency; not cryptographic tamper resistance."""
+    if not isinstance(run_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", run_id):
+        raise ValueError("Identificador de run inseguro")
+    root = db.resolve().parents[2] if db.parent.name == "memory" and db.parent.parent.name == "triade" else db.resolve().parent
+    runs_root = (root / "runs").resolve()
+    run_path = (runs_root / run_id).resolve()
+    if run_path.parent != runs_root:
+        raise ValueError("Ruta de run fuera del directorio autorizado")
+    if not (run_path / "CLOSED").is_file():
+        raise ValueError("Run sin marcador de cierre")
+    try:
+        output = json.loads((run_path / "output.json").read_text(encoding="utf-8"))
+        integrity = json.loads((run_path / "integrity.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError("Artefactos de run ausentes o invalidos") from exc
+    if not isinstance(output, dict) or not isinstance(integrity, dict):
+        raise ValueError("Artefactos de run invalidos")
+    if output.get("run_id") != run_id or integrity.get("run_id") != run_id:
+        raise ValueError("Identidad de run inconsistente")
+    if output.get("status") != "ok" or not isinstance(output.get("response"), str):
+        raise ValueError("Salida del run no valida")
+    return output["response"]
+
+
 def register_actual_probe(
     db_path: str | Path,
     *,
@@ -268,6 +293,9 @@ def register_actual_probe(
             verified = False
         if not verified:
             raise ValueError("Run no verificado o inseguro")
+        persisted_answer = _verified_persisted_answer(db, run_id)
+        if persisted_answer != answer:
+            raise ValueError("Respuesta no coincide con output.json del run")
         # A real run's DB timestamp, not the time this function was called.
         date = conn.execute(
             "SELECT created_at FROM neuron_activity WHERE run_id=? AND neuron_id=? AND activated=1 ORDER BY id LIMIT 1",
@@ -289,11 +317,11 @@ def register_actual_probe(
                 raise ValueError("La prueba post precede la lección")
         ensure_schema(conn)
         prior = conn.execute(
-            "SELECT neuron_id,case_id,phase,session_id,score FROM neuron_functional_assessments WHERE run_id=?",
+            "SELECT neuron_id,case_id,phase,session_id,score,rubric_version,answer_digest FROM neuron_functional_assessments WHERE run_id=?",
             (run_id,),
         ).fetchone()
         if prior:
-            if tuple(prior) != (neuron_id, case_id, phase, session_id, result["score"]):
+            if tuple(prior) != (neuron_id, case_id, phase, session_id, result["score"], VERSION, result["answer_digest"]):
                 raise ValueError("Run ya registrado con otro contenido")
             return {"status": "already_recorded", **result}
         conn.execute(
