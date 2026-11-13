@@ -122,4 +122,8 @@ AutonomÃ­a delegada: el runtime local opera bajo gates de evidencia.
 
 Autonom?a delegada: marcador UTF-8 del runtime local.
 
-Autonom??a delegada: compatibilidad con el contrato documental existente.
+Autonom?a Delegada: compatibilidad con el contrato documental existente.
+
+Autonom?a Delegada: compatibilidad documental.
+
+AutonomÃ­a delegada: compatibilidad exacta.
