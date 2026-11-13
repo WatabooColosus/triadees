@@ -19,6 +19,7 @@ import uuid
 from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
+from triade.security.file_privacy import protect_private_file
 
 
 def _read(path):
@@ -67,6 +68,7 @@ def _private_new(path, data):
         stream.write(data)
         stream.flush()
         os.fsync(stream.fileno())
+    protect_private_file(path)
 
 
 def _json(path, value):
