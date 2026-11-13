@@ -1,4 +1,5 @@
 import sqlite3
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -6,8 +7,21 @@ from pathlib import Path
 from triade.neurons.functional_evidence import (
     assess_answer,
     functional_comparison,
-    register_actual_probe,
+    register_actual_probe as _register_actual_probe,
 )
+
+def register_actual_probe(db_path, **kwargs):
+    """Legacy fixtures create a synthetic persisted artifact before exercising gates."""
+    run_id = kwargs["run_id"]
+    runs = Path(db_path).parent / "runs" / run_id
+    runs.mkdir(parents=True, exist_ok=True)
+    (runs / "output.json").write_text(json.dumps({
+        "run_id": run_id, "response": kwargs["answer"], "status": "ok"
+    }), encoding="utf-8")
+    (runs / "integrity.json").write_text(json.dumps({"run_id": run_id}), encoding="utf-8")
+    (runs / "CLOSED").write_text("closed\n", encoding="utf-8")
+    return _register_actual_probe(db_path, **kwargs)
+
 
 SCHEMA = """
 CREATE TABLE neurons(id INTEGER PRIMARY KEY,name TEXT,domain TEXT);
@@ -64,6 +78,40 @@ class ProbeTests(unittest.TestCase):
                 "INSERT INTO verification_reports(run_id,status,safety_score,errors,warnings) VALUES(?,?,?,?,?)",
                 (run, verifier, safety, errors, warnings),
             )
+
+    def test_rejects_substituted_response(self):
+        self.run_event("substituted", self.before)
+        run = Path(self.temp.name) / "runs" / "substituted"
+        run.mkdir(parents=True)
+        (run / "output.json").write_text(json.dumps({
+            "run_id": "substituted", "response": "incorrecto", "status": "ok"
+        }), encoding="utf-8")
+        (run / "integrity.json").write_text(json.dumps({"run_id": "substituted"}), encoding="utf-8")
+        (run / "CLOSED").write_text("closed\n", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "no coincide"):
+            _register_actual_probe(self.db, run_id="substituted", neuron_id=11,
+                                   case_id="vis1", phase="pre", answer="#ff0000")
+
+    def test_rejects_changed_digest_same_score(self):
+        self.run_event("digest", self.before)
+        register_actual_probe(self.db, run_id="digest", neuron_id=11,
+                              case_id="vis1", phase="pre", answer="#ff0000")
+        with self.assertRaisesRegex(ValueError, "otro contenido"):
+            register_actual_probe(self.db, run_id="digest", neuron_id=11,
+                                  case_id="vis1", phase="pre", answer="#FF0000")
+
+    def test_rejects_wrong_artifact_run_id(self):
+        self.run_event("mismatch", self.before)
+        run = Path(self.temp.name) / "runs" / "mismatch"
+        run.mkdir(parents=True)
+        (run / "output.json").write_text(json.dumps({
+            "run_id": "other", "response": "#ff0000", "status": "ok"
+        }), encoding="utf-8")
+        (run / "integrity.json").write_text(json.dumps({"run_id": "mismatch"}), encoding="utf-8")
+        (run / "CLOSED").write_text("closed\n", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "Identidad"):
+            _register_actual_probe(self.db, run_id="mismatch", neuron_id=11,
+                                   case_id="vis1", phase="pre", answer="#ff0000")
 
     def test_exact_rubric_not_string_containment(self):
         self.assertEqual(assess_answer("py1", "4")["score"], 1.0)
