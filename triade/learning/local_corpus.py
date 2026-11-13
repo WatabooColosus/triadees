@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 
 RUBRIC_VERSION = "local-corpus-1"
@@ -44,4 +45,5 @@ def evaluate(case_id: str, answer: str) -> dict[str, object]:
         "score": 1.0 if observed == expected else 0.0,
         "pass": observed == expected,
         "rubric_version": RUBRIC_VERSION,
+        "answer_digest": hashlib.sha256(str(answer).encode("utf-8")).hexdigest(),
     }

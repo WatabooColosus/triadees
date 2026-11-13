@@ -11,6 +11,7 @@ def test_evaluation_is_exact_and_does_not_use_negative_control():
     assert evaluate("python-len", "3")["pass"] is True
     assert evaluate("python-len", "La respuesta es 3")["pass"] is False
     assert evaluate("python-len", "4")["pass"] is False
+    assert len(str(evaluate("python-len", "3")["answer_digest"])) == 64
 
 
 def test_unknown_case_fails_closed():
