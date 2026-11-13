@@ -195,7 +195,9 @@ class EncryptedBackup:
         key_file = EncryptedBackup._configured_key_file()
         if not key_text and key_file:
             path = Path(key_file)
-            if not inspect_private_file(path)["private"]:
+            privacy = inspect_private_file(path)
+            windows_private = os.name == "nt" and path.is_file() and not path.is_symlink()
+            if not privacy["private"] and not windows_private:
                 raise PermissionError("backup_key_file_permissions_must_be_0600")
             key_text = path.read_text(encoding="utf-8").strip()
         key = key_text.encode()
