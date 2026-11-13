@@ -4,11 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from triade.neurons.functional_evidence import (
-    assess_answer,
-    functional_comparison,
-    register_actual_probe as _register_actual_probe,
-)
+from triade.neurons import functional_evidence
+from triade.neurons.functional_evidence import assess_answer, functional_comparison
 
 def register_actual_probe(db_path, **kwargs):
     """Legacy fixtures create a synthetic persisted artifact before exercising gates."""
@@ -20,7 +17,7 @@ def register_actual_probe(db_path, **kwargs):
     }), encoding="utf-8")
     (runs / "integrity.json").write_text(json.dumps({"run_id": run_id}), encoding="utf-8")
     (runs / "CLOSED").write_text("closed\n", encoding="utf-8")
-    return _register_actual_probe(db_path, **kwargs)
+    return functional_evidence.register_actual_probe(db_path, **kwargs)
 
 
 SCHEMA = """
@@ -89,7 +86,7 @@ class ProbeTests(unittest.TestCase):
         (run / "integrity.json").write_text(json.dumps({"run_id": "substituted"}), encoding="utf-8")
         (run / "CLOSED").write_text("closed\n", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "no coincide"):
-            _register_actual_probe(self.db, run_id="substituted", neuron_id=11,
+            functional_evidence.register_actual_probe(self.db, run_id="substituted", neuron_id=11,
                                    case_id="vis1", phase="pre", answer="#ff0000")
 
     def test_rejects_changed_digest_same_score(self):
@@ -110,7 +107,7 @@ class ProbeTests(unittest.TestCase):
         (run / "integrity.json").write_text(json.dumps({"run_id": "mismatch"}), encoding="utf-8")
         (run / "CLOSED").write_text("closed\n", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "Identidad"):
-            _register_actual_probe(self.db, run_id="mismatch", neuron_id=11,
+            functional_evidence.register_actual_probe(self.db, run_id="mismatch", neuron_id=11,
                                    case_id="vis1", phase="pre", answer="#ff0000")
 
     def test_exact_rubric_not_string_containment(self):
