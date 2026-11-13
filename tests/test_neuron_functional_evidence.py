@@ -4,8 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from triade.neurons import functional_evidence
 from triade.neurons.functional_evidence import assess_answer, functional_comparison
+from triade.neurons import functional_evidence
 
 def register_actual_probe(db_path, **kwargs):
     """Legacy fixtures create a synthetic persisted artifact before exercising gates."""
