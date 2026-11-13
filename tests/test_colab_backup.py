@@ -1,6 +1,7 @@
 """Only temporary SQLite/key fixtures; never user memory or real credentials."""
 
 import hashlib
+import os
 import json
 from types import SimpleNamespace
 
@@ -56,7 +57,12 @@ def test_new_colab_domain_preserves_db_and_old_pointer_and_roundtrips(runtime):
     assert archive.read_bytes() == original
     active = json.loads((runtime.ROOT / "config/backup_key_location.json").read_text())
     key = protection.Path(active["key_file"])
-    assert key.stat().st_mode & 0o777 == 0o600
+    if os.name == "nt":
+        from triade.security.file_privacy import inspect_private_file
+
+        assert inspect_private_file(key)["private"] is True
+    else:
+        assert key.stat().st_mode & 0o777 == 0o600
     assert key.read_text() not in json.dumps(result)
     again = protection.repair(runtime)
     assert again["key_fingerprint"] == result["key_fingerprint"]
