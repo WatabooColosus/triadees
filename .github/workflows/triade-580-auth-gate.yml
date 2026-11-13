@@ -1,0 +1,64 @@
+name: Triade 5.8 secure account verification
+
+on:
+  push:
+    branches: [fix/triade-580-audit-safe-20261022]
+    paths:
+      - triade/security/public_auth.py
+      - triade/security/email_delivery.py
+      - apps/routes/auth.py
+      - apps/single_port_app.py
+      - tools/bootstrap_owner_account.py
+      - tests/test_public_registration_security.py
+      - tests/test_public_security.py
+      - frontend/src/App.tsx
+      - pyproject.toml
+      - requirements.txt
+      - .github/workflows/triade-580-auth-gate.yml
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  auth-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install runtime and tests
+        run: |
+          python -m pip install -e '.[dev]'
+          python -m pip install ruff mypy
+      - name: Ruff exact gate
+        run: |
+          ruff check .
+          ruff format --check .
+      - name: Account signup, email verification, permission and rate tests
+        run: |
+          pytest -q tests/test_public_registration_security.py tests/test_public_security.py
+      - name: Global type gate
+        run: mypy triade
+  frontend-auth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm audit --audit-level=high

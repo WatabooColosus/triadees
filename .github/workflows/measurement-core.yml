@@ -1,0 +1,26 @@
+name: Measurement Core
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run deterministic baseline
+        run: PYTHONPATH=. python scripts/run_measurement_core.py
+      - name: Upload evaluation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: measurement-core-evidence
+          path: runs/evaluations/

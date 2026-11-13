@@ -1,0 +1,12 @@
+-- Retira `neuron_certifications`: manifiesto de certificacion que nunca tuvo
+-- escritor. Su unico lector era `NeuronCertifier.audit_stable()`, instrumento de
+-- la fase 12 (2026-07-29, `completed`), retirado en el mismo commit.
+--
+-- El contrato canonico vivo es `triade/core/stable_neuron_audit.py`, que decide
+-- sobre evidencia medida —activaciones, diagnosticos, planes de prueba— en vez
+-- de sobre un manifiesto que alguien tenia que firmar a mano. Evidencia en
+-- docs/debt/NEURON_CERTIFICATION_CONTRACT.md
+--
+-- `neuron_certification_transitions` NO se retira: conserva las 13 cuarentenas
+-- de la fase 12 y pasa a ser bitacora historica.
+DROP TABLE IF EXISTS neuron_certifications;
