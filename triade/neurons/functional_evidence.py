@@ -188,11 +188,11 @@ def _verified_persisted_answer(db: Path, run_id: str) -> str:
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise ValueError("Artefactos de run ausentes o invalidos") from exc
     if not isinstance(output, dict) or not isinstance(integrity, dict):
-        raise ValueError("Artefactos de run invalidos")
+        raise TypeError("Artefactos de run invalidos")
     if output.get("run_id") != run_id or integrity.get("run_id") != run_id:
         raise ValueError("Identidad de run inconsistente")
     if output.get("status") != "ok" or not isinstance(output.get("response"), str):
-        raise ValueError("Salida del run no valida")
+        raise TypeError("Salida del run no valida")
     return output["response"]
 
 
