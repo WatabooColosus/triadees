@@ -253,11 +253,38 @@ class MissionPlanner:
                 ).fetchone()
             if existing is not None:
                 continue
+            contract = req.get("evaluation_contract")
+            if not isinstance(contract, dict):
+                with closing(self._connect()) as conn, conn:
+                    evidence = conn.execute(
+                        """SELECT baseline_evaluation_json,candidate_evaluation_json
+                           FROM learning_evidence WHERE id=?""",
+                        (req.get("evidence_id"),),
+                    ).fetchone()
+                if evidence:
+                    try:
+                        baseline = json.loads(str(evidence[0] or "{}"))
+                        candidate = json.loads(str(evidence[1] or "{}"))
+                        cases = [
+                            {"case_id": str(item["case_id"]), "expected": item.get("expected")}
+                            for item in (baseline.get("results") or [])
+                            if isinstance(item, dict) and item.get("case_id") is not None
+                        ]
+                        if cases and candidate.get("results"):
+                            contract = {
+                                "cases": cases,
+                                "metric": "independent_evaluation_score_delta",
+                                "baseline_evaluation_id": baseline.get("evaluation_id"),
+                                "candidate_evaluation_id": candidate.get("evaluation_id"),
+                                "inferred_from_persisted_evaluations": True,
+                            }
+                    except (TypeError, ValueError, json.JSONDecodeError):
+                        contract = None
             tasks.append(PlannedTask(
                 task_type="candidate_holdout_validation", priority=8,
                 reason=f"holdout candidato {req.get('candidate_id')}",
                 source="phase3_candidate_validation_requests", planner_score=0.95,
-                payload={"candidate_id":req.get("candidate_id"),"evidence_id":req.get("evidence_id"),"holdout_id":req.get("candidate_holdout_id"),"artifact_ref":req.get("artifact_ref"),"evaluation_contract":req.get("evaluation_contract")},
+                payload={"candidate_id":req.get("candidate_id"),"evidence_id":req.get("evidence_id"),"holdout_id":req.get("candidate_holdout_id"),"artifact_ref":req.get("artifact_ref"),"evaluation_contract":contract},
             ))
         return tasks
 
