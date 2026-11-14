@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -19,8 +20,9 @@ TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"
 
 
 def _sha() -> str:
+    git = os.environ.get("TRIADE_GIT_PATH") or str(Path(__file__).resolve().anchor + "GIT_PORTABLE\\cmd\\git.exe")
     return subprocess.run(
-        ["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True
+        [git, "rev-parse", "HEAD"], check=True, capture_output=True, text=True
     ).stdout.strip()
 
 
