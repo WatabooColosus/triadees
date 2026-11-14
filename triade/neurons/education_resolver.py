@@ -358,6 +358,12 @@ class NeuronEducationResolver:
                         "reason": motivo,
                         "rollback_ref": rollback_ref,
                         "rolled_back": rolled_back,
+                        # Binary gate for automation; raw decision remains
+                        # neutral/degraded/insufficient for audit fidelity.
+                        "promotion_decision": bool(
+                            decision == "improved"
+                            and functional.get("causal_attribution")
+                        ),
                     },
                 )
                 # `insufficient_evidence` NO cierra la hipótesis: la sesión sigue
@@ -368,6 +374,10 @@ class NeuronEducationResolver:
 
                 return {
                     "decision": decision,
+                    "promotion_decision": bool(
+                        decision == "improved"
+                        and functional.get("causal_attribution")
+                    ),
                     "reason": motivo,
                     "session_id": session_id,
                     "neuron_id": neuron_id,
