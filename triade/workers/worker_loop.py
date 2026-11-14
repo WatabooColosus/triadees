@@ -2087,11 +2087,12 @@ class WorkerLoop:
         if not holdout_id: reasons.append("holdout_id_missing")
         # A real candidate holdout must arrive with independent run records;
         # generic probes cannot satisfy this contract.
-        status = "blocked" if reasons or row is None else "pending_independent_runs"
-        report={"candidate_id":candidate_id,"holdout_id":holdout_id,"status":status,"reasons":reasons,"run_ref":run_ref,"independent":False}
+        validation_state = "blocked" if reasons or row is None else "pending_independent_runs"
+        status = "completed"
+        report={"candidate_id":candidate_id,"holdout_id":holdout_id,"status":status,"validation_state":validation_state,"reasons":reasons,"run_ref":run_ref,"independent":False}
         path=task_dir / "candidate_holdout_validation.json"
         path.write_text(_json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
-        return {"status":status,"candidate_id":candidate_id,"holdout_id":holdout_id,"report_ref":str(path),"validated_in_runs":False}
+        return {"status":status,"validation_state":validation_state,"candidate_id":candidate_id,"holdout_id":holdout_id,"report_ref":str(path),"validated_in_runs":False}
 
     def _neuron_functional_probe(
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
