@@ -1027,6 +1027,15 @@ class WorkerLoop:
                 lease_generation,
                 max(60, int(plazo * 2)),
             )
+            self.store.record_event(
+                "task_handler_entered",
+                "worker entered governed task handler",
+                run_ref=run_ref,
+            task_id=None,
+                task_type=task.task_type,
+                status="running",
+                payload={"attempt": intento, "timeout_seconds": plazo},
+            )
             result = self._execute_task(
                 task,
                 run_ref,
@@ -1658,6 +1667,15 @@ class WorkerLoop:
                 # El plazo crece con el intento: un timeout dice "no le dio
                 # tiempo", no "el trabajo está mal". Ver `timeout_for_attempt`.
                 plazo = _timeout_for_task(task, config.task_timeout, attempt)
+                self.store.record_event(
+                    "task_dispatch_started",
+                    "worker dispatch started",
+                    run_ref=run_ref,
+                    task_id=None,
+                    task_type=task.task_type,
+                    status="running",
+                    payload={"timeout_seconds": plazo},
+                )
                 outcome = self.task_executor.execute_callable(
                     handlers[task.task_type],
                     args=(task, run_ref, task_dir, config),
@@ -1700,6 +1718,15 @@ class WorkerLoop:
                     }
                 else:
                     result = outcome.result
+                self.store.record_event(
+                    "task_dispatch_finished",
+                    "worker dispatch finished",
+                    run_ref=run_ref,
+                    task_id=None,
+                    task_type=task.task_type,
+                    status=outcome.status,
+                    payload={"error": outcome.error},
+                )
                 result_status = str(result.get("status") or "")
                 if result_status in {
                     "ok",
@@ -2052,7 +2079,7 @@ class WorkerLoop:
             "functional_probe_started",
             "functional probe inference started",
             run_ref=run_ref,
-            task_id=task.id,
+            task_id=None,
             task_type="neuron_functional_probe",
             status="running",
             payload={"neuron_id": neuron_id, "case_id": case_id, "phase": phase},
@@ -2098,7 +2125,7 @@ class WorkerLoop:
             "functional_probe_completed",
             "functional probe inference completed",
             run_ref=run_ref,
-            task_id=task.id,
+            task_id=None,
             task_type="neuron_functional_probe",
             status="warning" if elapsed_ms > config.task_timeout * 1000 else "ok",
             payload={"elapsed_ms": elapsed_ms, "task_timeout_seconds": config.task_timeout},

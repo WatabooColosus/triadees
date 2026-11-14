@@ -161,6 +161,12 @@ TASK_CONCURRENCY_POLICY: dict[str, TaskConcurrencyPolicy] = {
     "neuron_education_cycle": TaskConcurrencyPolicy(
         "evaluation", 2, "model", ("neuron_id",)
     ),
+    # Functional probes are expensive inference and must be serialized per
+    # neuron/session so three post cases cannot claim the same model lane at
+    # once and expire without an artifact.
+    "neuron_functional_probe": TaskConcurrencyPolicy(
+        "evaluation", 1, "model", ("neuron_id", "session_id")
+    ),
     "self_improvement_evaluation": TaskConcurrencyPolicy(
         "evaluation", 2, "model", ("candidate_id", "neuron_id", "proposal_id")
     ),
