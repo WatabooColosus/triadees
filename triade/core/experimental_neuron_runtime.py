@@ -122,6 +122,26 @@ def should_activate(
     signals: Any,
     edge_usage: dict[str, Any],
 ) -> dict[str, Any]:
+    # Functional probes are explicit, governed evaluations.  Their context
+    # names the one neuron under test; without this route a probe could run
+    # successfully yet never produce real neuron_activity, making baseline /
+    # post comparisons impossible.  Keep the override narrow: both the
+    # neuron id and a declared probe case are mandatory.
+    requested_probe = context.get("functional_probe_neuron_id")
+    if requested_probe is not None and context.get("functional_probe_case"):
+        try:
+            if int(requested_probe) == int(neuron.get("id")):
+                return {
+                    "active": True,
+                    "reasons": [
+                        "functional_probe:explicit_neuron_under_test",
+                    ],
+                }
+        except (TypeError, ValueError):
+            return {
+                "active": False,
+                "reasons": ["functional_probe:invalid_neuron_id"],
+            }
     text = " ".join(
         [
             user_input or "",
