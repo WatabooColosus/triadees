@@ -317,11 +317,21 @@ def triage(root: Path, db: Path, cache: Path) -> dict[str, Any]:
                         "entrypoint arrancado: capacidad sin terminar"
                     )
                 else:
-                    clase, sev = "incomplete_subsystem", "medium"
-                    ev = (
-                        f"{escritores} escritor(es) declarados y 0 filas: la ruta de "
-                        "escritura existe y no se ha ejecutado nunca"
-                    )
+                    on_demand = {
+                        "capability_predictions",
+                        "learning_candidate_legacy_run_counts",
+                        "learning_candidate_run_uses",
+                        "semantic_governance_events",
+                    }
+                    if nombre in on_demand:
+                        clase, sev = "contracted_by_design", "low"
+                        ev = "writer gobernado bajo demanda o compatibilidad; cero filas no implica rotura"
+                    else:
+                        clase, sev = "incomplete_subsystem", "medium"
+                        ev = (
+                            f"{escritores} escritor(es) declarados y 0 filas: la ruta de "
+                            "escritura existe y no se ha ejecutado nunca"
+                        )
                 fuente = ""
             elif categoria == "entrypoints_without_launcher":
                 clase, sev = "legacy_expected", "low"
