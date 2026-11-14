@@ -187,6 +187,8 @@ def _serialise(nodes: list[Any], edges: list[Any], *, kind: str) -> dict[str, An
         "edges": [asdict(edge) for edge in edges],
         "states": counts,
         "simulated": False,
+        "real_only": True,
+        "source_truth": ["filesystem", "sqlite_read_only", "runtime_events"],
     }
 
 
@@ -258,6 +260,8 @@ def _from_artifact(name: str) -> dict[str, Any] | None:
         "source": "artifact",
         "generated_at": path.stat().st_mtime,
         "simulated": False,
+        "real_only": True,
+        "source_truth": ["artifact_generated_from_filesystem_and_sqlite"],
     }
 
 
@@ -334,6 +338,8 @@ def _build_system_graph() -> dict[str, Any]:
         "source": "canonical_graph_aggregation",
         "refresh": REFRESHER.status(),
         "simulated": False,
+        "real_only": True,
+        "source_truth": ["canonical_graph_aggregation_from_real_nodes"],
     }
 
 
@@ -420,6 +426,8 @@ def node_detail(graph: str, node_id: str) -> dict[str, Any]:
         "incoming": incoming,
         "degree": {"out": len(outgoing), "in": len(incoming)},
         "simulated": False,
+        "real_only": True,
+        "source_truth": ["filesystem", "sqlite_read_only", "runtime_events"],
     }
 
 
@@ -565,16 +573,33 @@ def build_pulse(cursor: FeedCursor | None = None) -> tuple[dict[str, Any], FeedC
     db_path = _db_path()
     cursor = cursor if cursor is not None else latest_cursor(db_path)
     events, advanced = read_new_events(db_path, cursor)
+    activity = []
+    for event in events:
+        graph = str(event.get("graph") or "")
+        columns = event.get("columns") or {}
+        node_ids: list[str] = []
+        if graph == "neural":
+            if columns.get("neuron_id") is not None:
+                node_ids.append(f"neuron:{columns['neuron_id']}")
+            if columns.get("run_id") is not None:
+                node_ids.append(f"run:{columns['run_id']}")
+        elif graph == "workers" and columns.get("task_type"):
+            node_ids.append(f"task_type:{columns['task_type']}")
+        elif graph == "vital_chain" and columns.get("task_id") is not None:
+            node_ids.append(f"task:{columns['task_id']}")
+        activity.append({"event_id": event.get("event_id"), "graph": graph, "node_ids": node_ids, "at": event.get("at")})
     payload = {
         "schema_version": 4,
         "generated_at": time.time(),
         "events": events,
+        "activity": activity,
         "cursor": advanced.to_dict(),
         "signals": build_signals(),
         "legend": legend(),
         "resources": _resource_snapshot(),
         "database": _database_health(db_path),
         "simulated": False,
+        "real_only": True,
     }
     return payload, advanced
 

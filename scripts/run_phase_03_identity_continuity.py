@@ -21,7 +21,10 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    with tempfile.TemporaryDirectory(prefix="triade-phase03-") as raw_tmp:
+    # Windows puede mantener el handle SQLite brevemente tras cerrar la última
+    # conexión; el artefacto ya quedó escrito y la limpieza del sandbox no debe
+    # convertir una prueba válida en fallo de auditoría.
+    with tempfile.TemporaryDirectory(prefix="triade-phase03-", ignore_cleanup_errors=True) as raw_tmp:
         root = Path(raw_tmp)
         db_path = root / "triade.db"
         continuity = IdentityContinuity(db_path)
