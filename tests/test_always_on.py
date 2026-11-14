@@ -184,7 +184,12 @@ class TestBuildAlwaysOnStatus:
         """Estado cuando always-on está deshabilitado."""
         from triade.core.always_on import build_always_on_status
 
-        with patch.dict(os.environ, {}, clear=True):
+        # The backend now hydrates status from triade.yml before answering;
+        # isolate the disabled contract by supplying an empty config.
+        with (
+            patch("triade.core.always_on.load_config", return_value={}),
+            patch.dict(os.environ, {}, clear=True),
+        ):
             status = build_always_on_status()
         assert status.get("enabled") is False
         assert status.get("background_thread_alive") is False
