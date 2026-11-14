@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from triade.db import sqlite3
+from triade.learning.local_corpus import CASES as LOCAL_HELD_OUT_CASES
 
 VERSION = "functional-probe-1"
 MIN_FUNCTIONAL_POST_RUNS = 5
@@ -111,6 +112,11 @@ CASES = (
     Case("code3", "code_repair_text", "Que archivo declara dependencias Python?", "pyproject.toml"),
 )
 CASES_BY_ID = {c.id: c for c in CASES}
+
+
+def local_held_out_cases() -> tuple[object, ...]:
+    """Return the separate local regression corpus without mixing it into runs."""
+    return tuple(LOCAL_HELD_OUT_CASES)
 
 
 def _normalize(text: str) -> str:
