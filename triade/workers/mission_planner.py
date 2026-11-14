@@ -653,7 +653,12 @@ class MissionPlanner:
         return []
 
     def _plan_neuron_education(self) -> list[PlannedTask]:
-        """Educa solo neuronas experimentales con revisión vencida o sin competencia."""
+        """Mantiene en preparación todas las neuronas funcionales.
+
+        La necesidad nace de tener una función dentro de Tríade, no sólo de
+        estar en estado experimental. Las compuertas de material, baseline,
+        aplicación y promoción siguen dentro del ciclo educativo.
+        """
         try:
             with closing(self._connect()) as conn, conn:
                 tables = {
@@ -666,11 +671,12 @@ class MissionPlanner:
                     row = conn.execute(
                         """SELECT COUNT(*) cnt FROM neurons n
                         LEFT JOIN neuron_competencies c ON c.neuron_id=n.id AND c.domain=n.domain
-                        WHERE n.status='experimental' AND (c.next_review IS NULL OR datetime(c.next_review)<=datetime('now'))"""
+                        WHERE n.status NOT IN ('retired','disabled','dead')
+                          AND (c.next_review IS NULL OR datetime(c.next_review)<=datetime('now'))"""
                     ).fetchone()
                 else:
                     row = conn.execute(
-                        "SELECT COUNT(*) cnt FROM neurons WHERE status='experimental'"
+                        "SELECT COUNT(*) cnt FROM neurons WHERE status NOT IN ('retired','disabled','dead')"
                     ).fetchone()
                 due_neurons = int(row["cnt"] or 0) if row else 0
                 resolvable_sessions = 0
@@ -709,7 +715,7 @@ class MissionPlanner:
                 reasons = []
                 if due_neurons:
                     reasons.append(
-                        f"{due_neurons} neuronas experimentales requieren educación o revisión"
+                        f"{due_neurons} neuronas funcionales requieren preparación o revisión"
                     )
                 if resolvable_sessions:
                     reasons.append(
