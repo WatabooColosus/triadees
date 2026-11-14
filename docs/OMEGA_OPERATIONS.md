@@ -1,27 +1,45 @@
-# Operación local de Tríade Ω
+﻿# Operacion local de Tríade Ω
 
-Estado de esta auditoría: **FULL NO CERTIFICADO** (captura 2026-11-14T00:35:43.967085+00:00).
+Estado operativo: **FULL NO CERTIFICADO**.
 
 ## Fuente de verdad
 
-- Raíz Git: `app/triadees`, rama `triade-local`, commit `059d4322`.
-- Bodega: `triade/memory/triade.db`; respaldada antes de cambios y `PRAGMA integrity_check = ok`.
-- API local: `http://127.0.0.1:8010`; Ollama: `http://127.0.0.1:11434`.
+- Repositorio: `D:\TRIADE_PORTABLE_V0_1\app\triadees`.
+- Rama: `triade-local`.
+- SQLite: `triade/memory/triade.db`.
+- API: `http://127.0.0.1:8010`.
+- Ollama: `http://127.0.0.1:11434`.
+- Supervisor: `scripts/start_triade_windows.ps1` y `scripts/triade_service_worker.ps1`.
 
-## Arranque seguro
+## Arranque y continuidad
 
-Usar el entorno Python portable y `INICIAR_TRIADE.ps1` desde una sesión de usuario. Mantener `observe_only` hasta demostrar heartbeat, watchdog, workers y recuperación. No crear tareas administrativas ni exponer puertos.
+El supervisor de usuario mantiene una sola cadena API → Always-On → workers. Usa lock, backoff y logs en `artifacts/service_logs`. El runtime debe permanecer en `full_local_guarded`; si el worker pierde una lease, el watchdog y el recuperador deben registrar la transición antes de reintentar.
 
-## Evidencia actual
+## Recursos
 
-Los JSON en `artifacts/audits/` registran observaciones reproducibles. La API y Ollama responden; SQLite está íntegra. Hay ciclos metabólicos y eventos históricos, pero no se demostró continuidad del proceso ni ejecución de tareas en la ventana actual.
+El gobernador adaptativo mide CPU, RAM, disco, energía, Ollama y GPU. Perfil seguro actual: dos tareas globales, dos tareas ligeras y una inferencia generativa. Ollama mantiene un solo modelo residente y una sola inferencia. La Intel Iris Xe está inventariada, pero su uso por Ollama no está demostrado.
 
-## Compuertas pendientes
+## Fase 3
 
-1. Consultar endpoints de runtime y registrar `background_thread_alive`, heartbeat y workers.
-2. Ejecutar una prueba controlada de reinicio del proceso, sin tocar la Bodega, y verificar recuperación sin duplicados.
-3. Reparar o regenerar el insumo de `check_debt.py` de forma reversible.
-4. Ejecutar probe neuronal y evaluación independiente antes de cualquier afirmación de aprendizaje o LoRA.
-5. Repetir integridad SQLite y revisar métricas de recursos.
+La cadena educativa es:
 
-No se autoriza declarar FULL mientras alguna compuerta falle.
+```text
+misión → material → baseline → sesión → probes → comparación → assignment → holdout → validated_in_runs → canary → promoción
+```
+
+La evidencia `improved` no autoriza promoción por sí sola. Cada candidato necesita holdout específico, regresión independiente y canario reversible.
+
+Estado conocido: assignments experimentales y aplicaciones reales existen; `validated_in_runs` y canarios siguen en cero. Mantener la promoción estable bloqueada.
+
+## Auditoría y recuperación
+
+Consultar los JSON de `artifacts/audits/`, especialmente:
+
+- `omega_debt_report.json`
+- `omega_phase4_worker_audit.json`
+- `omega_phase3_traceability.json`
+- `omega_phase3_candidate_validation_requests.json`
+- `omega_adaptive_resources.json`
+- `omega_phase6_service_health.json`
+
+No borrar ni reinicializar la Bodega. Antes de cualquier migración, crear copia consistente y ejecutar `PRAGMA integrity_check` y `PRAGMA foreign_key_check`. No declarar FULL mientras falten validación independiente, canario y rollback verificables.
