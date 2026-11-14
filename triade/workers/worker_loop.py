@@ -2074,6 +2074,7 @@ class WorkerLoop:
         independent baseline and treatment runs.
         """
         import json as _json
+        from triade.learning.candidate_holdout_executor import execute_candidate_holdout
         candidate_id = str(task.payload.get("candidate_id") or "")
         holdout_id = str(task.payload.get("holdout_id") or "")
         with sqlite3.connect(self.db_path) as conn:
@@ -2087,9 +2088,19 @@ class WorkerLoop:
         if not holdout_id: reasons.append("holdout_id_missing")
         # A real candidate holdout must arrive with independent run records;
         # generic probes cannot satisfy this contract.
-        validation_state = "blocked" if reasons or row is None else "pending_independent_runs"
+        contract = None
+        if row is not None:
+            try:
+                contract = _json.loads(str(row[1] or "{}"))
+            except _json.JSONDecodeError:
+                contract = None
+        execution = execute_candidate_holdout(
+            candidate_id=candidate_id, holdout_id=holdout_id,
+            contract=contract, output_dir=task_dir / "handler"
+        )
+        validation_state = execution.status if not reasons and row is not None else "blocked"
         status = "completed"
-        report={"candidate_id":candidate_id,"holdout_id":holdout_id,"status":status,"validation_state":validation_state,"reasons":reasons,"run_ref":run_ref,"independent":False}
+        report={"candidate_id":candidate_id,"holdout_id":holdout_id,"status":status,"validation_state":validation_state,"reasons":reasons,"run_ref":run_ref,"independent":False,"executor":execution.to_dict()}
         path=task_dir / "candidate_holdout_validation.json"
         path.write_text(_json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
         return {"status":status,"validation_state":validation_state,"candidate_id":candidate_id,"holdout_id":holdout_id,"report_ref":str(path),"validated_in_runs":False}
