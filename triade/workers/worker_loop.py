@@ -1641,6 +1641,7 @@ class WorkerLoop:
                     "encrypted_backup": self._encrypted_backup,
                     "neuron_education_cycle": self._neuron_education_cycle,
                     "neuron_functional_probe": self._neuron_functional_probe,
+                    "candidate_holdout_validation": self._candidate_holdout_validation,
                     "write_governed_text_artifact": self._write_governed_text_artifact,
                     "self_improvement_evaluation": self._self_improvement_evaluation,
                     "self_improvement_canary_observation": (
@@ -2062,6 +2063,35 @@ class WorkerLoop:
             "restore_drill": backup.run_restore_drill(backup_ref),
             "effect_receipt": receipt.model_dump(mode="json"),
         }
+
+    def _candidate_holdout_validation(
+        self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
+    ) -> dict[str, Any]:
+        """Validate candidate identity before any holdout transition.
+
+        The task is productive: it records a candidate-specific validation
+        report. It refuses promotion when the artifact does not contain both
+        independent baseline and treatment runs.
+        """
+        import json as _json
+        candidate_id = str(task.payload.get("candidate_id") or "")
+        holdout_id = str(task.payload.get("holdout_id") or "")
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT artifact_ref,comparison_json,regression_report_id FROM learning_evidence "
+                "WHERE candidate_id=? AND decision='improved' ORDER BY updated_at DESC LIMIT 1",
+                (candidate_id,),
+            ).fetchone()
+        reasons=[]
+        if row is None: reasons.append("candidate_evidence_missing")
+        if not holdout_id: reasons.append("holdout_id_missing")
+        # A real candidate holdout must arrive with independent run records;
+        # generic probes cannot satisfy this contract.
+        status = "blocked" if reasons or row is None else "pending_independent_runs"
+        report={"candidate_id":candidate_id,"holdout_id":holdout_id,"status":status,"reasons":reasons,"run_ref":run_ref,"independent":False}
+        path=task_dir / "candidate_holdout_validation.json"
+        path.write_text(_json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
+        return {"status":status,"candidate_id":candidate_id,"holdout_id":holdout_id,"report_ref":str(path),"validated_in_runs":False}
 
     def _neuron_functional_probe(
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig

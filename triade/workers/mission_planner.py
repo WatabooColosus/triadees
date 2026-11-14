@@ -119,6 +119,7 @@ class MissionPlanner:
         tasks.extend(self._plan_research_curriculum())
         tasks.extend(self._plan_neuron_education())
         tasks.extend(self._plan_self_improvement())
+        tasks.extend(self._plan_candidate_holdout_validations())
         tasks.extend(self._plan_canary_observation())
         tasks.extend(self._plan_peft_canary_observation())
         # La condición miraba sólo `TRIADE_BACKUP_KEY`, y `encrypted_backup.py`
@@ -215,6 +216,23 @@ class MissionPlanner:
         if len(tasks) > 15:
             tasks = tasks[:15]
 
+        return tasks
+
+    def _plan_candidate_holdout_validations(self) -> list[PlannedTask]:
+        """Enqueue candidate-specific holdouts from the governed request ledger."""
+        path = Path(self.db_path).resolve().parents[2] / "artifacts" / "audits" / "omega_phase3_candidate_validation_requests.json"
+        if not path.exists(): return []
+        try: data=json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError): return []
+        tasks=[]
+        for req in data.get("requests", []):
+            if req.get("status") != "pending_candidate_holdout": continue
+            tasks.append(PlannedTask(
+                task_type="candidate_holdout_validation", priority=16,
+                reason=f"holdout candidato {req.get('candidate_id')}",
+                source="phase3_candidate_validation_requests", planner_score=0.95,
+                payload={"candidate_id":req.get("candidate_id"),"evidence_id":req.get("evidence_id"),"holdout_id":req.get("candidate_holdout_id"),"artifact_ref":req.get("artifact_ref")},
+            ))
         return tasks
 
     def _plan_internal_curriculum_exercises(self) -> list[PlannedTask]:

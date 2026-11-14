@@ -167,6 +167,9 @@ TASK_CONCURRENCY_POLICY: dict[str, TaskConcurrencyPolicy] = {
     "neuron_functional_probe": TaskConcurrencyPolicy(
         "evaluation", 1, "model", ("neuron_id", "session_id")
     ),
+    "candidate_holdout_validation": TaskConcurrencyPolicy(
+        "evaluation", 1, "model", ("candidate_id", "holdout_id")
+    ),
     "self_improvement_evaluation": TaskConcurrencyPolicy(
         "evaluation", 2, "model", ("candidate_id", "neuron_id", "proposal_id")
     ),

@@ -41,6 +41,7 @@ WorkerTaskType = Literal[
     "neuron_candidate_formation",
     "experimental_neuron_activity",
     "neuron_functional_probe",
+    "candidate_holdout_validation",
     "neuron_autopromotion",
     "federation_inbox_review",
     # `memory_consolidation_review` se retiró el 2026-08-03, aprobado por el
