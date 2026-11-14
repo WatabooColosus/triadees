@@ -4052,11 +4052,30 @@ class WorkerLoop:
             NeuronEducationApplicationRecorder,
         )
 
+        assignment_application = None
+        assignment_id = payload.get("curriculum_assignment_id")
+        if assignment_id:
+            # Curriculum exercises carry their assignment explicitly. Attach
+            # this measured worker run to that assignment before the generic
+            # education recorder runs; otherwise the exercise was verified
+            # but use_count stayed at zero.
+            from triade.neurons.learning_router import NeuralLearningRouter
+
+            measured = round(sum(scores.values()) / len(scores), 4)
+            assignment_application = NeuralLearningRouter(self.db_path).record_application(
+                str(assignment_id),
+                run_id=run_ref,
+                outcome_score=measured,
+                evidence_ref=f"verification_reports:{run_ref}",
+                routing_decision_id=f"worker:{run_ref}",
+            )
+
         application = NeuronEducationApplicationRecorder(self.db_path).record_once()
         return {
             "verification_recorded": True,
             "run_id": run_ref,
             "application": application,
+            "assignment_application": assignment_application,
             "metacognition_integrated": True,
         }
 
