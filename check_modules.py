@@ -1,6 +1,12 @@
 import json
+from pathlib import Path
 
-with open("artifacts/debt/debt-triage-latest.json") as f:
+source = Path("artifacts/debt/debt-triage-latest.json")
+if not source.is_file():
+    print(f"debt_artifact_missing: {source}")
+    raise SystemExit(2)
+
+with source.open(encoding="utf-8") as f:
     data = json.load(f)
 
 for entry in data["findings"]:
