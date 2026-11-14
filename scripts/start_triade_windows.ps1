@@ -25,7 +25,7 @@ $env:TRIADE_POST_RUN_LEARNING = "1"
 $env:TRIADE_NEURAL_LEARNING_ROUTING = "1"
 # Esta máquina tiene 7.2 GB de RAM; un drenaje secuencial mantiene vivo el
 # aprendizaje en segundo plano sin lanzar tres tareas pesadas a la vez.
-$env:TRIADE_WORKER_CONCURRENCY = "1"
+$env:TRIADE_WORKER_CONCURRENCY = "2"
 $env:TRIADE_PUBLIC_GUARDED = "true"
 $env:TRIADE_LOCAL_NO_AUTH = "1"
 $env:TRIADE_DATA_ANCHOR_EMAIL = "agenciadigitalwataboo@gmail.com"

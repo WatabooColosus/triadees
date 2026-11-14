@@ -34,7 +34,10 @@ $env:TRIADE_AUTH_DB_PATH = "triade/memory/triade.db"
 $env:TRIADE_DISABLE_BACKGROUND = "0"
 $env:TRIADE_POST_RUN_LEARNING = "1"
 $env:TRIADE_NEURAL_LEARNING_ROUTING = "1"
-$env:TRIADE_WORKER_CONCURRENCY = "1"
+# Two governed slots: one model/evaluation task plus one light read-only/I/O
+# task. Ollama remains single-model/single-parallel and per-neuron probes stay
+# serialized by the worker concurrency policy.
+$env:TRIADE_WORKER_CONCURRENCY = "2"
 $env:TRIADE_PUBLIC_GUARDED = "true"
 $env:TRIADE_LOCAL_NO_AUTH = "1"
 $env:TRIADE_LOW_RESOURCE_MODEL = "qwen2.5:1.5b"
