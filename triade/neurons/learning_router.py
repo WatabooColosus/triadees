@@ -286,6 +286,22 @@ class NeuralLearningRouter:
             neuron_id, None, str(candidate["domain"] or "general"), contract.mission
         )
         baseline, pre_behavior = self._baseline(neuron_id, candidate_id)
+        # A routed lesson must never be persisted without a temporal
+        # baseline.  Previously this path created ``lesson_prepared`` with a
+        # NULL baseline and then created an assignment, leaving the worker
+        # unable to schedule a valid post comparison.  Keep the candidate
+        # routable, but defer the session until an independently measured
+        # baseline exists.
+        if baseline is None:
+            return {
+                "status": "baseline_required",
+                "learned": False,
+                "candidate_id": candidate_id,
+                "neuron_id": neuron_id,
+                "reason": "no_independent_baseline_for_routed_candidate",
+                "pre_behavior": pre_behavior,
+                "contract": contract.to_dict(),
+            }
         pre_behavior["correlation_id"] = correlation_id
         evidence_ref = f"learning_evidence:candidate:{candidate_id}:decision:improved"
         session = self.store.record_session(
