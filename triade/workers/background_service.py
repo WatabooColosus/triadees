@@ -31,7 +31,7 @@ def _slow_full_task_limit() -> int:
     parallel_read_only = os.getenv("TRIADE_SLOW_FULL_READONLY_PARALLEL", "0").strip().lower() in {
         "1", "true", "yes", "on"
     }
-    return 4 if parallel_read_only else 1
+    return 6 if parallel_read_only else 1
 
 
 class WorkerBackgroundService:
@@ -76,6 +76,8 @@ class WorkerBackgroundService:
             # El modo concurrente viene de WorkerRunConfig y respeta el
             # interruptor TRIADE_WORKER_CONCURRENCY=0 también en Colab.
             max_concurrent_tasks=_slow_full_task_limit(),
+            read_only_workers=4,
+            read_only_workers=4,
         )
         if dry_run:
             config.concurrency_enabled = False
