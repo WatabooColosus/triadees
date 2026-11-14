@@ -227,6 +227,18 @@ class MissionPlanner:
         tasks=[]
         for req in data.get("requests", []):
             if req.get("status") != "pending_candidate_holdout": continue
+            with closing(self._connect()) as conn, conn:
+                existing = conn.execute(
+                    """SELECT 1 FROM autonomous_tasks
+                       WHERE task_type='candidate_holdout_validation'
+                         AND json_extract(payload_json,'$.candidate_id')=?
+                         AND json_extract(payload_json,'$.holdout_id')=?
+                         AND status NOT IN ('cancelled','dead_letter','failed')
+                       LIMIT 1""",
+                    (str(req.get('candidate_id') or ''), str(req.get('candidate_holdout_id') or '')),
+                ).fetchone()
+            if existing is not None:
+                continue
             tasks.append(PlannedTask(
                 task_type="candidate_holdout_validation", priority=8,
                 reason=f"holdout candidato {req.get('candidate_id')}",
