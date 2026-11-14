@@ -196,8 +196,11 @@ class EncryptedBackup:
         if not key_text and key_file:
             path = Path(key_file)
             privacy = inspect_private_file(path)
-            windows_private = os.name == "nt" and path.is_file() and not path.is_symlink()
-            if not privacy["private"] and not windows_private:
+            # Windows requires the same ACL inspection as every other path.
+            # Merely being a regular file does not make a key private: a
+            # permissive DACL must still block backup use until startup
+            # tightens it.
+            if not privacy["private"]:
                 raise PermissionError("backup_key_file_permissions_must_be_0600")
             key_text = path.read_text(encoding="utf-8").strip()
         key = key_text.encode()
