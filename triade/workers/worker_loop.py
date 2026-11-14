@@ -2095,7 +2095,8 @@ class WorkerLoop:
         holdout_id = str(task.payload.get("holdout_id") or "")
         with sqlite3.connect(self.db_path) as conn:
             row = conn.execute(
-                "SELECT artifact_ref,comparison_json,regression_report_id FROM learning_evidence "
+                "SELECT artifact_ref,comparison_json,regression_report_id,"
+                "baseline_evaluation_json,candidate_evaluation_json FROM learning_evidence "
                 "WHERE candidate_id=? AND decision='improved' ORDER BY updated_at DESC LIMIT 1",
                 (candidate_id,),
             ).fetchone()
@@ -2108,7 +2109,33 @@ class WorkerLoop:
         if row is not None:
             if contract is None:
                 try:
-                    contract = _json.loads(str(row[1] or "{}"))
+                    comparison = _json.loads(str(row[1] or "{}"))
+                    # Older planner payloads stored only comparison_json. When
+                    # it contains the linked baseline/candidate evaluations,
+                    # materialise an explicit contract for the next holdout;
+                    # this removes a transport defect without certifying a run.
+                    baseline = _json.loads(str(row[3] or "{}"))
+                    candidate = _json.loads(str(row[4] or "{}"))
+                    baseline_results = baseline.get("results") or []
+                    candidate_results = candidate.get("results") or []
+                    if baseline_results and candidate_results:
+                        expected = {
+                            str(item.get("case_id")): item.get("expected")
+                            for item in baseline_results
+                            if isinstance(item, dict) and item.get("case_id") is not None
+                        }
+                        contract = {
+                            "cases": [
+                                {"case_id": case_id, "expected": value}
+                                for case_id, value in expected.items()
+                            ],
+                            "metric": "independent_evaluation_score_delta",
+                            "baseline_evaluation_id": baseline.get("evaluation_id"),
+                            "candidate_evaluation_id": candidate.get("evaluation_id"),
+                            "inferred_from_persisted_evaluations": True,
+                        }
+                    else:
+                        contract = None
                 except _json.JSONDecodeError:
                     contract = None
         execution = execute_candidate_holdout(

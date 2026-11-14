@@ -61,6 +61,16 @@ def execute_candidate_holdout(
                 treatment_run_id=f"{holdout_id}:treatment",
                 regression_report={"metric": metric, "score": score, "cases": len(expected)},
             )
+    elif metric == "independent_evaluation_score_delta":
+        # The persisted evaluations define the cases, but they are not a new
+        # holdout run. Keep the contract explicit and wait for the independent
+        # baseline/treatment observations instead of reusing historical scores.
+        result = HoldoutResult(
+            status="pending_independent_run",
+            candidate_id=candidate_id,
+            holdout_id=holdout_id,
+            reason="contract materialized; independent baseline and treatment observations are still required",
+        )
     else:
         result = HoldoutResult(
             status="pending_evaluator_adapter", candidate_id=candidate_id,
