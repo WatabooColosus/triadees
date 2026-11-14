@@ -79,6 +79,16 @@ New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $stdout = Join-Path $logDir "triade-uvicorn.stdout.log"
 $stderr = Join-Path $logDir "triade-uvicorn.stderr.log"
 try { while ($true) {
+    # No iniciar otro API si el puerto ya está ocupado por una instancia viva.
+    # El supervisor existente conserva la autoridad; esto evita duplicados tras
+    # arranques manuales o una recuperación de sesión.
+    try {
+        $listener = Get-NetTCPConnection -LocalAddress 127.0.0.1 -LocalPort 8010 -State Listen -ErrorAction SilentlyContinue
+        if ($listener) {
+            Write-Error "API local ya escucha en 127.0.0.1:8010; no se lanza instancia duplicada."
+            exit 0
+        }
+    } catch { }
     $proc = Start-Process -FilePath $python -ArgumentList @(
         "-m", "scripts.serve_local_api", "--host", "127.0.0.1", "--port", "8010"
     ) -WorkingDirectory $repo -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
