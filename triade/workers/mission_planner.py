@@ -646,8 +646,17 @@ class MissionPlanner:
                         (MIN_APPLIED_RUNS,),
                     ).fetchone()
                     resolvable_sessions = int(ready["cnt"] or 0) if ready else 0
+                    # A prepared lesson without a baseline or two independent
+                    # sources is not executable education.  Re-enqueuing it on
+                    # every planner pass only creates stalled cycles; leave it
+                    # in its explicit insufficient-evidence state until the
+                    # material/baseline gates become true.
                     pending = conn.execute(
-                        "SELECT COUNT(*) cnt FROM neuron_education_sessions WHERE state='lesson_prepared'"
+                        """SELECT COUNT(*) cnt
+                        FROM neuron_education_sessions
+                        WHERE state='lesson_prepared'
+                          AND baseline_score IS NOT NULL
+                          AND independent_source_count >= 2"""
                     ).fetchone()
                     pending_sessions = int(pending["cnt"] or 0) if pending else 0
             if due_neurons or resolvable_sessions or pending_sessions:
