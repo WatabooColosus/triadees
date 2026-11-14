@@ -148,6 +148,7 @@ class NeuronEducationCycle:
         # functional pre-probe has been requested. The coordinator is
         # idempotent, so retries do not duplicate work.
         probe_domain = supported_domain(str(target.get("name") or ""), domain)
+        functional_baseline: float | None = None
         if probe_domain:
             probe_cases = {
                 "visual_text": ("vis1", "vis2", "vis3"),
@@ -168,10 +169,39 @@ class NeuronEducationCycle:
                     }
                 missing_cases = [case for case in probe_cases if case not in ready_cases]
                 if not missing_cases:
-                    # The pre-probe is persisted; continue to create the
-                    # lesson and let the post-probe coordinator attach to its
-                    # session after insertion.
-                    pass
+                    # Coordination is only a request/receipt.  It is not
+                    # evidence that the probe wrote a verified assessment.
+                    # Require all three persisted pre rows before creating a
+                    # lesson and carry their measured average into the
+                    # session.  This prevents lesson_prepared with NULL
+                    # baseline after a worker restart or lease recovery.
+                    with sqlite3.connect(self.db_path) as assess_conn:
+                        rows = assess_conn.execute(
+                            "SELECT case_id,score FROM neuron_functional_assessments "
+                            "WHERE neuron_id=? AND phase='pre' AND case_id IN (?,?,?) "
+                            "ORDER BY created_at DESC",
+                            (neuron_id, *probe_cases),
+                        ).fetchall()
+                    latest = {str(row[0]): float(row[1]) for row in rows}
+                    missing_assessments = [case for case in probe_cases if case not in latest]
+                    if missing_assessments:
+                        requested = [
+                            EducationCoordinator(self.db_path).request_baseline(
+                                neuron_id=neuron_id, case_id=case
+                            )
+                            for case in missing_assessments
+                        ]
+                        return {
+                            "status": "baseline_measurement_pending",
+                            "learned": False,
+                            "neuron": target["name"],
+                            "domain": domain,
+                            "probe_cases": missing_assessments,
+                            "baseline_tasks": requested,
+                        }
+                    functional_baseline = round(
+                        sum(latest[case] for case in probe_cases) / len(probe_cases), 4
+                    )
                 else:
                     requested = [
                         EducationCoordinator(self.db_path).request_baseline(
@@ -216,6 +246,7 @@ class NeuronEducationCycle:
                 "ab_contract": "baseline_before_lesson_and_post_after_application",
             },
             result="uncertain",
+            baseline_score=functional_baseline,
         )
         post_request = None
         probe_domain = supported_domain(str(target.get("name") or ""), domain)
