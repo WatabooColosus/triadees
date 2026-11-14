@@ -30,6 +30,23 @@ class EducationCoordinator:
         self, *, neuron_id: int, case_id: str, correlation_id: str | None = None
     ) -> dict[str, Any]:
         key = f"functional-pre:{neuron_id}:{case_id}"
+        with sqlite3.connect(self.db_path, timeout=20) as conn:
+            existing = conn.execute(
+                "SELECT run_id,score FROM neuron_functional_assessments "
+                "WHERE neuron_id=? AND case_id=? AND phase='pre' "
+                "ORDER BY created_at DESC LIMIT 1",
+                (neuron_id, case_id),
+            ).fetchone()
+        if existing:
+            self._record(
+                f"pre:{neuron_id}:{case_id}", neuron_id, case_id, "pre",
+                "baseline_registered", task_id=f"existing:{existing[0]}"
+            )
+            return {
+                "status": "baseline_already_registered",
+                "run_id": str(existing[0]),
+                "score": float(existing[1]),
+            }
         task = self.tasks.enqueue(
             "neuron_functional_probe",
             {
@@ -50,6 +67,23 @@ class EducationCoordinator:
         self, *, session_id: str, neuron_id: int, case_id: str, correlation_id: str | None = None
     ) -> dict[str, Any]:
         key = f"functional-post:{session_id}:{case_id}"
+        with sqlite3.connect(self.db_path, timeout=20) as conn:
+            existing = conn.execute(
+                "SELECT run_id,score FROM neuron_functional_assessments "
+                "WHERE neuron_id=? AND case_id=? AND phase='post' AND session_id=? "
+                "ORDER BY created_at DESC LIMIT 1",
+                (neuron_id, case_id, session_id),
+            ).fetchone()
+        if existing:
+            self._record(
+                f"post:{session_id}:{case_id}", neuron_id, case_id, "post",
+                "post_registered", task_id=f"existing:{existing[0]}", session_id=session_id
+            )
+            return {
+                "status": "post_already_registered",
+                "run_id": str(existing[0]),
+                "score": float(existing[1]),
+            }
         task = self.tasks.enqueue(
             "neuron_functional_probe",
             {
