@@ -586,6 +586,48 @@ class AutonomousTaskStore:
             conn.commit()
         return changed == 1
 
+    def recover_expired_functional_probe(self, task_id: str, *, reason: str) -> bool:
+        """Reopen a functional probe whose model lease expired.
+
+        Probes are idempotent and persist their verified result in SQLite. A
+        lease timeout is therefore retryable while the task payload still
+        names a live education session; other dead letters remain closed.
+        """
+        now = _iso()
+        with closing(self._connect()) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT task_type,lease_generation,last_error,payload_json FROM autonomous_tasks "
+                "WHERE task_id=? AND status='dead_letter'", (task_id,)
+            ).fetchone()
+            if row is None or str(row["task_type"]) != "neuron_functional_probe":
+                conn.commit(); return False
+            if "expired_lease_attempts_exhausted" not in str(row["last_error"] or ""):
+                conn.commit(); return False
+            payload = json.loads(str(row["payload_json"] or "{}"))
+            session_id = str(payload.get("session_id") or "")
+            if not session_id or not conn.execute(
+                "SELECT 1 FROM neuron_education_sessions WHERE session_id=? "
+                "AND state='lesson_prepared'", (session_id,)
+            ).fetchone():
+                conn.commit(); return False
+            changed = conn.execute(
+                """UPDATE autonomous_tasks SET status='recovered',attempt=0,
+                retry_after=NULL,last_error=?,worker_id=NULL,lease_acquired_at=NULL,
+                lease_expires_at=NULL,heartbeat_at=NULL,updated_at=?
+                WHERE task_id=? AND status='dead_letter'""",
+                (reason, now, task_id),
+            ).rowcount
+            if changed:
+                conn.execute(
+                    """INSERT INTO autonomous_task_transitions
+                    (task_id,worker_id,lease_generation,from_status,to_status,reason,created_at)
+                    VALUES(?,NULL,?,'dead_letter','recovered',?,?)""",
+                    (task_id, int(row["lease_generation"]), reason, now),
+                )
+            conn.commit()
+            return changed == 1
+
     def reconcile_verified_effect_dead_letter(
         self, task_id: str, receipt: EffectReceipt
     ) -> bool:
