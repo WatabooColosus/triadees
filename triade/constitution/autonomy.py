@@ -234,6 +234,7 @@ TASK_OPERATION: dict[str, str] = {
     # ── neuronas: experimentar sí, estabilizar no ────────────────────
     "neuron_candidate_formation": "create_experimental_neuron",
     "experimental_neuron_activity": "use_knowledge_experimental",
+    "neuron_functional_probe": "measure_results",
     "neuron_education_cycle": "prepare_lesson",
     # Promover una experimental avanza sola pero queda marcada y con
     # rollback; promover a estable es otra cosa y exige humano.
