@@ -77,7 +77,6 @@ class WorkerBackgroundService:
             # interruptor TRIADE_WORKER_CONCURRENCY=0 también en Colab.
             max_concurrent_tasks=_slow_full_task_limit(),
             read_only_workers=4,
-            read_only_workers=4,
         )
         if dry_run:
             config.concurrency_enabled = False
@@ -110,6 +109,7 @@ class WorkerBackgroundService:
             stop_file=str(self.stop_file),
             # No forzar concurrencia: respetar la política del entorno.
             max_concurrent_tasks=_slow_full_task_limit(),
+            read_only_workers=4,
         )
         if dry_run:
             config.concurrency_enabled = False
