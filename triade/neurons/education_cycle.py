@@ -149,37 +149,43 @@ class NeuronEducationCycle:
         # idempotent, so retries do not duplicate work.
         probe_domain = supported_domain(str(target.get("name") or ""), domain)
         if probe_domain:
-            case_id = {
-                "visual_text": "vis1",
-                "python_text": "py1",
-                "android_cli_text": "adb1",
-                "live_pulse_text": "pulse1",
-                "code_repair_text": "code1",
-            }.get(probe_domain)
-            if case_id:
+            probe_cases = {
+                "visual_text": ("vis1", "vis2", "vis3"),
+                "python_text": ("py1", "py2", "py3"),
+                "android_cli_text": ("adb1", "adb2", "adb3"),
+                "live_pulse_text": ("pulse1", "pulse2", "pulse3"),
+                "code_repair_text": ("code1", "code2", "code3"),
+            }.get(probe_domain, ())
+            if probe_cases:
                 with sqlite3.connect(self.db_path) as coord_conn:
-                    baseline_ready = coord_conn.execute(
-                        "SELECT 1 FROM neuron_education_coordination "
-                        "WHERE neuron_id=? AND case_id=? AND phase='pre' "
-                        "AND state='baseline_registered' LIMIT 1",
-                        (neuron_id, case_id),
-                    ).fetchone() is not None
-                if baseline_ready:
+                    ready_cases = {
+                        str(row[0]) for row in coord_conn.execute(
+                            "SELECT case_id FROM neuron_education_coordination "
+                            "WHERE neuron_id=? AND phase='pre' "
+                            "AND state='baseline_registered'",
+                            (neuron_id,),
+                        )
+                    }
+                missing_cases = [case for case in probe_cases if case not in ready_cases]
+                if not missing_cases:
                     # The pre-probe is persisted; continue to create the
                     # lesson and let the post-probe coordinator attach to its
                     # session after insertion.
                     pass
                 else:
-                    baseline = EducationCoordinator(self.db_path).request_baseline(
-                        neuron_id=neuron_id, case_id=case_id
-                    )
+                    requested = [
+                        EducationCoordinator(self.db_path).request_baseline(
+                            neuron_id=neuron_id, case_id=case
+                        )
+                        for case in missing_cases
+                    ]
                     return {
                         "status": "baseline_requested",
                         "learned": False,
                         "neuron": target["name"],
                         "domain": domain,
-                        "probe_case": case_id,
-                        **baseline,
+                        "probe_cases": missing_cases,
+                        "baseline_tasks": requested,
                     }
 
         lesson = {
@@ -213,19 +219,22 @@ class NeuronEducationCycle:
         )
         post_request = None
         probe_domain = supported_domain(str(target.get("name") or ""), domain)
-        case_id = {
-            "visual_text": "vis1",
-            "python_text": "py1",
-            "android_cli_text": "adb1",
-            "live_pulse_text": "pulse1",
-            "code_repair_text": "code1",
-        }.get(probe_domain or "")
-        if case_id:
-            post_request = EducationCoordinator(self.db_path).request_post(
-                session_id=str(session["session_id"]),
-                neuron_id=neuron_id,
-                case_id=case_id,
-            )
+        probe_cases = {
+            "visual_text": ("vis1", "vis2", "vis3"),
+            "python_text": ("py1", "py2", "py3"),
+            "android_cli_text": ("adb1", "adb2", "adb3"),
+            "live_pulse_text": ("pulse1", "pulse2", "pulse3"),
+            "code_repair_text": ("code1", "code2", "code3"),
+        }.get(probe_domain or "", ())
+        if probe_cases:
+            post_request = [
+                EducationCoordinator(self.db_path).request_post(
+                    session_id=str(session["session_id"]),
+                    neuron_id=neuron_id,
+                    case_id=case,
+                )
+                for case in probe_cases
+            ]
         evidence_candidate_id = f"neuron-education:{session['session_id']}"
         evidence = self.evidence.declare_hypothesis(
             evidence_candidate_id,
