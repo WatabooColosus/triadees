@@ -2088,12 +2088,13 @@ class WorkerLoop:
         if not holdout_id: reasons.append("holdout_id_missing")
         # A real candidate holdout must arrive with independent run records;
         # generic probes cannot satisfy this contract.
-        contract = None
+        contract = task.payload.get("evaluation_contract")
         if row is not None:
-            try:
-                contract = _json.loads(str(row[1] or "{}"))
-            except _json.JSONDecodeError:
-                contract = None
+            if contract is None:
+                try:
+                    contract = _json.loads(str(row[1] or "{}"))
+                except _json.JSONDecodeError:
+                    contract = None
         execution = execute_candidate_holdout(
             candidate_id=candidate_id, holdout_id=holdout_id,
             contract=contract, output_dir=task_dir / "handler"
