@@ -1837,6 +1837,22 @@ class WorkerLoop:
                     status="error",
                     payload=result,
                 )
+                if task.task_type == "pulse_check":
+                    # Candidate worker_failure evidence is built only from
+                    # real failures and their subsequent recovery transitions.
+                    self.store.record_event(
+                        "worker_failure_observation",
+                        "pulse_check failure observed",
+                        run_ref=run_ref,
+                        task_id=_integer_task_id(task.id),
+                        task_type=task.task_type,
+                        status="observed",
+                        payload={
+                            "error": str(exc),
+                            "recovery_expected": "retry_with_backoff_and_lease_recovery",
+                            "candidate_domain": "worker_failure",
+                        },
+                    )
         result["ollama_blood_status"] = blood.get("status")
         result["model_used"] = blood.get("reasoning_model")
         result["degraded_mode"] = bool(blood_policy.get("degraded"))
