@@ -3742,6 +3742,17 @@ class WorkerLoop:
                 contract_payload=candidate,
             )
             formed_ids.append(int(neuron_id))
+        # Encadenar la educación en el mismo ciclo: formar una candidata sin
+        # abrir su preparación dejaba el circuito esperando otra pasada del
+        # planificador. La tarea es idempotente y conserva las compuertas de
+        # material, baseline y promoción dentro de education_cycle.
+        if formed_ids:
+            self.autonomous_tasks.enqueue(
+                "neuron_education_cycle",
+                {"neuron_ids": formed_ids, "source": "candidate_formation"},
+                idempotency_key=f"education-after-formation:{run_ref}",
+                priority=5,
+            )
         qualia = self._publish_qualia_experience(
             run_ref,
             "neuron_candidate_formation",
