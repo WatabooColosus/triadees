@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -32,9 +33,16 @@ def repo_info(cwd: str | Path | None = None) -> dict[str, Any]:
 
 
 def _git(args: list[str], cwd: Path) -> str:
+    executable = os.environ.get("TRIADE_GIT_PATH") or shutil.which("git")
+    if not executable:
+        portable = cwd.resolve().anchor + "GIT_PORTABLE\\cmd\\git.exe"
+        if Path(portable).exists():
+            executable = portable
+    if not executable:
+        return ""
     try:
         result = subprocess.run(
-            ["git", *args],
+            [executable, *args],
             cwd=cwd,
             capture_output=True,
             text=True,
