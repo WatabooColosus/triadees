@@ -1429,6 +1429,12 @@ class MissionPlanner:
                 diagnostic_only = False
                 diagnostic_reason = None
                 if evidence is None:
+                    # Do not let the serial diagnostic lane be flooded by
+                    # unrelated foundational missions. Targeted educational
+                    # deficits (currently neurons 11/12) get the slot first;
+                    # ordinary missions still require fresh external evidence.
+                    if m.neuron_id not in {11, 12}:
+                        continue
                     with closing(self._connect()) as conn, conn:
                         counts = conn.execute("SELECT COALESCE(SUM(diagnosis_count),0), COALESCE(SUM(test_plan_count),0) FROM neuron_activity WHERE neuron_id=?", (m.neuron_id,)).fetchone()
                         pending = conn.execute("SELECT 1 FROM autonomous_tasks WHERE task_type='experimental_neuron_activity' AND status IN ('pending','queued','leased','running') AND json_extract(payload_json,'$.mission_id')=? LIMIT 1", (m.id,)).fetchone()
