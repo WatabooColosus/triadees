@@ -2041,12 +2041,22 @@ class WorkerLoop:
     ) -> dict[str, Any]:
         from triade.core.runner import TriadeRunner
         from triade.neurons.functional_probe_runner import run_functional_probe
+        started = time.monotonic()
 
         neuron_id = int(task.payload["neuron_id"])
         case_id = str(task.payload["case_id"])
         phase = str(task.payload.get("phase") or "pre")
         session_id = task.payload.get("session_id")
         model = self._installed_ollama_model()
+        self.store.record_event(
+            "functional_probe_started",
+            "functional probe inference started",
+            run_ref=run_ref,
+            task_id=task.id,
+            task_type="neuron_functional_probe",
+            status="running",
+            payload={"neuron_id": neuron_id, "case_id": case_id, "phase": phase},
+        )
         result = run_functional_probe(
             self.db_path,
             runner=TriadeRunner(
@@ -2082,6 +2092,17 @@ class WorkerLoop:
         )
         artifact = task_dir / "functional-probe.json"
         artifact.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+        elapsed_ms = round((time.monotonic() - started) * 1000, 2)
+        result["inference_elapsed_ms"] = elapsed_ms
+        self.store.record_event(
+            "functional_probe_completed",
+            "functional probe inference completed",
+            run_ref=run_ref,
+            task_id=task.id,
+            task_type="neuron_functional_probe",
+            status="warning" if elapsed_ms > config.task_timeout * 1000 else "ok",
+            payload={"elapsed_ms": elapsed_ms, "task_timeout_seconds": config.task_timeout},
+        )
         result["artifact_ref"] = str(artifact)
         return result
 
