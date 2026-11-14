@@ -334,13 +334,21 @@ class NeuronEducationResolver:
                     }[decision]
                     conn.execute(
                         """UPDATE neuron_learning_assignments
-                        SET status=?,decision=?,outcome_score=?,use_count=?,updated_at=?
+                        SET status=?,decision=?,
+                            outcome_score=COALESCE(
+                                (SELECT AVG(outcome_score) FROM neuron_education_applications a
+                                 WHERE a.session_id=neuron_learning_assignments.session_id),
+                                outcome_score
+                            ),
+                            use_count=COALESCE(
+                                (SELECT COUNT(*) FROM neuron_education_applications a
+                                 WHERE a.session_id=neuron_learning_assignments.session_id),
+                                use_count
+                            ),updated_at=?
                         WHERE session_id=?""",
                         (
                             assignment_state,
                             decision,
-                            post,
-                            len(scores),
                             _now(),
                             session_id,
                         ),
