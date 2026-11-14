@@ -1426,8 +1426,17 @@ class MissionPlanner:
                         ) ORDER BY id DESC LIMIT 1""",
                         (m.id, m.id),
                     ).fetchone()
+                diagnostic_only = False
+                diagnostic_reason = None
                 if evidence is None:
-                    continue
+                    with closing(self._connect()) as conn, conn:
+                        counts = conn.execute("SELECT COALESCE(SUM(diagnosis_count),0), COALESCE(SUM(test_plan_count),0) FROM neuron_activity WHERE neuron_id=?", (m.neuron_id,)).fetchone()
+                        pending = conn.execute("SELECT 1 FROM autonomous_tasks WHERE task_type='experimental_neuron_activity' AND status IN ('pending','queued','leased','running') AND json_extract(payload_json,'$.mission_id')=? LIMIT 1", (m.id,)).fetchone()
+                    diagnosis_count, test_plan_count = map(int, counts or (0, 0))
+                    if pending is not None or (diagnosis_count >= 5 and test_plan_count >= 3):
+                        continue
+                    diagnostic_only = True
+                    diagnostic_reason = f"serial diagnostic deficit ({diagnosis_count}/5, plan {test_plan_count}/3)"
                 tasks.append(
                     PlannedTask(
                         task_type="experimental_neuron_activity",
@@ -1442,8 +1451,9 @@ class MissionPlanner:
                             "domain": m.domain,
                             "allowed_sources": m.allowed_sources,
                             "allowed_actions": m.allowed_actions,
-                            "evidence_refs": json.loads(evidence["refs_json"] or "[]"),
-                            "evidence_origin": str(evidence["source"]),
+                            "evidence_refs": json.loads(evidence["refs_json"] or "[]") if evidence else [],
+                            "evidence_origin": str(evidence["source"]) if evidence else "serial_diagnostic_need",
+                            "diagnostic_only": diagnostic_only,
                         },
                     )
                 )
