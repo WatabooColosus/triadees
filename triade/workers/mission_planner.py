@@ -216,6 +216,20 @@ class MissionPlanner:
         if len(tasks) > 15:
             tasks = tasks[:15]
 
+        # Round-robin governed diagnostic lane: one deficit mission per cycle
+        # so every experimental neuron gets a turn instead of the first
+        # eligible mission monopolizing the serial model slot.
+        diagnostics = [t for t in tasks if t.task_type == "experimental_neuron_activity" and t.payload.get("diagnostic_only")]
+        if len(diagnostics) > 1:
+            with closing(self._connect()) as conn, conn:
+                def last_cycle(task):
+                    row = conn.execute(
+                        "SELECT MAX(created_at) FROM neuron_work_cycles WHERE mission_id=?",
+                        (task.payload.get("mission_id"),),
+                    ).fetchone()
+                    return str(row[0] or "")
+                selected = sorted(diagnostics, key=last_cycle)[0]
+            tasks = [t for t in tasks if t not in diagnostics] + [selected]
         return tasks
 
     def _plan_candidate_holdout_validations(self) -> list[PlannedTask]:
