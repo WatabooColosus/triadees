@@ -2061,7 +2061,24 @@ class WorkerLoop:
             case_id=case_id,
             phase=phase,
             session_id=str(session_id) if session_id else None,
-            context={"correlation_id": task.payload.get("correlation_id")},
+            context={
+                "correlation_id": task.payload.get("correlation_id"),
+                "functional_probe_neuron_id": neuron_id,
+                "functional_probe_case": case_id,
+                "semantic_domain": {
+                    "vis1": "visual_text", "vis2": "visual_text",
+                    "vis3": "visual_text", "vis4": "visual_text",
+                    "vis5": "visual_text", "py1": "python_text",
+                    "py2": "python_text", "py3": "python_text",
+                    "py4": "python_text", "py5": "python_text",
+                    "adb1": "android_cli_text", "adb2": "android_cli_text",
+                    "adb3": "android_cli_text", "adb4": "android_cli_text",
+                    "adb5": "android_cli_text", "pulse1": "live_pulse_text",
+                    "pulse2": "live_pulse_text", "pulse3": "live_pulse_text",
+                    "code1": "code_repair_text", "code2": "code_repair_text",
+                    "code3": "code_repair_text",
+                }.get(case_id, ""),
+            },
         )
         artifact = task_dir / "functional-probe.json"
         artifact.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
