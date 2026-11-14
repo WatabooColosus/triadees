@@ -1721,7 +1721,7 @@ class MissionPlanner:
                     ):
                         formation_task = PlannedTask(
                             task_type="neuron_candidate_formation",
-                            priority=28,
+                            priority=6,
                             reason="Verified domain need requires governed candidate formation",
                             payload={
                                 "admission_event_id": int(admission["id"]),
@@ -1815,7 +1815,7 @@ class MissionPlanner:
                 tasks.append(
                     PlannedTask(
                         task_type="neuron_candidate_formation",
-                        priority=28,
+                        priority=6,
                         reason=f"{cnt} candidatos neuronales pendientes de evaluación",
                         source="mission_planner",
                         planner_score=min(1.0, 0.5 + cnt / 10),
