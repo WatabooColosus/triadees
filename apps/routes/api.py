@@ -548,6 +548,16 @@ def health() -> dict[str, Any]:
     from triade.memory.encrypted_backup import EncryptedBackup
 
     backup_key_status = EncryptedBackup.key_status()
+    # Expose the same governed runtime truth consumed by the dashboard.  The
+    # public health route must not report only API liveness while the UI falls
+    # back to a stale/default Always-On singleton.
+    from triade.core.always_on import build_always_on_status
+    from triade.core.worker_autostart import build_workers_always_on_status
+
+    always_on = build_always_on_status()
+    workers = build_workers_always_on_status(
+        db_path=os.getenv("TRIADE_DB_PATH", "triade/memory/triade.db")
+    )
     local_no_auth = os.getenv("TRIADE_LOCAL_NO_AUTH", "0").strip().lower() in {
         "1",
         "true",
@@ -573,6 +583,26 @@ def health() -> dict[str, Any]:
         "hardware": hardware.to_dict(),
         "ollama": ollama,
         "doctor": runner.doctor(),
+        "runtime": {
+            "always_on": {
+                "enabled": always_on.get("enabled"),
+                "configured_mode": always_on.get("configured_mode"),
+                "effective_mode": always_on.get("effective_mode"),
+                "status": always_on.get("status"),
+                "background_thread_alive": always_on.get("background_thread_alive"),
+                "degraded": always_on.get("degraded"),
+                "degradation_reason": always_on.get("degradation_reason"),
+                "config_source": always_on.get("config_source"),
+            },
+            "workers": {
+                "configured": workers.get("configured"),
+                "autostart": workers.get("autostart"),
+                "watchdog": workers.get("watchdog"),
+                "active": workers.get("active"),
+                "status": workers.get("status"),
+                "mode_effective": workers.get("mode_effective"),
+            },
+        },
     }
 
 
