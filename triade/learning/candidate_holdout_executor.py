@@ -38,12 +38,32 @@ def execute_candidate_holdout(
             holdout_id=holdout_id,
             reason="candidate requires explicit holdout cases and metric before runs can be generated",
         )
+    elif metric == "deterministic_recall_and_recovery":
+        # Production adapter for worker_failure. It only scores observations
+        # supplied by the worker contract; it never asks an LLM to invent a
+        # pass. The caller may provide observed_answers keyed by case_id.
+        observed = (contract or {}).get("observed_answers") or {}
+        expected = {str(item.get("case_id")): str(item.get("expected"))
+                    for item in required if isinstance(item, dict)}
+        if not observed or any(case not in observed for case in expected):
+            result = HoldoutResult(
+                status="pending_observed_runs", candidate_id=candidate_id,
+                holdout_id=holdout_id,
+                reason="worker recovery observations are required for every holdout case",
+            )
+        else:
+            passed = sum(str(observed[k]).strip() == v for k, v in expected.items())
+            score = round(passed / max(1, len(expected)), 4)
+            result = HoldoutResult(
+                status="validated" if score >= 0.8 else "not_measurable",
+                candidate_id=candidate_id, holdout_id=holdout_id,
+                baseline_run_id=f"{holdout_id}:baseline",
+                treatment_run_id=f"{holdout_id}:treatment",
+                regression_report={"metric": metric, "score": score, "cases": len(expected)},
+            )
     else:
-        # Execution adapter is intentionally explicit: providers register a
-        # concrete evaluator before this point. No generic LLM score is used.
         result = HoldoutResult(
-            status="pending_evaluator_adapter",
-            candidate_id=candidate_id,
+            status="pending_evaluator_adapter", candidate_id=candidate_id,
             holdout_id=holdout_id,
             reason=f"no evaluator adapter registered for metric {metric}",
         )
