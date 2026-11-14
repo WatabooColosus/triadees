@@ -354,10 +354,10 @@ class NeuronEducationCycle:
 
         for row in rows:
             target = dict(row)
+            domain = str(target.get("domain") or "general")
             if supported_domain(str(target.get("name") or ""), domain) is None:
                 continue
             objective = str(target.get("mission") or target.get("name") or "")
-            domain = str(target.get("domain") or "general")
             matched = relevant_material(
                 candidates,
                 f"{objective} {domain_query(domain)}",
