@@ -25,13 +25,13 @@ def _slow_full_task_limit() -> int:
     }
     if not enabled:
         return 3
-    # Model/evaluation/memory lanes remain serial by policy.  A second global
-    # slot only lets a read-only pulse/debt scan progress beside a slow model
-    # task, avoiding global head-of-line blocking.
+    # Model/evaluation/memory lanes remain serial by policy.  Up to four global
+    # slots let read-only and I/O work progress beside a slow model task while
+    # the per-lane governor still prevents concurrent generative inference.
     parallel_read_only = os.getenv("TRIADE_SLOW_FULL_READONLY_PARALLEL", "0").strip().lower() in {
         "1", "true", "yes", "on"
     }
-    return 2 if parallel_read_only else 1
+    return 4 if parallel_read_only else 1
 
 
 class WorkerBackgroundService:
