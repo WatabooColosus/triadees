@@ -79,6 +79,21 @@ class NeuronEducationResolver:
     def _next_session(self, conn: sqlite3.Connection) -> sqlite3.Row | None:
         if not self._has_table(conn, "neuron_education_sessions"):
             return None
+        # Functional post-probes are stronger evidence than historical
+        # application telemetry.  Resolve that session first so a fresh
+        # baseline/post comparison cannot be starved by older lessons.
+        if self._has_table(conn, "neuron_functional_assessments"):
+            functional_ready = conn.execute(
+                """SELECT s.* FROM neuron_education_sessions s
+                WHERE s.state='lesson_prepared'
+                  AND EXISTS (
+                    SELECT 1 FROM neuron_functional_assessments f
+                    WHERE f.session_id=s.session_id AND f.phase='post'
+                  )
+                ORDER BY s.created_at DESC LIMIT 1"""
+            ).fetchone()
+            if functional_ready is not None:
+                return functional_ready
         if self._has_table(conn, "neuron_education_applications"):
             # Una sesión que ya puede producir una decisión debe preceder a la
             # rotación de sesiones todavía inmaduras. En producción había tres
