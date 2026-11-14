@@ -907,7 +907,7 @@ class AutonomousTaskStore:
 
             # ── 3. leased ──────────────────────────────────────────
             for row in conn.execute(
-                """SELECT task_id,worker_id,lease_generation,lease_expires_at,attempt,
+                """SELECT task_id,task_type,worker_id,lease_generation,lease_expires_at,attempt,
                          max_attempts,last_error,heartbeat_at
                  FROM autonomous_tasks WHERE status='leased'"""
             ).fetchall():
@@ -989,6 +989,31 @@ class AutonomousTaskStore:
                     )
                     result["running_recovered"] += 1
                 else:
+                    # Functional probes persist their verified result in
+                    # SQLite, not in a filesystem artifact.  Treating a
+                    # restarted probe as ``no_artifact_found`` permanently
+                    # dead-lettered the task before its database result could
+                    # be written.  Requeue only this idempotent task type;
+                    # other running tasks retain the conservative dead-letter
+                    # behavior.
+                    if str(row["task_type"]) == "neuron_functional_probe":
+                        conn.execute(
+                            """UPDATE autonomous_tasks SET status='recovered',
+                            worker_id=NULL,lease_acquired_at=NULL,lease_expires_at=NULL,
+                            heartbeat_at=NULL,last_error='recovered_functional_probe_without_file_artifact',
+                            attempt=0,updated_at=? WHERE task_id=? AND status='running'""",
+                            (now_iso, tid),
+                        )
+                        _record(
+                            tid,
+                            wid,
+                            lgen,
+                            "running",
+                            "recovered",
+                            "functional_probe_db_result_retriable",
+                        )
+                        result["running_recovered"] += 1
+                        continue
                     conn.execute(
                         """UPDATE autonomous_tasks SET status='dead_letter',
                         last_error=COALESCE(last_error||'; ','')||'recovery:no_artifact_found',
