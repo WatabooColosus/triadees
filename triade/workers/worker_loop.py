@@ -3918,6 +3918,18 @@ class WorkerLoop:
         # verification_report sin inventar un uso.
         payload = task_payload or {}
         neuron_id = result.get("neuron_id") or payload.get("related_neuron_id")
+        if neuron_id is None and result.get("mission_id") is not None:
+            # Mission execution returns the mission identity, while older
+            # executors did not echo neuron_id. Resolve the owner here so
+            # automatic planner-selected missions still produce attributable
+            # diagnosis/test-plan evidence.
+            with sqlite3.connect(self.db_path) as lookup_conn:
+                owner = lookup_conn.execute(
+                    "SELECT neuron_id FROM neuron_missions WHERE id=?",
+                    (int(result["mission_id"]),),
+                ).fetchone()
+            if owner is not None:
+                neuron_id = owner[0]
         if neuron_id is not None:
             with sqlite3.connect(self.db_path) as conn:
                 neuron_exists = conn.execute(
