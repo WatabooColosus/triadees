@@ -37,6 +37,16 @@ sys.path.insert(0, str(REPO))
 
 PROD = REPO / "triade/memory/triade.db"
 BASE_URL = "http://127.0.0.1:8010"
+SESSION_FILE = REPO.parents[1] / "data" / "secrets" / "triade_worker_session.json"
+
+
+def _auth_headers() -> dict[str, str]:
+    try:
+        session = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+        token = str(session.get("access_token") or "")
+    except (OSError, ValueError):
+        token = ""
+    return {"Authorization": f"Bearer {token}"} if token else {}
 
 
 def _plano(texto: str) -> str:
@@ -49,9 +59,8 @@ def _post(ruta: str, payload: dict[str, Any], timeout: int = 300) -> dict[str, A
     import urllib.request
 
     datos = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        f"{BASE_URL}{ruta}", data=datos, headers={"Content-Type": "application/json"}
-    )
+    headers = {"Content-Type": "application/json", **_auth_headers()}
+    req = urllib.request.Request(f"{BASE_URL}{ruta}", data=datos, headers=headers)
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
@@ -59,7 +68,8 @@ def _post(ruta: str, payload: dict[str, Any], timeout: int = 300) -> dict[str, A
 def _get(ruta: str, timeout: int = 30) -> dict[str, Any]:
     import urllib.request
 
-    with urllib.request.urlopen(f"{BASE_URL}{ruta}", timeout=timeout) as resp:
+    req = urllib.request.Request(f"{BASE_URL}{ruta}", headers=_auth_headers())
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
