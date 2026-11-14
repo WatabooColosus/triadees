@@ -174,6 +174,44 @@ def _background_thread_alive() -> bool:
 
 
 def build_always_on_status() -> dict[str, Any]:
+    # The health/dashboard routes can be queried before the lifespan startup
+    # result has populated the module singleton (or from a spawned child
+    # process).  Do not expose the hard-coded default in that window: hydrate
+    # the observable fields from the governed persistent configuration first.
+    try:
+        cfg = load_always_on_config()
+        if _ALWAYS_ON_STATE.get("config_source") == "default" or not _ALWAYS_ON_STATE.get("enabled"):
+            _ALWAYS_ON_STATE.update(
+                {
+                    "enabled": bool(cfg.get("enabled", False)),
+                    "configured_mode": str(cfg.get("mode", "observe_only")),
+                    "config_source": cfg.get("_config_source", "default"),
+                    "interval_seconds": int(cfg.get("interval_seconds", 60)),
+                    "max_cycles": int(cfg.get("max_cycles", 0)),
+                }
+            )
+            if _ALWAYS_ON_STATE["enabled"]:
+                try:
+                    from triade.core.ollama_blood import check_ollama_blood
+                    from triade.core.resource_probe import build_resource_probe
+
+                    decision = decide_work_mode(
+                        build_resource_probe(),
+                        check_ollama_blood(),
+                        _ALWAYS_ON_STATE["configured_mode"],
+                    )
+                    _ALWAYS_ON_STATE["effective_mode"] = decision.get(
+                        "effective_mode", _ALWAYS_ON_STATE["configured_mode"]
+                    )
+                    _ALWAYS_ON_STATE["degraded_by_governor"] = (
+                        _ALWAYS_ON_STATE["effective_mode"]
+                        != _ALWAYS_ON_STATE["configured_mode"]
+                    )
+                    _ALWAYS_ON_STATE["degradation_reason"] = decision.get("reason")
+                except (OSError, RuntimeError, ValueError, TypeError, KeyError):
+                    pass
+    except (OSError, RuntimeError, ValueError, TypeError, KeyError, AttributeError):
+        pass
     bg_alive = _background_thread_alive()
     _ALWAYS_ON_STATE["background_thread_alive"] = bg_alive
     if _ALWAYS_ON_STATE["enabled"] and not bg_alive:
