@@ -342,6 +342,11 @@ class NeuronEducationCycle:
                   AND (? = 1 OR c.next_review IS NULL OR c.next_review<=?)
                 ORDER BY
                   {material_priority},
+                  (SELECT COUNT(*) FROM neuron_education_sessions es
+                   WHERE es.neuron_id=n.id) ASC,
+                  (SELECT COALESCE(MAX(es.finished_at), '')
+                   FROM neuron_education_sessions es
+                   WHERE es.neuron_id=n.id) ASC,
                   measurable DESC, retention_score ASC, n.id ASC LIMIT 1""",
                 (target_neuron_id, target_neuron_id, 1 if force else 0, utc_now()),
             ).fetchall()
