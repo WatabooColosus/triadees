@@ -228,7 +228,7 @@ class MissionPlanner:
         for req in data.get("requests", []):
             if req.get("status") != "pending_candidate_holdout": continue
             tasks.append(PlannedTask(
-                task_type="candidate_holdout_validation", priority=16,
+                task_type="candidate_holdout_validation", priority=8,
                 reason=f"holdout candidato {req.get('candidate_id')}",
                 source="phase3_candidate_validation_requests", planner_score=0.95,
                 payload={"candidate_id":req.get("candidate_id"),"evidence_id":req.get("evidence_id"),"holdout_id":req.get("candidate_holdout_id"),"artifact_ref":req.get("artifact_ref")},

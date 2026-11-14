@@ -110,6 +110,7 @@ WORKER_TASK_TYPES: tuple[str, ...] = get_args(WorkerTaskType)
 # porque otro evento distinto del mismo tipo ocurrió hace poco.
 EVENT_DRIVEN_TASK_TYPES: frozenset[str] = frozenset(
     {
+        "candidate_holdout_validation",
         "learning_candidate_generation",
         "learning_evidence_generation",
         "neural_learning_distribution",
